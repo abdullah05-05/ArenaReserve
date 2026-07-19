@@ -10,8 +10,14 @@ try {
     $available_balance = $wallet['available_balance'] ?? 0.00;
 } catch (Exception $e) { $available_balance = 0.00; }
 
+// Fetch all verified, active grounds for dropdown
 try {
-    $stmt = $pdo->prepare("SELECT * FROM grounds WHERE is_verified = 1 ORDER BY title ASC");
+    $stmt = $pdo->prepare(
+        "SELECT * FROM grounds
+         WHERE is_verified = 1
+         AND COALESCE(ground_status, 'Active') = 'Active'
+         ORDER BY title ASC"
+    );
     $stmt->execute();
     $grounds = $stmt->fetchAll();
 } catch (Exception $e) { $grounds = []; }
@@ -19,27 +25,48 @@ try {
 $selected_ground_id = intval($_GET['ground'] ?? ($grounds[0]['id'] ?? 0));
 $selected_ground = null;
 foreach ($grounds as $g) { if ($g['id'] == $selected_ground_id) { $selected_ground = $g; break; } }
-if (!$selected_ground && !empty($grounds)) $selected_ground = $grounds[0];
+if (!$selected_ground && !empty($grounds)) { $selected_ground = $grounds[0]; $selected_ground_id = $selected_ground['id']; }
 
-// Slot schedule: time => [type: available|booked|my_booking|challenge, price]
-$slots = [
-    ['time'=>'06:00 AM - 07:00 AM','type'=>'available','price'=>2000],
-    ['time'=>'07:00 AM - 08:00 AM','type'=>'booked','price'=>2000],
-    ['time'=>'08:00 AM - 09:00 AM','type'=>'my_booking','price'=>2500],
-    ['time'=>'09:00 AM - 10:00 AM','type'=>'available','price'=>2500],
-    ['time'=>'10:00 AM - 11:00 AM','type'=>'available','price'=>2500],
-    ['time'=>'11:00 AM - 12:00 PM','type'=>'available','price'=>2500],
-    ['time'=>'12:00 PM - 01:00 PM','type'=>'available','price'=>2500],
-    ['time'=>'01:00 PM - 02:00 PM','type'=>'booked','price'=>2500],
-    ['time'=>'02:00 PM - 03:00 PM','type'=>'available','price'=>3000],
-    ['time'=>'03:00 PM - 04:00 PM','type'=>'available','price'=>3000],
-    ['time'=>'04:00 PM - 05:00 PM','type'=>'challenge','price'=>3000],
-    ['time'=>'05:00 PM - 06:00 PM','type'=>'available','price'=>3000],
-    ['time'=>'06:00 PM - 07:00 PM','type'=>'available','price'=>3500],
-    ['time'=>'07:00 PM - 08:00 PM','type'=>'booked','price'=>3500],
-    ['time'=>'08:00 PM - 09:00 PM','type'=>'available','price'=>3500],
-    ['time'=>'09:00 PM - 10:00 PM','type'=>'available','price'=>3500],
-];
+// -------------------------------------------------------
+// Build slot list from ground_slots table (owner-configured)
+// Only hours with is_available = 1 are shown on the site.
+// Falls back to base_price/peak_price if no slots saved yet.
+// -------------------------------------------------------
+$slots = [];
+if ($selected_ground) {
+    try {
+        $stmt = $pdo->prepare(
+            "SELECT hour, slot_type, price FROM ground_slots
+             WHERE ground_id = ? AND is_available = 1
+             ORDER BY hour ASC"
+        );
+        $stmt->execute([$selected_ground_id]);
+        $db_slots = $stmt->fetchAll();
+    } catch (Exception $e) { $db_slots = []; }
+
+    if (!empty($db_slots)) {
+        // Use owner-configured slots
+        foreach ($db_slots as $s) {
+            $h = intval($s['hour']);
+            $suffix   = $h < 12 ? 'AM' : 'PM';
+            $displayH = $h === 0 ? 12 : ($h > 12 ? $h - 12 : $h);
+            $nextH    = $h + 1;
+            $nextDisp = $nextH === 0 ? 12 : ($nextH > 12 ? $nextH - 12 : ($nextH === 12 ? 12 : $nextH));
+            $nextSuffix = $nextH < 12 ? 'AM' : 'PM';
+            $time_label = sprintf('%d:00 %s - %d:00 %s', $displayH, $suffix, $nextDisp, $nextSuffix);
+            $slots[] = [
+                'hour'      => $h,
+                'time'      => $time_label,
+                'type'      => 'available',   // booking statuses (booked/challenge) come in a later phase
+                'slot_type' => $s['slot_type'],
+                'price'     => floatval($s['price']),
+            ];
+        }
+    } else {
+        // No slots configured yet — show notice (no slots will render)
+        $no_slots_configured = true;
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -156,27 +183,55 @@ body { background: #f5f6fa; }
           <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-violet-300 inline-block"></span>Challenge</span>
         </div>
       </div>
-      <div class="grid grid-cols-2 gap-3">
-        <?php foreach ($slots as $slot):
-          $label = ['booked'=>'Booked','my_booking'=>'My Booking','challenge'=>'Challenge'][$slot['type']] ?? '';
-          $textColor = ['available'=>'text-emerald-800','booked'=>'text-red-700','my_booking'=>'text-amber-700','challenge'=>'text-violet-700'][$slot['type']];
-          $priceColor = ['available'=>'text-emerald-700','booked'=>'text-red-600','my_booking'=>'text-amber-600','challenge'=>'text-violet-600'][$slot['type']];
-        ?>
-        <div class="slot-<?php echo $slot['type']; ?> rounded-lg p-3 <?php echo $slot['type']==='available'?'cursor-pointer':''; ?>"
-             <?php if($slot['type']==='available'): ?>onclick="selectSlot(this,'<?php echo $slot['time']; ?>',<?php echo $slot['price']; ?>)"<?php endif; ?>>
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-1.5 <?php echo $textColor; ?>">
-              <svg class="h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2"/></svg>
-              <span class="text-xs font-semibold"><?php echo $slot['time']; ?></span>
-            </div>
-            <span class="text-xs font-bold <?php echo $priceColor; ?>"><?php echo number_format($slot['price']); ?> PKR</span>
+
+      <?php if (empty($slots)): ?>
+        <!-- Empty State -->
+        <div class="text-center py-10">
+          <div class="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3">
+            <svg class="w-7 h-7 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
           </div>
-          <?php if ($label): ?>
-          <div class="text-center text-[10px] font-semibold <?php echo $textColor; ?> mt-1"><?php echo $label; ?></div>
+          <?php if (!empty($no_slots_configured)): ?>
+            <p class="text-sm font-semibold text-slate-500">No slots configured yet</p>
+            <p class="text-xs text-slate-400 mt-1">The owner hasn't set up time slots for this venue yet.</p>
+          <?php else: ?>
+            <p class="text-sm font-semibold text-slate-500">No available slots</p>
+            <p class="text-xs text-slate-400 mt-1">There are no open slots for this venue on the selected date.</p>
           <?php endif; ?>
         </div>
-        <?php endforeach; ?>
-      </div>
+      <?php else: ?>
+        <div class="grid grid-cols-2 gap-3">
+          <?php foreach ($slots as $slot):
+            $label = ['booked'=>'Booked','my_booking'=>'My Booking','challenge'=>'Challenge'][$slot['type']] ?? '';
+            $textColor  = ['available'=>'text-emerald-800','booked'=>'text-red-700','my_booking'=>'text-amber-700','challenge'=>'text-violet-700'][$slot['type']];
+            $priceColor = ['available'=>'text-emerald-700','booked'=>'text-red-600','my_booking'=>'text-amber-600','challenge'=>'text-violet-600'][$slot['type']];
+            $isPeak = ($slot['slot_type'] ?? 'Normal') === 'Peak';
+          ?>
+          <div class="slot-<?php echo $slot['type']; ?> rounded-lg p-3 <?php echo $slot['type']==='available'?'cursor-pointer':''; ?> transition-all"
+               <?php if($slot['type']==='available'): ?>onclick="selectSlot(this,'<?php echo addslashes($slot['time']); ?>',<?php echo $slot['price']; ?>)"<?php endif; ?>>
+            <div class="flex items-center justify-between mb-1">
+              <div class="flex items-center gap-1.5 <?php echo $textColor; ?>">
+                <svg class="h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2"/></svg>
+                <span class="text-xs font-semibold"><?php echo $slot['time']; ?></span>
+              </div>
+              <span class="text-xs font-bold <?php echo $priceColor; ?>"><?php echo number_format($slot['price']); ?> PKR</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <!-- Slot type badge -->
+              <?php if ($isPeak): ?>
+                <span class="text-[10px] font-bold bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded">🔥 Peak</span>
+              <?php else: ?>
+                <span class="text-[10px] font-bold bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded">🟢 Normal</span>
+              <?php endif; ?>
+              <?php if ($label): ?>
+                <span class="text-[10px] font-semibold <?php echo $textColor; ?>"><?php echo $label; ?></span>
+              <?php endif; ?>
+            </div>
+          </div>
+          <?php endforeach; ?>
+        </div>
+      <?php endif; ?>
     </div>
 
     <!-- Booking Confirm Panel -->
