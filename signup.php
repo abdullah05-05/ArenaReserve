@@ -182,7 +182,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div>
                     <label for="phone" class="block text-sm font-medium text-slate-700">Phone Number</label>
                     <div class="mt-1">
-                        <input id="phone" name="phone" type="text" required placeholder="+92 300 1234567"
+                        <input id="phone" name="phone" type="tel" required placeholder="03001234567" maxlength="11" pattern="^\d{11}$"
                                value="<?php echo htmlspecialchars($_POST['phone'] ?? ''); ?>"
                                class="appearance-none block w-full px-3 py-2 border border-slate-300<?php echo isset($fieldErrors['phone']) ? ' border-red-500 focus:border-red-500 focus:ring-red-500' : ''; ?> rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm">
                     </div>
