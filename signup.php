@@ -16,25 +16,60 @@ if (isset($_SESSION['user_id'])) {
 
 $error = '';
 $success = '';
+$fieldErrors = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = trim($_POST['name'] ?? '');
     $email = trim($_POST['email'] ?? '');
     $phone = trim($_POST['phone'] ?? '');
-    $role = trim($_POST['role'] ?? 'Player');
+    $role = trim($_POST['role'] ?? '');
     $password = $_POST['password'] ?? '';
     $confirm_password = $_POST['confirm_password'] ?? '';
 
-    // Simple validations
-    if (empty($name) || empty($email) || empty($phone) || empty($password) || empty($confirm_password)) {
-        $error = 'All fields are required.';
-    } else if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $error = 'Please enter a valid email address.';
-    } else if ($password !== $confirm_password) {
-        $error = 'Passwords do not match.';
-    } else if (strlen($password) < 6) {
-        $error = 'Password must be at least 6 characters long.';
+    $fieldErrors = [];
+
+    if ($name === '') {
+        $fieldErrors['name'] = 'Full Name is required.';
+    } elseif (strlen($name) < 2) {
+        $fieldErrors['name'] = 'Full Name must be at least 2 characters long.';
+    } elseif (preg_match('/\d/', $name)) {
+        $fieldErrors['name'] = 'Full Name cannot contain numbers.';
+    }
+
+    if ($email === '') {
+        $fieldErrors['email'] = 'Email Address is required.';
+    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $fieldErrors['email'] = 'Please enter a valid email address.';
+    }
+
+    if ($phone === '') {
+        $fieldErrors['phone'] = 'Phone Number is required.';
     } else {
+        $cleanPhone = preg_replace('/\D/', '', $phone);
+        if (!preg_match('/^[0-9]{11}$/', $cleanPhone)) {
+            $fieldErrors['phone'] = 'Phone Number must contain exactly 11 digits.';
+        }
+    }
+
+    if ($role === '') {
+        $fieldErrors['role'] = 'Please select a role.';
+    } elseif (!in_array($role, ['Player', 'Owner'], true)) {
+        $fieldErrors['role'] = 'Invalid role selection.';
+    }
+
+    if ($password === '') {
+        $fieldErrors['password'] = 'Password is required.';
+    } elseif (strlen($password) < 6) {
+        $fieldErrors['password'] = 'Password must be at least 6 characters long.';
+    }
+
+    if ($confirm_password === '') {
+        $fieldErrors['confirm_password'] = 'Confirm Password is required.';
+    } elseif ($password !== $confirm_password) {
+        $fieldErrors['confirm_password'] = 'Passwords do not match.';
+    }
+
+    if (empty($fieldErrors)) {
         try {
             // Check if email already registered
             $stmt = $pdo->prepare("SELECT id FROM users WHERE email = ?");
@@ -61,8 +96,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
             }
-            $error = 'Something went wrong. Please try again. ' . $e->getMessage();
+            $error = 'Something went wrong. Please try again.';
         }
+    } else {
+        $error = 'Please fix the highlighted fields.';
     }
 }
 ?>
@@ -117,16 +154,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
             <?php endif; ?>
 
-            <form id="signupForm" class="space-y-6" action="signup.php" method="POST" novalidate>
+            <form class="space-y-6" action="signup.php" method="POST" novalidate>
+                <div id="live-validation-summary" class="hidden mb-4 rounded-md bg-red-50 border border-red-200 p-4 text-sm text-red-700"></div>
                 <!-- Full Name -->
                 <div>
                     <label for="name" class="block text-sm font-medium text-slate-700">Full Name</label>
                     <div class="mt-1">
                         <input id="name" name="name" type="text" required placeholder="John Doe"
                                value="<?php echo htmlspecialchars($_POST['name'] ?? ''); ?>"
-                               class="appearance-none block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm">
+                               class="appearance-none block w-full px-3 py-2 border border-slate-300<?php echo isset($fieldErrors['name']) ? ' border-red-500 focus:border-red-500 focus:ring-red-500' : ''; ?> rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm">
                     </div>
-                    <p class="mt-1 text-xs text-red-600 hidden" id="name-error"></p>
+                    <p id="name-error" class="mt-2 text-sm text-red-600"><?php echo htmlspecialchars($fieldErrors['name'] ?? ''); ?></p>
                 </div>
 
                 <!-- Email Address -->
@@ -135,9 +173,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="mt-1">
                         <input id="email" name="email" type="email" required placeholder="your@email.com"
                                value="<?php echo htmlspecialchars($_POST['email'] ?? ''); ?>"
-                               class="appearance-none block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm">
+                               class="appearance-none block w-full px-3 py-2 border border-slate-300<?php echo isset($fieldErrors['email']) ? ' border-red-500 focus:border-red-500 focus:ring-red-500' : ''; ?> rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm">
                     </div>
-                    <p class="mt-1 text-xs text-red-600 hidden" id="email-error"></p>
+                    <p id="email-error" class="mt-2 text-sm text-red-600"><?php echo htmlspecialchars($fieldErrors['email'] ?? ''); ?></p>
                 </div>
 
                 <!-- Phone Number -->
@@ -146,9 +184,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="mt-1">
                         <input id="phone" name="phone" type="tel" required placeholder="03001234567" maxlength="11" pattern="^\d{11}$"
                                value="<?php echo htmlspecialchars($_POST['phone'] ?? ''); ?>"
-                               class="appearance-none block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm">
+                               class="appearance-none block w-full px-3 py-2 border border-slate-300<?php echo isset($fieldErrors['phone']) ? ' border-red-500 focus:border-red-500 focus:ring-red-500' : ''; ?> rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm">
                     </div>
-                    <p class="mt-1 text-xs text-red-600 hidden" id="phone-error"></p>
+                    <p id="phone-error" class="mt-2 text-sm text-red-600"><?php echo htmlspecialchars($fieldErrors['phone'] ?? ''); ?></p>
                 </div>
 
                 <!-- Role Selection -->
@@ -156,11 +194,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <label for="role" class="block text-sm font-medium text-slate-700">I want to</label>
                     <div class="mt-1">
                         <select id="role" name="role"
-                                class="block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm bg-white">
+                                class="block w-full px-3 py-2 border border-slate-300<?php echo isset($fieldErrors['role']) ? ' border-red-500 focus:border-red-500 focus:ring-red-500' : ''; ?> rounded-md shadow-sm focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm bg-white">
                             <option value="Player" <?php echo (($_POST['role'] ?? '') === 'Player') ? 'selected' : ''; ?>>Book grounds as a Player</option>
                             <option value="Owner" <?php echo (($_POST['role'] ?? '') === 'Owner') ? 'selected' : ''; ?>>List grounds as an Owner</option>
                         </select>
                     </div>
+                    <p id="role-error" class="mt-2 text-sm text-red-600"><?php echo htmlspecialchars($fieldErrors['role'] ?? ''); ?></p>
                 </div>
 
                 <!-- Password -->
@@ -168,9 +207,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <label for="password" class="block text-sm font-medium text-slate-700">Password</label>
                     <div class="mt-1">
                         <input id="password" name="password" type="password" required placeholder="••••••••"
-                               class="appearance-none block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm">
+                               class="appearance-none block w-full px-3 py-2 border border-slate-300<?php echo isset($fieldErrors['password']) ? ' border-red-500 focus:border-red-500 focus:ring-red-500' : ''; ?> rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm">
                     </div>
-                    <p class="mt-1 text-xs text-red-600 hidden" id="password-error"></p>
+                    <p id="password-error" class="mt-2 text-sm text-red-600"><?php echo htmlspecialchars($fieldErrors['password'] ?? ''); ?></p>
                 </div>
 
                 <!-- Confirm Password -->
@@ -178,9 +217,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <label for="confirm_password" class="block text-sm font-medium text-slate-700">Confirm Password</label>
                     <div class="mt-1">
                         <input id="confirm_password" name="confirm_password" type="password" required placeholder="••••••••"
-                               class="appearance-none block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm">
+                               class="appearance-none block w-full px-3 py-2 border border-slate-300<?php echo isset($fieldErrors['confirm_password']) ? ' border-red-500 focus:border-red-500 focus:ring-red-500' : ''; ?> rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm">
                     </div>
-                    <p class="mt-1 text-xs text-red-600 hidden" id="confirm_password-error"></p>
+                    <p id="confirm_password-error" class="mt-2 text-sm text-red-600"><?php echo htmlspecialchars($fieldErrors['confirm_password'] ?? ''); ?></p>
                 </div>
 
                 <!-- Submit Button -->
@@ -198,127 +237,125 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
         </div>
     </div>
+
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const form = document.getElementById('signupForm');
-            const nameInput = document.getElementById('name');
-            const emailInput = document.getElementById('email');
-            const phoneInput = document.getElementById('phone');
-            const passwordInput = document.getElementById('password');
-            const confirmPasswordInput = document.getElementById('confirm_password');
+        const signupForm = document.querySelector('form');
+        const inputs = {
+            name: document.getElementById('name'),
+            email: document.getElementById('email'),
+            phone: document.getElementById('phone'),
+            role: document.getElementById('role'),
+            password: document.getElementById('password'),
+            confirm_password: document.getElementById('confirm_password')
+        };
 
-            const showError = (input, message) => {
-                const errorEl = document.getElementById(input.id + '-error');
-                if (errorEl) {
-                    errorEl.textContent = message;
-                    errorEl.classList.remove('hidden');
+        const errors = {
+            name: document.getElementById('name-error'),
+            email: document.getElementById('email-error'),
+            phone: document.getElementById('phone-error'),
+            role: document.getElementById('role-error'),
+            password: document.getElementById('password-error'),
+            confirm_password: document.getElementById('confirm_password-error')
+        };
+
+        const liveSummary = document.getElementById('live-validation-summary');
+
+        const validators = {
+            name(value) {
+                if (!value.trim()) return 'Full Name is required.';
+                if (value.trim().length < 2) return 'Full Name must be at least 2 characters long.';
+                if (/\d/.test(value)) return 'Full Name cannot contain numbers.';
+                return '';
+            },
+            email(value) {
+                if (!value.trim()) return 'Email Address is required.';
+                const pattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (!pattern.test(value.trim())) return 'Please enter a valid email address.';
+                return '';
+            },
+            phone(value) {
+                if (!value.trim()) return 'Phone Number is required.';
+                const cleaned = value.replace(/\D/g, '');
+                if (!/^[0-9]{11}$/.test(cleaned)) return 'Phone Number must contain exactly 11 digits.';
+                return '';
+            },
+            role(value) {
+                if (!value) return 'Please select a role.';
+                if (!['Player', 'Owner'].includes(value)) return 'Invalid role selection.';
+                return '';
+            },
+            password(value) {
+                if (!value) return 'Password is required.';
+                if (value.length < 6) return 'Password must be at least 6 characters long.';
+                return '';
+            },
+            confirm_password(value) {
+                const password = inputs.password.value;
+                if (!value) return 'Confirm Password is required.';
+                if (value !== password) return 'Passwords do not match.';
+                return '';
+            }
+        };
+
+        function setFieldState(field, message) {
+            const input = inputs[field];
+            const error = errors[field];
+            if (message) {
+                error.textContent = message;
+                input.classList.add('border-red-500', 'focus:border-red-500', 'focus:ring-red-500');
+            } else {
+                error.textContent = '';
+                input.classList.remove('border-red-500', 'focus:border-red-500', 'focus:ring-red-500');
+            }
+        }
+
+        function updateLiveSummary() {
+            const invalidMessages = Object.keys(inputs)
+                .map((field) => validators[field](inputs[field].value))
+                .filter(Boolean);
+
+            if (invalidMessages.length > 0) {
+                liveSummary.textContent = 'Please fix the highlighted fields.';
+                liveSummary.classList.remove('hidden');
+            } else {
+                liveSummary.textContent = '';
+                liveSummary.classList.add('hidden');
+            }
+        }
+
+        function validateField(field) {
+            const message = validators[field](inputs[field].value);
+            setFieldState(field, message);
+            updateLiveSummary();
+            return !message;
+        }
+
+        Object.keys(inputs).forEach((field) => {
+            const inputField = inputs[field];
+            const runValidation = () => {
+                validateField(field);
+
+                if (field === 'password' && inputs.confirm_password.value.trim() !== '') {
+                    validateField('confirm_password');
                 }
-                input.classList.add('border-red-500', 'focus:ring-red-500', 'focus:border-red-500');
-                input.classList.remove('border-slate-300', 'focus:ring-emerald-500', 'focus:border-emerald-500');
             };
 
-            const clearError = (input) => {
-                const errorEl = document.getElementById(input.id + '-error');
-                if (errorEl) {
-                    errorEl.textContent = '';
-                    errorEl.classList.add('hidden');
-                }
-                input.classList.remove('border-red-500', 'focus:ring-red-500', 'focus:border-red-500');
-                input.classList.add('border-slate-300', 'focus:ring-emerald-500', 'focus:border-emerald-500');
-            };
+            inputField.addEventListener('input', runValidation);
+            inputField.addEventListener('blur', runValidation);
+            inputField.addEventListener('change', runValidation);
+        });
 
-            const validateName = () => {
-                const val = nameInput.value.trim();
-                if (!val) {
-                    showError(nameInput, 'Full Name is required');
-                    return false;
-                }
-                clearError(nameInput);
-                return true;
-            };
-
-            const validateEmail = () => {
-                const val = emailInput.value.trim();
-                if (!val) {
-                    showError(emailInput, 'Email is required');
-                    return false;
-                }
-                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-                if (!emailRegex.test(val)) {
-                    showError(emailInput, 'Please enter a valid email address');
-                    return false;
-                }
-                clearError(emailInput);
-                return true;
-            };
-
-            const validatePhone = () => {
-                const val = phoneInput.value.trim();
-                if (!val) {
-                    showError(phoneInput, 'Phone Number is required');
-                    return false;
-                }
-                const phoneRegex = /^\d{11}$/;
-                if (!phoneRegex.test(val)) {
-                    showError(phoneInput, 'Phone Number must be exactly 11 digits');
-                    return false;
-                }
-                clearError(phoneInput);
-                return true;
-            };
-
-            const validatePassword = () => {
-                const val = passwordInput.value;
-                if (!val) {
-                    showError(passwordInput, 'Password is required');
-                    return false;
-                }
-                if (val.length < 6) {
-                    showError(passwordInput, 'Password must be at least 6 characters long');
-                    return false;
-                }
-                clearError(passwordInput);
-                
-                // Also re-validate confirm password if it has a value
-                if (confirmPasswordInput.value) {
-                    validateConfirmPassword();
-                }
-                
-                return true;
-            };
-
-            const validateConfirmPassword = () => {
-                const val = confirmPasswordInput.value;
-                const pwd = passwordInput.value;
-                if (!val) {
-                    showError(confirmPasswordInput, 'Please confirm your password');
-                    return false;
-                }
-                if (val !== pwd) {
-                    showError(confirmPasswordInput, 'Passwords do not match');
-                    return false;
-                }
-                clearError(confirmPasswordInput);
-                return true;
-            };
-
-            nameInput.addEventListener('input', validateName);
-            emailInput.addEventListener('input', validateEmail);
-            phoneInput.addEventListener('input', validatePhone);
-            passwordInput.addEventListener('input', validatePassword);
-            confirmPasswordInput.addEventListener('input', validateConfirmPassword);
-
-            form.addEventListener('submit', (e) => {
-                const isNameValid = validateName();
-                const isEmailValid = validateEmail();
-                const isPhoneValid = validatePhone();
-                const isPasswordValid = validatePassword();
-                const isConfirmPasswordValid = validateConfirmPassword();
-
-                if (!isNameValid || !isEmailValid || !isPhoneValid || !isPasswordValid || !isConfirmPasswordValid) {
-                    e.preventDefault(); // Stop form submission
+        signupForm.addEventListener('submit', function (event) {
+            let valid = true;
+            Object.keys(inputs).forEach((field) => {
+                if (!validateField(field)) {
+                    valid = false;
                 }
             });
+
+            if (!valid) {
+                event.preventDefault();
+            }
         });
     </script>
 </body>

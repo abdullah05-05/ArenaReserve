@@ -16,6 +16,7 @@ if (isset($_SESSION['user_id'])) {
 
 $error = '';
 $success = '';
+$fieldErrors = [];
 
 if (isset($_GET['registered'])) {
     $success = 'Account created successfully! Please log in.';
@@ -25,9 +26,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
 
-    if (empty($email) || empty($password)) {
-        $error = 'Please enter both email and password.';
-    } else {
+    if ($email === '') {
+        $fieldErrors['email'] = 'Email Address is required.';
+    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $fieldErrors['email'] = 'Please enter a valid email address.';
+    }
+
+    if ($password === '') {
+        $fieldErrors['password'] = 'Password is required.';
+    } elseif (strlen($password) < 6) {
+        $fieldErrors['password'] = 'Password must be at least 6 characters long.';
+    }
+
+    if (empty($fieldErrors)) {
         try {
             $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ?");
             $stmt->execute([$email]);
@@ -61,8 +72,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $error = 'Invalid email or password.';
             }
         } catch (Exception $e) {
-            $error = 'An error occurred. Please try again. ' . $e->getMessage();
+            $error = 'An error occurred. Please try again.';
         }
+    } else {
+        $error = 'Please fix the highlighted fields.';
     }
 }
 ?>
@@ -114,16 +127,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
             <?php endif; ?>
 
-            <form id="loginForm" class="space-y-6" action="login.php" method="POST" novalidate>
+            <form class="space-y-6" action="login.php" method="POST" novalidate>
+                <div id="live-login-summary" class="hidden mb-4 rounded-md bg-red-50 border border-red-200 p-4 text-sm text-red-700"></div>
                 <!-- Email Address -->
                 <div>
                     <label for="email" class="block text-sm font-medium text-slate-700">Email Address</label>
                     <div class="mt-1">
                         <input id="email" name="email" type="email" required placeholder="your@email.com"
                                value="<?php echo htmlspecialchars($_POST['email'] ?? ''); ?>"
-                               class="appearance-none block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm">
+                               class="appearance-none block w-full px-3 py-2 border border-slate-300<?php echo isset($fieldErrors['email']) ? ' border-red-500 focus:border-red-500 focus:ring-red-500' : ''; ?> rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm">
                     </div>
-                    <p class="mt-1 text-xs text-red-600 hidden" id="email-error"></p>
+                    <p id="email-error" class="mt-2 text-sm text-red-600"><?php echo htmlspecialchars($fieldErrors['email'] ?? ''); ?></p>
                 </div>
 
                 <!-- Password -->
@@ -131,9 +145,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <label for="password" class="block text-sm font-medium text-slate-700">Password</label>
                     <div class="mt-1">
                         <input id="password" name="password" type="password" required placeholder="••••••••"
-                               class="appearance-none block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm">
+                               class="appearance-none block w-full px-3 py-2 border border-slate-300<?php echo isset($fieldErrors['password']) ? ' border-red-500 focus:border-red-500 focus:ring-red-500' : ''; ?> rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm">
                     </div>
-                    <p class="mt-1 text-xs text-red-600 hidden" id="password-error"></p>
+                    <p id="password-error" class="mt-2 text-sm text-red-600"><?php echo htmlspecialchars($fieldErrors['password'] ?? ''); ?></p>
                 </div>
 
                 <!-- Remember Me & Forgot Password -->
@@ -166,6 +180,85 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 
     <!-- Footer Terms of Service and Privacy Policy -->
+    <script>
+        const loginForm = document.querySelector('form');
+        const loginInputs = {
+            email: document.getElementById('email'),
+            password: document.getElementById('password')
+        };
+
+        const loginErrors = {
+            email: document.getElementById('email-error'),
+            password: document.getElementById('password-error')
+        };
+
+        const liveSummary = document.getElementById('live-login-summary');
+
+        const loginValidators = {
+            email(value) {
+                if (!value.trim()) return 'Email Address is required.';
+                const pattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (!pattern.test(value.trim())) return 'Please enter a valid email address.';
+                return '';
+            },
+            password(value) {
+                if (!value) return 'Password is required.';
+                if (value.length < 6) return 'Password must be at least 6 characters long.';
+                return '';
+            }
+        };
+
+        function setLoginFieldState(field, message) {
+            const input = loginInputs[field];
+            const error = loginErrors[field];
+            error.textContent = message;
+            if (message) {
+                input.classList.add('border-red-500', 'focus:border-red-500', 'focus:ring-red-500');
+            } else {
+                input.classList.remove('border-red-500', 'focus:border-red-500', 'focus:ring-red-500');
+            }
+        }
+
+        function updateLoginSummary() {
+            const messages = Object.keys(loginInputs)
+                .map((field) => loginValidators[field](loginInputs[field].value))
+                .filter(Boolean);
+
+            if (messages.length > 0) {
+                liveSummary.textContent = messages[0];
+                liveSummary.classList.remove('hidden');
+            } else {
+                liveSummary.classList.add('hidden');
+                liveSummary.textContent = '';
+            }
+        }
+
+        function validateLoginField(field) {
+            const message = loginValidators[field](loginInputs[field].value);
+            setLoginFieldState(field, message);
+            updateLoginSummary();
+            return !message;
+        }
+
+        Object.keys(loginInputs).forEach((field) => {
+            ['input', 'blur', 'change'].forEach((eventName) => {
+                loginInputs[field].addEventListener(eventName, () => validateLoginField(field));
+            });
+        });
+
+        loginForm.addEventListener('submit', function (event) {
+            let valid = true;
+            Object.keys(loginInputs).forEach((field) => {
+                if (!validateLoginField(field)) {
+                    valid = false;
+                }
+            });
+
+            if (!valid) {
+                event.preventDefault();
+            }
+        });
+    </script>
     <p class="mt-8 text-center text-xs text-slate-500">
         By signing in, you agree to our <a href="#" class="underline hover:text-slate-600">Terms of Service</a> and <a href="#" class="underline hover:text-slate-600">Privacy Policy</a>
     </p>
