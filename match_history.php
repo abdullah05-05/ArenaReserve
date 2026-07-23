@@ -3,31 +3,125 @@ session_start();
 require_once 'db.php';
 if (!isset($_SESSION['user_id'])) { header("Location: login.php"); exit; }
 $user_id = $_SESSION['user_id'];
+
+// Wallet balance
 try {
     $stmt = $pdo->prepare("SELECT available_balance FROM wallets WHERE user_id = ?");
     $stmt->execute([$user_id]);
     $wallet = $stmt->fetch();
-    $available_balance = $wallet['available_balance'] ?? 0.00;
+    $available_balance = floatval($wallet['available_balance'] ?? 0);
 } catch (Exception $e) { $available_balance = 0.00; }
 
-// Mock match history data (to be replaced by real bookings table in future phase)
-$matches = [
-    ['id'=>1,'venue'=>'Victory Basketball Court','sport'=>'Basketball','date'=>'2026-06-20','time'=>'18:00 - 19:00','team'=>'City Ballers','result'=>'Win','score'=>'28-22','status'=>'Completed','cost'=>1500],
-    ['id'=>2,'venue'=>'Champions Stadium A','sport'=>'Football','date'=>'2026-06-15','time'=>'17:00 - 18:00','team'=>'Street Kings','result'=>'Draw','score'=>'2-2','status'=>'Completed','cost'=>2500],
-    ['id'=>3,'venue'=>'Sunset Cricket Arena','sport'=>'Cricket','date'=>'2026-06-10','time'=>'07:00 - 09:00','team'=>'Thunder XI','result'=>'Loss','score'=>'147-162','status'=>'Completed','cost'=>6400],
-    ['id'=>4,'venue'=>'Victory Basketball Court','sport'=>'Basketball','date'=>'2026-06-25','time'=>'19:00 - 20:00','team'=>'Solo Practice','result'=>'N/A','score'=>'--','status'=>'Upcoming','cost'=>1500],
+// Fetch real bookings from DB
+try {
+    $stmt = $pdo->prepare("
+        SELECT b.id, b.slot_date, b.slot_hour, b.price, b.amount_paid,
+               b.booking_type, b.status, b.challenger_team_name, b.opponent_id,
+               b.created_at,
+               g.title AS ground_title, g.sport_type, g.address
+        FROM bookings b
+        JOIN grounds g ON g.id = b.ground_id
+        WHERE b.booked_by = ?
+        ORDER BY b.slot_date DESC, b.slot_hour DESC
+    ");
+    $stmt->execute([$user_id]);
+    $my_bookings = $stmt->fetchAll();
+} catch (Exception $e) { $my_bookings = []; }
+
+// Fetch challenges where this user is the OPPONENT (accepted challenges)
+try {
+    $stmt = $pdo->prepare("
+        SELECT b.id, b.slot_date, b.slot_hour, b.price, b.amount_paid,
+               b.booking_type, b.status, b.challenger_team_name,
+               b.created_at,
+               g.title AS ground_title, g.sport_type, g.address,
+               u.name AS challenger_name
+        FROM bookings b
+        JOIN grounds g ON g.id = b.ground_id
+        JOIN users u ON u.id = b.booked_by
+        WHERE b.opponent_id = ?
+        ORDER BY b.slot_date DESC, b.slot_hour DESC
+    ");
+    $stmt->execute([$user_id]);
+    $accepted_challenges = $stmt->fetchAll();
+} catch (Exception $e) { $accepted_challenges = []; }
+
+// Merge both lists for display
+$all_bookings = [];
+foreach ($my_bookings as $b) {
+    $b['role'] = 'challenger';
+    $all_bookings[] = $b;
+}
+foreach ($accepted_challenges as $b) {
+    $b['role'] = 'opponent';
+    $all_bookings[] = $b;
+}
+
+// Sort by date desc
+usort($all_bookings, fn($a,$b) => strcmp($b['slot_date'].$b['slot_hour'], $a['slot_date'].$a['slot_hour']));
+
+// Stats
+$total      = count($all_bookings);
+$upcoming   = count(array_filter($all_bookings, fn($b) => $b['slot_date'] >= date('Y-m-d') && in_array($b['status'], ['confirmed','challenge_open','challenge_pending','challenge_accepted'])));
+$confirmed  = count(array_filter($all_bookings, fn($b) => $b['status'] === 'confirmed'));
+$challenges = count(array_filter($all_bookings, fn($b) => in_array($b['status'], ['challenge_open','challenge_pending','challenge_accepted'])));
+$total_spent = array_sum(array_column($all_bookings, 'amount_paid'));
+
+// Format hour → time label
+function formatHourLabel(int $h): string {
+    $suffix   = $h < 12 ? 'AM' : 'PM';
+    $displayH = $h === 0 ? 12 : ($h > 12 ? $h - 12 : $h);
+    $nextH    = $h + 1;
+    $nextDisp = $nextH === 0 ? 12 : ($nextH > 12 ? $nextH - 12 : ($nextH === 12 ? 12 : $nextH));
+    $nextSuf  = $nextH < 12 ? 'AM' : 'PM';
+    return sprintf('%d:00 %s – %d:00 %s', $displayH, $suffix, $nextDisp, $nextSuf);
+}
+
+$statusConfig = [
+    'confirmed'          => ['badge' => 'bg-emerald-100 text-emerald-700', 'label' => 'Confirmed',         'icon' => '✅'],
+    'challenge_open'     => ['badge' => 'bg-violet-100 text-violet-700',   'label' => 'Open Challenge',    'icon' => '⚡'],
+    'challenge_pending'  => ['badge' => 'bg-orange-100 text-orange-700',   'label' => 'Pending Accept',    'icon' => '🤝'],
+    'challenge_accepted' => ['badge' => 'bg-blue-100 text-blue-700',       'label' => 'Match Set ✓',      'icon' => '🏆'],
+    'cancelled'          => ['badge' => 'bg-red-100 text-red-700',         'label' => 'Cancelled',         'icon' => '❌'],
+];
+
+$typeConfig = [
+    'direct'          => ['badge' => 'bg-slate-100 text-slate-600',   'label' => 'Direct'],
+    'open_challenge'  => ['badge' => 'bg-violet-100 text-violet-600', 'label' => 'Open Challenge'],
+    'team_challenge'  => ['badge' => 'bg-orange-100 text-orange-600', 'label' => 'Team Challenge'],
 ];
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Match History - ArenaReserve</title>
+<title>Match History – ArenaReserve</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-<style>body{font-family:'Inter',sans-serif;background:#f8fafc;}</style>
+<style>
+body { font-family: 'Inter', sans-serif; background: #f8fafc; }
+.booking-row { transition: background 0.15s; }
+.booking-row:hover { background: #f8fafc; }
+
+/* Upcoming pulse dot */
+.pulse-dot { animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+/* Toast */
+#mh-toast {
+    position:fixed;top:20px;right:20px;z-index:9999;
+    padding:12px 20px;border-radius:12px;font-size:14px;font-weight:500;
+    box-shadow:0 8px 30px rgba(0,0,0,.3);transform:translateX(120%);
+    transition:transform .3s cubic-bezier(.34,1.56,.64,1);
+    max-width:360px;color:white;
+}
+#mh-toast.show { transform:translateX(0); }
+</style>
 </head>
 <body>
+<div id="mh-toast"></div>
+
+<!-- Header -->
 <header class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between h-16 items-center">
     <a href="explore.php" class="flex items-center gap-2 text-emerald-600 text-xl font-bold">
@@ -36,14 +130,18 @@ $matches = [
     </a>
     <div class="flex items-center gap-3">
       <a href="wallet.php" class="flex items-center bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-full text-xs font-semibold border border-emerald-200">
-        <span class="w-2 h-2 rounded-full bg-emerald-500 mr-2"></span><?php echo number_format($available_balance,0); ?> PKR
+        <span class="w-2 h-2 rounded-full bg-emerald-500 mr-2"></span><?php echo number_format($available_balance, 0); ?> PKR
       </a>
       <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs font-semibold">
         <span class="px-2 py-1 bg-white rounded shadow-sm text-emerald-600">Player</span>
         <a href="switch_role.php" class="px-2 py-1 text-slate-500 hover:text-slate-700">Owner</a>
       </div>
       <div class="flex items-center gap-2">
-        <div class="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-sm"><?php echo strtoupper(substr($_SESSION['name'],0,1)); ?></div>
+        <div class="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-sm"><?php echo strtoupper(substr($_SESSION['name'], 0, 1)); ?></div>
+        <div class="hidden md:block">
+          <div class="text-xs font-semibold text-slate-800"><?php echo htmlspecialchars($_SESSION['name']); ?></div>
+          <div class="text-[10px] text-slate-400">Player</div>
+        </div>
         <a href="logout.php" class="text-xs text-red-500 font-medium">Logout</a>
       </div>
     </div>
@@ -67,76 +165,119 @@ $matches = [
 
   <!-- Main -->
   <main class="flex-1 min-w-0">
+    <!-- Header row -->
     <div class="flex items-center justify-between mb-6">
       <div>
         <h1 class="text-2xl font-bold text-slate-900">Match History</h1>
-        <p class="text-sm text-slate-500 mt-1">Your booking and match records</p>
+        <p class="text-sm text-slate-500 mt-1">All your bookings, challenges and matches</p>
       </div>
-      <a href="book_slot.php" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2 rounded-lg shadow transition-all">+ Book New Slot</a>
+      <a href="book_slot.php" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2 rounded-xl shadow transition-all">+ Book New Slot</a>
     </div>
 
-    <!-- Summary Stats -->
+    <!-- Stats Cards -->
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
       <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm text-center">
-        <div class="text-2xl font-extrabold text-slate-800">3</div><div class="text-xs text-slate-500 uppercase font-semibold mt-1">Total Matches</div>
+        <div class="text-2xl font-extrabold text-slate-800"><?php echo $total; ?></div>
+        <div class="text-xs text-slate-500 uppercase font-semibold mt-1">Total Bookings</div>
       </div>
-      <div class="bg-white border border-green-200 rounded-xl p-4 shadow-sm text-center">
-        <div class="text-2xl font-extrabold text-green-600">1</div><div class="text-xs text-slate-500 uppercase font-semibold mt-1">Wins</div>
+      <div class="bg-white border border-blue-200 rounded-xl p-4 shadow-sm text-center">
+        <div class="text-2xl font-extrabold text-blue-600 flex items-center justify-center gap-1">
+          <span class="w-2 h-2 rounded-full bg-blue-500 pulse-dot inline-block"></span><?php echo $upcoming; ?>
+        </div>
+        <div class="text-xs text-slate-500 uppercase font-semibold mt-1">Upcoming</div>
       </div>
-      <div class="bg-white border border-red-200 rounded-xl p-4 shadow-sm text-center">
-        <div class="text-2xl font-extrabold text-red-500">1</div><div class="text-xs text-slate-500 uppercase font-semibold mt-1">Losses</div>
+      <div class="bg-white border border-violet-200 rounded-xl p-4 shadow-sm text-center">
+        <div class="text-2xl font-extrabold text-violet-600"><?php echo $challenges; ?></div>
+        <div class="text-xs text-slate-500 uppercase font-semibold mt-1">Challenges</div>
       </div>
-      <div class="bg-white border border-amber-200 rounded-xl p-4 shadow-sm text-center">
-        <div class="text-2xl font-extrabold text-amber-500">1</div><div class="text-xs text-slate-500 uppercase font-semibold mt-1">Draws</div>
+      <div class="bg-white border border-emerald-200 rounded-xl p-4 shadow-sm text-center">
+        <div class="text-lg font-extrabold text-emerald-600"><?php echo number_format($total_spent, 0); ?></div>
+        <div class="text-xs text-slate-500 uppercase font-semibold mt-1">PKR Spent</div>
       </div>
     </div>
 
-    <!-- Match History Table -->
+    <!-- Bookings List -->
+    <?php if (empty($all_bookings)): ?>
+    <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-16 text-center">
+      <div class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+        <svg class="h-8 w-8 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+      </div>
+      <h3 class="text-lg font-semibold text-slate-700 mb-1">No bookings yet</h3>
+      <p class="text-sm text-slate-400 mb-5">Head over to Book Slot to make your first reservation.</p>
+      <a href="book_slot.php" class="inline-block bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold px-6 py-2.5 rounded-xl shadow transition-all">Book a Slot →</a>
+    </div>
+    <?php else: ?>
     <div class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
       <div class="p-4 border-b border-slate-100 flex items-center justify-between">
-        <h2 class="text-sm font-bold text-slate-800">All Matches</h2>
-        <div class="flex gap-2">
-          <select class="text-xs border border-slate-300 rounded-lg px-2 py-1 focus:outline-none">
-            <option>All Sports</option><option>Football</option><option>Cricket</option><option>Basketball</option>
-          </select>
-          <select class="text-xs border border-slate-300 rounded-lg px-2 py-1 focus:outline-none">
-            <option>All Results</option><option>Win</option><option>Loss</option><option>Draw</option>
-          </select>
+        <h2 class="text-sm font-bold text-slate-800">All Bookings</h2>
+        <div class="flex items-center gap-2 text-xs text-slate-400 font-medium">
+          <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-400 inline-block"></span>Confirmed</span>
+          <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-violet-400 inline-block"></span>Challenge</span>
+          <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-orange-400 inline-block"></span>Pending</span>
         </div>
       </div>
       <div class="divide-y divide-slate-100">
-        <?php foreach ($matches as $m): ?>
-        <div class="p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 hover:bg-slate-50 transition-colors">
-          <div class="flex gap-4 items-center">
-            <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-sm flex-shrink-0">
-              <?php echo strtoupper(substr($m['sport'],0,2)); ?>
+        <?php foreach ($all_bookings as $bk):
+          $sc = $statusConfig[$bk['status']] ?? ['badge'=>'bg-slate-100 text-slate-600','label'=>ucfirst($bk['status']),'icon'=>'📋'];
+          $tc = $typeConfig[$bk['booking_type']] ?? ['badge'=>'bg-slate-100 text-slate-600','label'=>$bk['booking_type']];
+          $timeLabel = formatHourLabel(intval($bk['slot_hour']));
+          $isUpcoming = $bk['slot_date'] >= date('Y-m-d');
+          $isPast     = !$isUpcoming;
+          $sportIcon  = ['Football'=>'⚽','Cricket'=>'🏏','Basketball'=>'🏀','Badminton'=>'🏸','Futsal'=>'⚽'][$bk['sport_type']] ?? '🏟️';
+        ?>
+        <div class="booking-row p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+          <!-- Left: sport icon + info -->
+          <div class="flex gap-4 items-start flex-1">
+            <div class="w-11 h-11 rounded-xl bg-emerald-50 flex items-center justify-center text-xl flex-shrink-0 border border-emerald-100">
+              <?php echo $sportIcon; ?>
             </div>
-            <div>
-              <div class="font-semibold text-slate-800 text-sm"><?php echo htmlspecialchars($m['venue']); ?></div>
-              <div class="text-xs text-slate-500"><?php echo $m['date']; ?> &bull; <?php echo $m['time']; ?></div>
-              <div class="text-xs text-slate-500 mt-0.5">vs <span class="font-medium text-slate-700"><?php echo htmlspecialchars($m['team']); ?></span></div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="font-bold text-slate-800 text-sm"><?php echo htmlspecialchars($bk['ground_title']); ?></span>
+                <?php if ($isUpcoming): ?>
+                  <span class="flex items-center gap-1 text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full">
+                    <span class="w-1.5 h-1.5 rounded-full bg-blue-500 pulse-dot inline-block"></span>Upcoming
+                  </span>
+                <?php endif; ?>
+              </div>
+              <div class="text-xs text-slate-500 mt-0.5">
+                📅 <?php echo date('D, d M Y', strtotime($bk['slot_date'])); ?>
+                &nbsp;⏰ <?php echo $timeLabel; ?>
+              </div>
+              <?php if ($bk['role'] === 'opponent'): ?>
+              <div class="text-xs text-blue-600 font-medium mt-0.5">
+                🏆 Accepted challenge from <span class="font-bold"><?php echo htmlspecialchars($bk['challenger_name'] ?? 'Unknown'); ?></span>
+              </div>
+              <?php elseif ($bk['challenger_team_name']): ?>
+              <div class="text-xs text-orange-600 font-medium mt-0.5">
+                🤝 Challenged: <span class="font-bold"><?php echo htmlspecialchars($bk['challenger_team_name']); ?></span>
+              </div>
+              <?php endif; ?>
             </div>
           </div>
-          <div class="flex items-center gap-4 sm:text-right">
-            <div>
-              <div class="text-xs text-slate-400">Score</div>
-              <div class="font-bold text-slate-700 text-sm"><?php echo $m['score']; ?></div>
+
+          <!-- Right: badges + cost -->
+          <div class="flex items-center gap-3 sm:flex-col sm:items-end sm:gap-2 flex-shrink-0">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-bold px-2 py-1 rounded-full <?php echo $sc['badge']; ?>">
+                <?php echo $sc['icon']; ?> <?php echo $sc['label']; ?>
+              </span>
+              <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded <?php echo $tc['badge']; ?>">
+                <?php echo $tc['label']; ?>
+              </span>
             </div>
-            <div>
-              <?php
-                if ($m['status'] === 'Upcoming') $r = ['bg-blue-100 text-blue-700','Upcoming'];
-                else if ($m['result']==='Win') $r = ['bg-green-100 text-green-700','Win'];
-                else if ($m['result']==='Loss') $r = ['bg-red-100 text-red-700','Loss'];
-                else $r = ['bg-amber-100 text-amber-700','Draw'];
-              ?>
-              <span class="text-xs font-bold px-2 py-1 rounded-full <?php echo $r[0]; ?>"><?php echo $r[1]; ?></span>
+            <div class="text-right">
+              <div class="text-xs font-extrabold text-slate-800"><?php echo number_format($bk['amount_paid'], 0); ?> PKR</div>
+              <?php if ($bk['price'] != $bk['amount_paid']): ?>
+              <div class="text-[10px] text-slate-400">of <?php echo number_format($bk['price'], 0); ?> total</div>
+              <?php endif; ?>
             </div>
-            <div class="text-xs text-slate-500 font-medium"><?php echo number_format($m['cost']); ?> PKR</div>
           </div>
         </div>
         <?php endforeach; ?>
       </div>
     </div>
+    <?php endif; ?>
   </main>
 </div>
 </body>

@@ -117,7 +117,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
             <?php endif; ?>
 
-            <form class="space-y-6" action="signup.php" method="POST">
+            <form id="signupForm" class="space-y-6" action="signup.php" method="POST" novalidate>
                 <!-- Full Name -->
                 <div>
                     <label for="name" class="block text-sm font-medium text-slate-700">Full Name</label>
@@ -126,6 +126,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                value="<?php echo htmlspecialchars($_POST['name'] ?? ''); ?>"
                                class="appearance-none block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm">
                     </div>
+                    <p class="mt-1 text-xs text-red-600 hidden" id="name-error"></p>
                 </div>
 
                 <!-- Email Address -->
@@ -136,16 +137,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                value="<?php echo htmlspecialchars($_POST['email'] ?? ''); ?>"
                                class="appearance-none block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm">
                     </div>
+                    <p class="mt-1 text-xs text-red-600 hidden" id="email-error"></p>
                 </div>
 
                 <!-- Phone Number -->
                 <div>
                     <label for="phone" class="block text-sm font-medium text-slate-700">Phone Number</label>
                     <div class="mt-1">
-                        <input id="phone" name="phone" type="text" required placeholder="+92 300 1234567"
+                        <input id="phone" name="phone" type="tel" required placeholder="03001234567" maxlength="11" pattern="^\d{11}$"
                                value="<?php echo htmlspecialchars($_POST['phone'] ?? ''); ?>"
                                class="appearance-none block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm">
                     </div>
+                    <p class="mt-1 text-xs text-red-600 hidden" id="phone-error"></p>
                 </div>
 
                 <!-- Role Selection -->
@@ -167,6 +170,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <input id="password" name="password" type="password" required placeholder="••••••••"
                                class="appearance-none block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm">
                     </div>
+                    <p class="mt-1 text-xs text-red-600 hidden" id="password-error"></p>
                 </div>
 
                 <!-- Confirm Password -->
@@ -176,6 +180,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <input id="confirm_password" name="confirm_password" type="password" required placeholder="••••••••"
                                class="appearance-none block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm">
                     </div>
+                    <p class="mt-1 text-xs text-red-600 hidden" id="confirm_password-error"></p>
                 </div>
 
                 <!-- Submit Button -->
@@ -193,5 +198,128 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
         </div>
     </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const form = document.getElementById('signupForm');
+            const nameInput = document.getElementById('name');
+            const emailInput = document.getElementById('email');
+            const phoneInput = document.getElementById('phone');
+            const passwordInput = document.getElementById('password');
+            const confirmPasswordInput = document.getElementById('confirm_password');
+
+            const showError = (input, message) => {
+                const errorEl = document.getElementById(input.id + '-error');
+                if (errorEl) {
+                    errorEl.textContent = message;
+                    errorEl.classList.remove('hidden');
+                }
+                input.classList.add('border-red-500', 'focus:ring-red-500', 'focus:border-red-500');
+                input.classList.remove('border-slate-300', 'focus:ring-emerald-500', 'focus:border-emerald-500');
+            };
+
+            const clearError = (input) => {
+                const errorEl = document.getElementById(input.id + '-error');
+                if (errorEl) {
+                    errorEl.textContent = '';
+                    errorEl.classList.add('hidden');
+                }
+                input.classList.remove('border-red-500', 'focus:ring-red-500', 'focus:border-red-500');
+                input.classList.add('border-slate-300', 'focus:ring-emerald-500', 'focus:border-emerald-500');
+            };
+
+            const validateName = () => {
+                const val = nameInput.value.trim();
+                if (!val) {
+                    showError(nameInput, 'Full Name is required');
+                    return false;
+                }
+                clearError(nameInput);
+                return true;
+            };
+
+            const validateEmail = () => {
+                const val = emailInput.value.trim();
+                if (!val) {
+                    showError(emailInput, 'Email is required');
+                    return false;
+                }
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (!emailRegex.test(val)) {
+                    showError(emailInput, 'Please enter a valid email address');
+                    return false;
+                }
+                clearError(emailInput);
+                return true;
+            };
+
+            const validatePhone = () => {
+                const val = phoneInput.value.trim();
+                if (!val) {
+                    showError(phoneInput, 'Phone Number is required');
+                    return false;
+                }
+                const phoneRegex = /^\d{11}$/;
+                if (!phoneRegex.test(val)) {
+                    showError(phoneInput, 'Phone Number must be exactly 11 digits');
+                    return false;
+                }
+                clearError(phoneInput);
+                return true;
+            };
+
+            const validatePassword = () => {
+                const val = passwordInput.value;
+                if (!val) {
+                    showError(passwordInput, 'Password is required');
+                    return false;
+                }
+                if (val.length < 6) {
+                    showError(passwordInput, 'Password must be at least 6 characters long');
+                    return false;
+                }
+                clearError(passwordInput);
+                
+                // Also re-validate confirm password if it has a value
+                if (confirmPasswordInput.value) {
+                    validateConfirmPassword();
+                }
+                
+                return true;
+            };
+
+            const validateConfirmPassword = () => {
+                const val = confirmPasswordInput.value;
+                const pwd = passwordInput.value;
+                if (!val) {
+                    showError(confirmPasswordInput, 'Please confirm your password');
+                    return false;
+                }
+                if (val !== pwd) {
+                    showError(confirmPasswordInput, 'Passwords do not match');
+                    return false;
+                }
+                clearError(confirmPasswordInput);
+                return true;
+            };
+
+            nameInput.addEventListener('input', validateName);
+            emailInput.addEventListener('input', validateEmail);
+            phoneInput.addEventListener('input', validatePhone);
+            passwordInput.addEventListener('input', validatePassword);
+            confirmPasswordInput.addEventListener('input', validateConfirmPassword);
+
+            form.addEventListener('submit', (e) => {
+                const isNameValid = validateName();
+                const isEmailValid = validateEmail();
+                const isPhoneValid = validatePhone();
+                const isPasswordValid = validatePassword();
+                const isConfirmPasswordValid = validateConfirmPassword();
+
+                if (!isNameValid || !isEmailValid || !isPhoneValid || !isPasswordValid || !isConfirmPasswordValid) {
+                    e.preventDefault(); // Stop form submission
+                }
+            });
+        });
+    </script>
 </body>
 </html>

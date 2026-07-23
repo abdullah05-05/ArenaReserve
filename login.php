@@ -114,7 +114,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
             <?php endif; ?>
 
-            <form class="space-y-6" action="login.php" method="POST">
+            <form id="loginForm" class="space-y-6" action="login.php" method="POST" novalidate>
                 <!-- Email Address -->
                 <div>
                     <label for="email" class="block text-sm font-medium text-slate-700">Email Address</label>
@@ -123,6 +123,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                value="<?php echo htmlspecialchars($_POST['email'] ?? ''); ?>"
                                class="appearance-none block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm">
                     </div>
+                    <p class="mt-1 text-xs text-red-600 hidden" id="email-error"></p>
                 </div>
 
                 <!-- Password -->
@@ -132,6 +133,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <input id="password" name="password" type="password" required placeholder="••••••••"
                                class="appearance-none block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm">
                     </div>
+                    <p class="mt-1 text-xs text-red-600 hidden" id="password-error"></p>
                 </div>
 
                 <!-- Remember Me & Forgot Password -->
@@ -167,5 +169,66 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <p class="mt-8 text-center text-xs text-slate-500">
         By signing in, you agree to our <a href="#" class="underline hover:text-slate-600">Terms of Service</a> and <a href="#" class="underline hover:text-slate-600">Privacy Policy</a>
     </p>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const form = document.getElementById('loginForm');
+            const emailInput = document.getElementById('email');
+            const passwordInput = document.getElementById('password');
+
+            const showError = (input, message) => {
+                const errorEl = document.getElementById(input.id + '-error');
+                errorEl.textContent = message;
+                errorEl.classList.remove('hidden');
+                input.classList.add('border-red-500', 'focus:ring-red-500', 'focus:border-red-500');
+                input.classList.remove('border-slate-300', 'focus:ring-emerald-500', 'focus:border-emerald-500');
+            };
+
+            const clearError = (input) => {
+                const errorEl = document.getElementById(input.id + '-error');
+                errorEl.textContent = '';
+                errorEl.classList.add('hidden');
+                input.classList.remove('border-red-500', 'focus:ring-red-500', 'focus:border-red-500');
+                input.classList.add('border-slate-300', 'focus:ring-emerald-500', 'focus:border-emerald-500');
+            };
+
+            const validateEmail = () => {
+                const val = emailInput.value.trim();
+                if (!val) {
+                    showError(emailInput, 'Email is required');
+                    return false;
+                }
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (!emailRegex.test(val)) {
+                    showError(emailInput, 'Please enter a valid email address');
+                    return false;
+                }
+                clearError(emailInput);
+                return true;
+            };
+
+            const validatePassword = () => {
+                const val = passwordInput.value;
+                if (!val) {
+                    showError(passwordInput, 'Password is required');
+                    return false;
+                }
+                clearError(passwordInput);
+                return true;
+            };
+
+            emailInput.addEventListener('input', validateEmail);
+            passwordInput.addEventListener('input', validatePassword);
+
+            form.addEventListener('submit', (e) => {
+                const isEmailValid = validateEmail();
+                const isPasswordValid = validatePassword();
+
+                if (!isEmailValid || !isPasswordValid) {
+                    e.preventDefault(); // Stop form submission
+                }
+            });
+        });
+    </script>
 </body>
 </html>
