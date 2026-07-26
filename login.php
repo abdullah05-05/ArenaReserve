@@ -93,6 +93,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         body {
             font-family: 'Inter', sans-serif;
         }
+
+        .password-field-wrap {
+            position: relative;
+            display: block;
+        }
+
+        .password-field-wrap input {
+            padding-right: 2.9rem;
+        }
+
+        .password-field-wrap button {
+            position: absolute;
+            top: 50%;
+            right: 0.75rem;
+            transform: translateY(-50%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 2rem;
+            height: 2rem;
+            padding: 0;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            color: #64748b;
+            z-index: 20;
+            pointer-events: auto;
+        }
+
+        .password-field-wrap button:hover {
+            color: #475569;
+        }
+
+        .password-field-wrap button:focus {
+            outline: none;
+        }
+
+        input[type="password"]::-ms-reveal,
+        input[type="password"]::-ms-clear {
+            display: none;
+        }
+
+        input[type="password"]::-webkit-textfield-decoration-container {
+            display: none;
+        }
     </style>
 </head>
 <body class="bg-slate-50 min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8">
@@ -127,7 +172,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
             <?php endif; ?>
 
-            <form class="space-y-6" action="login.php" method="POST" novalidate>
+            <form id="loginForm" class="space-y-6" action="login.php" method="POST" novalidate>
                 <div id="live-login-summary" class="hidden mb-4 rounded-md bg-red-50 border border-red-200 p-4 text-sm text-red-700"></div>
                 <!-- Email Address -->
                 <div>
@@ -143,9 +188,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <!-- Password -->
                 <div>
                     <label for="password" class="block text-sm font-medium text-slate-700">Password</label>
-                    <div class="mt-1">
+                    <div class="mt-1 password-field-wrap">
                         <input id="password" name="password" type="password" required placeholder="••••••••"
-                               class="appearance-none block w-full px-3 py-2 border border-slate-300<?php echo isset($fieldErrors['password']) ? ' border-red-500 focus:border-red-500 focus:ring-red-500' : ''; ?> rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm">
+                               class="appearance-none block w-full px-3 py-2 pr-10 border border-slate-300<?php echo isset($fieldErrors['password']) ? ' border-red-500 focus:border-red-500 focus:ring-red-500' : ''; ?> rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm">
+                        <button type="button" id="toggle-password" aria-label="Show password" aria-pressed="false" class="flex items-center justify-center text-slate-400 hover:text-slate-600 focus:outline-none">
+                            <svg class="show-password-icon h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                            <svg class="hide-password-icon hidden h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a9.97 9.97 0 012.223-3.99m2.16-1.85A9.956 9.956 0 0112 5c4.477 0 8.268 2.943 9.542 7a9.99 9.99 0 01-4.043 5.179M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 3l18 18" />
+                            </svg>
+                        </button>
                     </div>
                     <p id="password-error" class="mt-2 text-sm text-red-600"><?php echo htmlspecialchars($fieldErrors['password'] ?? ''); ?></p>
                 </div>
@@ -181,7 +236,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <!-- Footer Terms of Service and Privacy Policy -->
     <script>
-        const loginForm = document.querySelector('form');
+        const loginForm = document.getElementById('loginForm');
         const loginInputs = {
             email: document.getElementById('email'),
             password: document.getElementById('password')
@@ -193,6 +248,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         };
 
         const liveSummary = document.getElementById('live-login-summary');
+        const togglePasswordButton = document.getElementById('toggle-password');
+        const showPasswordIcon = togglePasswordButton?.querySelector('.show-password-icon');
+        const hidePasswordIcon = togglePasswordButton?.querySelector('.hide-password-icon');
 
         const loginValidators = {
             email(value) {
@@ -246,6 +304,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             });
         });
 
+        if (togglePasswordButton && showPasswordIcon && hidePasswordIcon) {
+            togglePasswordButton.addEventListener('click', () => {
+                const isPasswordHidden = loginInputs.password.type === 'password';
+                loginInputs.password.type = isPasswordHidden ? 'text' : 'password';
+                togglePasswordButton.setAttribute('aria-label', isPasswordHidden ? 'Hide password' : 'Show password');
+                togglePasswordButton.setAttribute('aria-pressed', String(isPasswordHidden));
+                showPasswordIcon.classList.toggle('hidden', !isPasswordHidden);
+                hidePasswordIcon.classList.toggle('hidden', isPasswordHidden);
+            });
+        }
+
         loginForm.addEventListener('submit', function (event) {
             let valid = true;
             Object.keys(loginInputs).forEach((field) => {
@@ -262,66 +331,5 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <p class="mt-8 text-center text-xs text-slate-500">
         By signing in, you agree to our <a href="#" class="underline hover:text-slate-600">Terms of Service</a> and <a href="#" class="underline hover:text-slate-600">Privacy Policy</a>
     </p>
-
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const form = document.getElementById('loginForm');
-            const emailInput = document.getElementById('email');
-            const passwordInput = document.getElementById('password');
-
-            const showError = (input, message) => {
-                const errorEl = document.getElementById(input.id + '-error');
-                errorEl.textContent = message;
-                errorEl.classList.remove('hidden');
-                input.classList.add('border-red-500', 'focus:ring-red-500', 'focus:border-red-500');
-                input.classList.remove('border-slate-300', 'focus:ring-emerald-500', 'focus:border-emerald-500');
-            };
-
-            const clearError = (input) => {
-                const errorEl = document.getElementById(input.id + '-error');
-                errorEl.textContent = '';
-                errorEl.classList.add('hidden');
-                input.classList.remove('border-red-500', 'focus:ring-red-500', 'focus:border-red-500');
-                input.classList.add('border-slate-300', 'focus:ring-emerald-500', 'focus:border-emerald-500');
-            };
-
-            const validateEmail = () => {
-                const val = emailInput.value.trim();
-                if (!val) {
-                    showError(emailInput, 'Email is required');
-                    return false;
-                }
-                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-                if (!emailRegex.test(val)) {
-                    showError(emailInput, 'Please enter a valid email address');
-                    return false;
-                }
-                clearError(emailInput);
-                return true;
-            };
-
-            const validatePassword = () => {
-                const val = passwordInput.value;
-                if (!val) {
-                    showError(passwordInput, 'Password is required');
-                    return false;
-                }
-                clearError(passwordInput);
-                return true;
-            };
-
-            emailInput.addEventListener('input', validateEmail);
-            passwordInput.addEventListener('input', validatePassword);
-
-            form.addEventListener('submit', (e) => {
-                const isEmailValid = validateEmail();
-                const isPasswordValid = validatePassword();
-
-                if (!isEmailValid || !isPasswordValid) {
-                    e.preventDefault(); // Stop form submission
-                }
-            });
-        });
-    </script>
 </body>
 </html>
