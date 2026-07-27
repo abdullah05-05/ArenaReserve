@@ -65,6 +65,7 @@ jobs:
         id: deploy-to-webapp
         with:
           app-name: 'arenareserveabdullah'
+          resource-group-name: 'ArenaReserve-RG'
           slot-name: 'Production'
           package: .
           
