@@ -59,7 +59,12 @@ jobs:
           client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_3B421DF1D8BD414C866568C90D3B4E5D }}
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_88AD0C8F43BB4815987BA9EBE69CDE48 }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_3434C123BE9541C6BC9BEED14DA92DA3 }}
-
+     
+     - name: Verify Azure resources
+       run: |
+         az account show
+         az webapp show --name arenareserveabdullah --resource-group ArenaReserve-RG
+      
       - name: 'Deploy to Azure Web App'
         uses: azure/webapps-deploy@v3
         id: deploy-to-webapp
