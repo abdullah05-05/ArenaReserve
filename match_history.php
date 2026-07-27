@@ -116,6 +116,21 @@ body { font-family: 'Inter', sans-serif; background: #f8fafc; }
     max-width:360px;color:white;
 }
 #mh-toast.show { transform:translateX(0); }
+
+/* Cancel modal */
+#cancel-overlay {
+    position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);
+    z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px;
+    opacity:0;pointer-events:none;transition:opacity .2s ease;
+}
+#cancel-overlay.open { opacity:1;pointer-events:all; }
+#cancel-modal {
+    background:white;border-radius:20px;box-shadow:0 25px 80px rgba(0,0,0,.3);
+    max-width:440px;width:100%;transform:scale(0.92) translateY(20px);
+    transition:transform .25s cubic-bezier(.34,1.56,.64,1),opacity .2s ease;
+    opacity:0;overflow:hidden;
+}
+#cancel-overlay.open #cancel-modal { transform:scale(1) translateY(0);opacity:1; }
 </style>
 </head>
 <body>
@@ -256,7 +271,7 @@ body { font-family: 'Inter', sans-serif; background: #f8fafc; }
             </div>
           </div>
 
-          <!-- Right: badges + cost -->
+          <!-- Right: badges + cost + cancel -->
           <div class="flex items-center gap-3 sm:flex-col sm:items-end sm:gap-2 flex-shrink-0">
             <div class="flex items-center gap-2">
               <span class="text-xs font-bold px-2 py-1 rounded-full <?php echo $sc['badge']; ?>">
@@ -272,6 +287,21 @@ body { font-family: 'Inter', sans-serif; background: #f8fafc; }
               <div class="text-[10px] text-slate-400">of <?php echo number_format($bk['price'], 0); ?> total</div>
               <?php endif; ?>
             </div>
+            <?php
+              // Show cancel button only for challenger's own future cancellable bookings
+              $cancellable_statuses = ['confirmed', 'challenge_open', 'challenge_pending'];
+              $can_cancel = ($bk['role'] === 'challenger')
+                         && in_array($bk['status'], $cancellable_statuses)
+                         && $bk['slot_date'] >= date('Y-m-d');
+            ?>
+            <?php if ($can_cancel): ?>
+            <button
+              onclick="openCancelModal(<?php echo $bk['id']; ?>, '<?php echo htmlspecialchars($bk['ground_title']); ?>', '<?php echo date('D, d M Y', strtotime($bk['slot_date'])); ?>', '<?php echo addslashes(formatHourLabel(intval($bk['slot_hour']))); ?>', <?php echo floatval($bk['amount_paid']); ?>, '<?php echo $bk['status']; ?>', '<?php echo $bk['slot_date']; ?>', <?php echo intval($bk['slot_hour']); ?>)"
+              class="text-[11px] font-semibold text-red-600 border border-red-200 bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded-lg transition-all"
+              id="cancel-btn-<?php echo $bk['id']; ?>">
+              ✕ Cancel
+            </button>
+            <?php endif; ?>
           </div>
         </div>
         <?php endforeach; ?>
@@ -280,5 +310,179 @@ body { font-family: 'Inter', sans-serif; background: #f8fafc; }
     <?php endif; ?>
   </main>
 </div>
+
+<!-- ============================================================
+     CANCELLATION CONFIRMATION MODAL
+============================================================ -->
+<div id="cancel-overlay">
+  <div id="cancel-modal">
+    <!-- Modal header -->
+    <div class="bg-gradient-to-r from-red-500 to-rose-600 px-6 pt-6 pb-5 text-white">
+      <div class="flex items-center justify-between">
+        <div>
+          <div class="text-xs font-semibold opacity-80 mb-0.5">Cancel Booking</div>
+          <h2 class="text-xl font-extrabold" id="cm-ground">Ground Name</h2>
+        </div>
+        <button onclick="closeCancelModal()" class="w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors">
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="flex items-center gap-4 mt-2 text-xs opacity-90">
+        <span>📅 <span id="cm-date">--</span></span>
+        <span>⏰ <span id="cm-time">--</span></span>
+      </div>
+    </div>
+
+    <!-- Modal body -->
+    <div class="p-6">
+      <!-- Refund info box -->
+      <div class="bg-red-50 border border-red-200 rounded-xl p-4 mb-5">
+        <div class="text-sm font-bold text-red-700 mb-2">💸 Refund Details</div>
+        <div class="flex justify-between text-sm mb-1.5">
+          <span class="text-slate-500">Amount Paid</span>
+          <span class="font-bold text-slate-800" id="cm-paid">-- PKR</span>
+        </div>
+        <div class="flex justify-between text-sm mb-1">
+          <span class="text-slate-500">Refund Amount</span>
+          <span class="font-extrabold text-emerald-600" id="cm-refund">-- PKR</span>
+        </div>
+        <div class="text-[11px] text-slate-500 mt-2 border-t border-red-100 pt-2" id="cm-policy-note"></div>
+      </div>
+
+      <!-- Warning -->
+      <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700 mb-5" id="cm-warning">
+        ⚠️ This action cannot be undone.
+      </div>
+
+      <!-- Buttons -->
+      <div class="flex gap-3">
+        <button onclick="closeCancelModal()" class="flex-1 border border-slate-200 text-slate-600 font-semibold py-3 rounded-xl text-sm hover:bg-slate-50 transition-all">
+          Keep Booking
+        </button>
+        <button onclick="confirmCancel()" id="confirm-cancel-btn"
+                class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl text-sm transition-all shadow-md">
+          Yes, Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let cancelData = {};
+
+function openCancelModal(bookingId, ground, date, time, amountPaid, status, slotDate, slotHour) {
+  cancelData = { bookingId, amountPaid, status, slotDate, slotHour };
+
+  document.getElementById('cm-ground').textContent = ground;
+  document.getElementById('cm-date').textContent   = date;
+  document.getElementById('cm-time').textContent   = time;
+  document.getElementById('cm-paid').textContent   = formatNum(amountPaid) + ' PKR';
+
+  // Calculate expected refund client-side for display
+  let refund = 0;
+  let policyNote = '';
+  let warning = '⚠️ This action cannot be undone.';
+
+  if (status === 'challenge_open' || status === 'challenge_pending') {
+    refund = amountPaid;
+    policyNote = '✅ Full refund — no opponent has committed yet.';
+  } else if (status === 'confirmed') {
+    // Approximate: compare slot datetime vs now
+    const slotMs = new Date(slotDate + 'T' + String(slotHour).padStart(2,'0') + ':00:00').getTime();
+    const nowMs  = Date.now();
+    const hoursUntil = (slotMs - nowMs) / 3600000;
+    if (hoursUntil > 24) {
+      refund = amountPaid;
+      policyNote = '✅ Full refund — more than 24 hours before slot.';
+    } else {
+      refund = Math.round(amountPaid * 0.5);
+      policyNote = '⚠️ 50% refund only — cancelling within 24 hours of slot time.';
+      warning = '⚠️ You will forfeit 50% of your payment as a late cancellation fee.';
+    }
+  }
+
+  document.getElementById('cm-refund').textContent      = formatNum(refund) + ' PKR';
+  document.getElementById('cm-policy-note').textContent  = policyNote;
+  document.getElementById('cm-warning').textContent      = warning;
+
+  const btn = document.getElementById('confirm-cancel-btn');
+  btn.disabled = false;
+  btn.textContent = 'Yes, Cancel';
+
+  document.getElementById('cancel-overlay').classList.add('open');
+}
+
+function closeCancelModal() {
+  document.getElementById('cancel-overlay').classList.remove('open');
+}
+
+function confirmCancel() {
+  const btn = document.getElementById('confirm-cancel-btn');
+  btn.disabled = true;
+  btn.textContent = 'Cancelling…';
+
+  fetch('cancel_booking.php', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+    body: 'booking_id=' + cancelData.bookingId
+  })
+  .then(r => r.json())
+  .then(res => {
+    closeCancelModal();
+    if (res.success) {
+      showToast(res.message, 'success');
+      // Update the cancel button to a cancelled badge
+      const cancelBtn = document.getElementById('cancel-btn-' + cancelData.bookingId);
+      if (cancelBtn) {
+        cancelBtn.outerHTML = '<span class="text-[11px] font-semibold text-red-500 bg-red-50 border border-red-200 px-2.5 py-1 rounded-lg">❌ Cancelled</span>';
+      }
+      // Update the status badge in the row
+      const row = document.querySelector('[data-booking-id="' + cancelData.bookingId + '"]');
+      if (row) {
+        const statusBadge = row.querySelector('.status-badge');
+        if (statusBadge) {
+          statusBadge.className = 'status-badge text-xs font-bold px-2 py-1 rounded-full bg-red-100 text-red-700';
+          statusBadge.textContent = '❌ Cancelled';
+        }
+      }
+      // Update wallet balance display
+      if (res.new_balance !== undefined) {
+        const walletEls = document.querySelectorAll('.wallet-balance-display');
+        walletEls.forEach(el => { el.textContent = formatNum(res.new_balance) + ' PKR'; });
+      }
+      // Reload after a short delay to show fresh data
+      setTimeout(() => location.reload(), 2500);
+    } else {
+      showToast('❌ ' + res.message, 'error');
+      btn.disabled = false;
+      btn.textContent = 'Yes, Cancel';
+    }
+  })
+  .catch(() => {
+    showToast('❌ Network error. Please try again.', 'error');
+    btn.disabled = false;
+    btn.textContent = 'Yes, Cancel';
+  });
+}
+
+function showToast(message, type) {
+  const toast = document.getElementById('mh-toast');
+  toast.textContent = message;
+  toast.style.background = type === 'success'
+    ? 'linear-gradient(135deg,#059669,#047857)'
+    : (type === 'error' ? 'linear-gradient(135deg,#dc2626,#b91c1c)' : '#1e293b');
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 5000);
+}
+
+function formatNum(n) { return Math.round(n).toLocaleString('en-PK'); }
+
+document.getElementById('cancel-overlay').addEventListener('click', function(e) {
+  if (e.target === this) closeCancelModal();
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeCancelModal(); });
+</script>
+
 </body>
 </html>
