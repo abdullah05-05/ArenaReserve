@@ -45,6 +45,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $user = $stmt->fetch();
 
             if ($user && password_verify($password, $user['password'])) {
+                if ($user['email_verified'] == 0) {
+
+                   $error = "Please verify your email before logging in.";
+  
+                   }
+                else {
                 if ($user['status'] === 'Suspended') {
                     $error = 'Your account has been suspended by an administrator.';
                 } else {
@@ -68,6 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                     exit;
                 }
+            } 
             } else {
                 $error = 'Invalid email or password.';
             }
