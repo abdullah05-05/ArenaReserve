@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once 'db.php';
+require_once 'mail_config.php';
 
 // Redirect if already logged in
 if (isset($_SESSION['user_id'])) {
@@ -79,24 +80,65 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 // Insert User
                 $hashed_password = password_hash($password, PASSWORD_BCRYPT);
+                $verificationToken = bin2hex(random_bytes(32));
+                $tokenExpires = date('Y-m-d H:i:s', strtotime('+24 hours'));
                 $pdo->beginTransaction();
 
-                $stmt = $pdo->prepare("INSERT INTO users (`name`, `email`, `phone`, `password`, `current_role`, `current_active_mode`) VALUES (?, ?, ?, ?, ?, ?)");
-                $stmt->execute([$name, $email, $phone, $hashed_password, $role, $role]);
+               $stmt = $pdo->prepare("
+INSERT INTO users
+(
+    `name`,
+    `email`,
+    `phone`,
+    `password`,
+    `current_role`,
+    `current_active_mode`,
+    `email_verified`,
+    `verification_token`,
+    `verification_token_expires`
+)
+VALUES
+(
+    ?, ?, ?, ?, ?, ?, ?, ?, ?
+)
+");
+                $stmt->execute([
+    $name,
+    $email,
+    $phone,
+    $hashed_password,
+    $role,
+    $role,
+    0,
+    $verificationToken,
+    $tokenExpires
+]);
                 $user_id = $pdo->lastInsertId();
 
                 // Initialize Wallet
                 $stmt = $pdo->prepare("INSERT INTO wallets (user_id, available_balance, frozen_escrow_balance) VALUES (?, 0.00, 0.00)");
                 $stmt->execute([$user_id]);
 
-                $pdo->commit();
-                $success = 'Account created successfully! You can now log in.';
+                if (sendVerificationEmail($email, $name, $verificationToken)) {
+
+    $pdo->commit();
+
+    $success = 'Registration successful! A verification email has been sent to your email address. Please verify your email before logging in.';
+
+} else {
+
+    $pdo->rollBack();
+
+    $error = 'Unable to send verification email. Please try again later.';
+
+}
             }
         } catch (Exception $e) {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
             }
-            $error = 'Something went wrong. Please try again.';
+            die($e->getMessage());
+
         }
     } else {
         $error = 'Please fix the highlighted fields.';
