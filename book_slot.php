@@ -51,9 +51,14 @@ if ($selected_ground) {
             }
         } catch (Exception $e) { $bookings_map = []; }
 
-        // Fetch active holds
+        // Fetch active holds with MySQL-native remaining seconds (avoids PHP ↔ MySQL timezone mismatch)
         try {
-            $stmt = $pdo->prepare("SELECT slot_hour, held_by, expires_at FROM slot_holds WHERE ground_id = ? AND slot_date = ? AND expires_at >= NOW()");
+            $stmt = $pdo->prepare("
+                SELECT slot_hour, held_by, expires_at,
+                       GREATEST(0, TIMESTAMPDIFF(SECOND, NOW(), expires_at)) AS remaining_sec
+                FROM slot_holds
+                WHERE ground_id = ? AND slot_date = ? AND expires_at >= NOW()
+            ");
             $stmt->execute([$selected_ground_id, $selected_date]);
             $holds_map = [];
             foreach ($stmt->fetchAll() as $h) {
@@ -101,10 +106,10 @@ if ($selected_ground) {
                 $hold = $holds_map[$h];
                 if ($hold['held_by'] == $user_id) {
                     $type  = 'held';
-                    $hold_remaining = max(0, strtotime($hold['expires_at']) - time());
+                    $hold_remaining = intval($hold['remaining_sec']);
                 } else {
                     $type  = 'on_hold';
-                    $hold_remaining = max(0, strtotime($hold['expires_at']) - time());
+                    $hold_remaining = intval($hold['remaining_sec']);
                 }
             }
 
