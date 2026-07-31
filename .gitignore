@@ -1,0 +1,12 @@
+# Local database configuration
+config.local.php
+
+
+# Logs
+*.log
+
+# Windows
+Thumbs.db
+
+# macOS
+.DS_Store
