@@ -62,7 +62,10 @@ usort($all_bookings, fn($a,$b) => strcmp($b['slot_date'].$b['slot_hour'], $a['sl
 
 // Stats
 $total      = count($all_bookings);
-$upcoming   = count(array_filter($all_bookings, fn($b) => $b['slot_date'] >= date('Y-m-d') && in_array($b['status'], ['confirmed','challenge_open','challenge_pending','challenge_accepted'])));
+$upcoming   = count(array_filter($all_bookings, function($b) {
+    $st = strtotime($b['slot_date'] . ' ' . sprintf('%02d:00:00', intval($b['slot_hour'])));
+    return $st > time() && in_array($b['status'], ['confirmed','challenge_open','challenge_pending','challenge_accepted']);
+}));
 $confirmed  = count(array_filter($all_bookings, fn($b) => $b['status'] === 'confirmed'));
 $challenges = count(array_filter($all_bookings, fn($b) => in_array($b['status'], ['challenge_open','challenge_pending','challenge_accepted'])));
 $total_spent = array_sum(array_column($all_bookings, 'amount_paid'));
@@ -145,7 +148,7 @@ body { font-family: 'Inter', sans-serif; background: #f8fafc; }
     </a>
     <div class="flex items-center gap-3">
       <a href="wallet.php" class="flex items-center bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-full text-xs font-semibold border border-emerald-200">
-        <span class="w-2 h-2 rounded-full bg-emerald-500 mr-2"></span><?php echo number_format($available_balance, 0); ?> PKR
+        <span class="w-2 h-2 rounded-full bg-emerald-500 mr-2"></span><span class="wallet-balance-display"><?php echo number_format($available_balance, 0); ?> PKR</span>
       </a>
       <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs font-semibold">
         <span class="px-2 py-1 bg-white rounded shadow-sm text-emerald-600">Player</span>
@@ -236,11 +239,12 @@ body { font-family: 'Inter', sans-serif; background: #f8fafc; }
           $sc = $statusConfig[$bk['status']] ?? ['badge'=>'bg-slate-100 text-slate-600','label'=>ucfirst($bk['status']),'icon'=>'📋'];
           $tc = $typeConfig[$bk['booking_type']] ?? ['badge'=>'bg-slate-100 text-slate-600','label'=>$bk['booking_type']];
           $timeLabel = formatHourLabel(intval($bk['slot_hour']));
-          $isUpcoming = $bk['slot_date'] >= date('Y-m-d');
+          $slot_start_time = strtotime($bk['slot_date'] . ' ' . sprintf('%02d:00:00', intval($bk['slot_hour'])));
+          $isUpcoming = ($slot_start_time > time());
           $isPast     = !$isUpcoming;
           $sportIcon  = ['Football'=>'⚽','Cricket'=>'🏏','Basketball'=>'🏀','Badminton'=>'🏸','Futsal'=>'⚽'][$bk['sport_type']] ?? '🏟️';
         ?>
-        <div class="booking-row p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+        <div class="booking-row p-5 flex flex-col sm:flex-row sm:items-center gap-4" data-booking-id="<?php echo $bk['id']; ?>">
           <!-- Left: sport icon + info -->
           <div class="flex gap-4 items-start flex-1">
             <div class="w-11 h-11 rounded-xl bg-emerald-50 flex items-center justify-center text-xl flex-shrink-0 border border-emerald-100">
@@ -274,7 +278,7 @@ body { font-family: 'Inter', sans-serif; background: #f8fafc; }
           <!-- Right: badges + cost + cancel -->
           <div class="flex items-center gap-3 sm:flex-col sm:items-end sm:gap-2 flex-shrink-0">
             <div class="flex items-center gap-2">
-              <span class="text-xs font-bold px-2 py-1 rounded-full <?php echo $sc['badge']; ?>">
+              <span class="status-badge text-xs font-bold px-2 py-1 rounded-full <?php echo $sc['badge']; ?>">
                 <?php echo $sc['icon']; ?> <?php echo $sc['label']; ?>
               </span>
               <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded <?php echo $tc['badge']; ?>">
@@ -291,12 +295,12 @@ body { font-family: 'Inter', sans-serif; background: #f8fafc; }
               // Show cancel button only for challenger's own future cancellable bookings
               $cancellable_statuses = ['confirmed', 'challenge_open', 'challenge_pending'];
               $can_cancel = ($bk['role'] === 'challenger')
-                         && in_array($bk['status'], $cancellable_statuses)
-                         && $bk['slot_date'] >= date('Y-m-d');
+                         && in_array(strtolower(trim($bk['status'])), $cancellable_statuses)
+                         && $isUpcoming;
             ?>
             <?php if ($can_cancel): ?>
             <button
-              onclick="openCancelModal(<?php echo $bk['id']; ?>, '<?php echo htmlspecialchars($bk['ground_title']); ?>', '<?php echo date('D, d M Y', strtotime($bk['slot_date'])); ?>', '<?php echo addslashes(formatHourLabel(intval($bk['slot_hour']))); ?>', <?php echo floatval($bk['amount_paid']); ?>, '<?php echo $bk['status']; ?>', '<?php echo $bk['slot_date']; ?>', <?php echo intval($bk['slot_hour']); ?>)"
+              onclick="openCancelModal(<?php echo $bk['id']; ?>, '<?php echo htmlspecialchars($bk['ground_title'], ENT_QUOTES, 'UTF-8'); ?>', '<?php echo date('D, d M Y', strtotime($bk['slot_date'])); ?>', '<?php echo htmlspecialchars(formatHourLabel(intval($bk['slot_hour'])), ENT_QUOTES, 'UTF-8'); ?>', <?php echo floatval($bk['amount_paid']); ?>, '<?php echo htmlspecialchars($bk['status'], ENT_QUOTES, 'UTF-8'); ?>', '<?php echo $bk['slot_date']; ?>', <?php echo intval($bk['slot_hour']); ?>)"
               class="text-[11px] font-semibold text-red-600 border border-red-200 bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded-lg transition-all"
               id="cancel-btn-<?php echo $bk['id']; ?>">
               ✕ Cancel

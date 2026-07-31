@@ -1,5 +1,6 @@
 <?php
 // db.php - Database connection using PDO
+date_default_timezone_set('Asia/Karachi');
 $host = 'localhost';
 $db   = 'ar_db';
 $user = 'root';
