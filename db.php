@@ -1,13 +1,26 @@
 <?php
 date_default_timezone_set('Asia/Karachi');
 
-$config = require __DIR__ . '/config.local.php';
+// Check if running on Azure (Environment Variables exist)
+$host = getenv('DB_HOST');
 
-$host = $config['host'];
-$port = $config['port'];
-$db   = $config['database'];
-$user = $config['username'];
-$pass = $config['password'];
+if ($host) {
+    // Azure Environment Variables
+    $port = getenv('DB_PORT');
+    $db   = getenv('DB_DATABASE');
+    $user = getenv('DB_USERNAME');
+    $pass = getenv('DB_PASSWORD');
+} else {
+    // Local XAMPP
+    $config = require __DIR__ . '/config.local.php';
+
+    $host = $config['host'];
+    $port = $config['port'];
+    $db   = $config['database'];
+    $user = $config['username'];
+    $pass = $config['password'];
+}
+
 $charset = 'utf8mb4';
 
 $dsn = "mysql:host=$host;port=$port;dbname=$db;charset=$charset";
