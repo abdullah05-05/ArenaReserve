@@ -25,13 +25,29 @@ try {
     $available_balance = 0.00;
 }
 
-// Default player coordinates (Karachi DHA/Clifton area center for realistic demo)
-$player_lat = 24.8607;
-$player_lng = 67.0011;
+// --- Player location: read from GET (set by client-side JS) or fall back to Karachi default ---
+$default_lat = 24.8607;
+$default_lng = 67.0011;
+$using_default_location = true;
+
+$player_lat = $default_lat;
+$player_lng = $default_lng;
+
+if (isset($_GET['player_lat']) && isset($_GET['player_lng'])) {
+    $raw_lat = floatval($_GET['player_lat']);
+    $raw_lng = floatval($_GET['player_lng']);
+    // Validate coordinate ranges
+    if ($raw_lat >= -90 && $raw_lat <= 90 && $raw_lng >= -180 && $raw_lng <= 180) {
+        $player_lat = $raw_lat;
+        $player_lng = $raw_lng;
+        $using_default_location = false;
+    }
+}
 
 // Get filters
 $sport_filter = $_GET['sport_type'] ?? 'All';
 $sort_by = $_GET['sort_by'] ?? 'proximity';
+$radius_km = $_GET['radius_km'] ?? 'any'; // 'any', '5', '10', '25', '50'
 
 // Build SQL query for verified grounds
 $sql = "SELECT g.*, 
@@ -59,6 +75,12 @@ if ($sort_by === 'price_asc') {
 } else {
     // Default proximity sort
     $sql .= " ORDER BY distance ASC";
+}
+
+// Radius filter — wrap as subquery to filter on the computed 'distance'
+if ($radius_km !== 'any' && is_numeric($radius_km) && intval($radius_km) > 0) {
+    $sql = "SELECT * FROM ({$sql}) AS subq WHERE subq.distance <= :radius_km";
+    $params['radius_km'] = intval($radius_km);
 }
 
 try {
@@ -253,17 +275,40 @@ try {
         <main class="flex-1 min-w-0">
             <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
                 <div>
-                    <h1 class="text-2xl font-bold text-slate-900">Explore Sports Grounds</h1>
-                    <p class="text-sm text-slate-500">Find and book nearby sports facilities</p>
-                </div>
+                <h1 class="text-2xl font-bold text-slate-900">Explore Sports Grounds</h1>
+                <p class="text-sm text-slate-500">
+                    Find and book nearby sports facilities
+                    <?php if (!$using_default_location): ?>
+                        &nbsp;·&nbsp;<span class="text-emerald-600 font-semibold">📍 Location Active</span>
+                    <?php endif; ?>
+                </p>
+            </div>
                 <!-- Wallet Display for Mobile -->
                 <a href="wallet.php" class="sm:hidden flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-800 px-3 py-2 rounded-lg text-xs font-semibold border border-slate-200 transition-colors">
                     Wallet: <?php echo number_format($available_balance, 2); ?> PKR
                 </a>
             </div>
 
+            <!-- Location Permission Banner (shown when using default/fallback coordinates) -->
+            <?php if ($using_default_location): ?>
+            <div id="locationBanner" class="mb-4 flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm">
+                <svg class="h-5 w-5 text-amber-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                <span class="text-amber-800 flex-1">📍 Enable your location for accurate proximity sorting &amp; distances.</span>
+                <button onclick="requestPlayerLocation()" class="ml-auto flex-shrink-0 text-xs font-bold text-white bg-amber-500 hover:bg-amber-600 px-3 py-1.5 rounded-lg transition-colors">Enable Now</button>
+                <button onclick="document.getElementById('locationBanner').remove()" class="text-amber-400 hover:text-amber-600 flex-shrink-0" aria-label="Dismiss">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <?php endif; ?>
+
             <!-- Search, Filter & Sort Form -->
             <form id="filterForm" action="explore.php" method="GET" class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-6 space-y-4">
+                <!-- Pass through player coordinates if we have real ones -->
+                <?php if (!$using_default_location): ?>
+                <input type="hidden" name="player_lat" value="<?php echo htmlspecialchars($player_lat); ?>">
+                <input type="hidden" name="player_lng" value="<?php echo htmlspecialchars($player_lng); ?>">
+                <?php endif; ?>
+
                 <div class="flex flex-col md:flex-row gap-4">
                     <!-- Search Input -->
                     <div class="flex-1 relative">
@@ -277,7 +322,29 @@ try {
                     </div>
 
                     <!-- Filters and Sort -->
-                    <div class="flex flex-wrap md:flex-nowrap gap-3">
+                    <div class="flex flex-wrap md:flex-nowrap gap-3 items-center">
+                        <!-- Near Me Button -->
+                        <button type="button" id="nearMeBtn" onclick="requestPlayerLocation()"
+                                class="flex items-center gap-1.5 px-3 py-2 <?php echo !$using_default_location ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-300'; ?> border text-xs font-semibold rounded-lg hover:bg-emerald-600 hover:text-white hover:border-emerald-600 transition-colors whitespace-nowrap">
+                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                            <?php echo $using_default_location ? '📍 Near Me' : '✓ Near Me'; ?>
+                        </button>
+
+                        <!-- Radius Filter (only shown when location is active) -->
+                        <?php if (!$using_default_location): ?>
+                        <div class="flex items-center gap-2">
+                            <label for="radius_km" class="text-xs font-medium text-slate-500 whitespace-nowrap">Radius</label>
+                            <select id="radius_km" name="radius_km" onchange="this.form.submit()"
+                                    class="text-xs border border-slate-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 bg-white">
+                                <option value="any" <?php echo ($radius_km === 'any') ? 'selected' : ''; ?>>Any Distance</option>
+                                <option value="5" <?php echo ($radius_km === '5') ? 'selected' : ''; ?>>Within 5 km</option>
+                                <option value="10" <?php echo ($radius_km === '10') ? 'selected' : ''; ?>>Within 10 km</option>
+                                <option value="25" <?php echo ($radius_km === '25') ? 'selected' : ''; ?>>Within 25 km</option>
+                                <option value="50" <?php echo ($radius_km === '50') ? 'selected' : ''; ?>>Within 50 km</option>
+                            </select>
+                        </div>
+                        <?php endif; ?>
+
                         <!-- Sport Type Filter -->
                         <div class="flex items-center gap-2">
                             <label for="sport_type" class="text-xs font-medium text-slate-500 whitespace-nowrap">Sport Type</label>
@@ -368,9 +435,29 @@ try {
                                         </div>
                                     </div>
                                     <div class="text-right">
-                                        <div class="text-slate-400 text-[10px] uppercase font-semibold">Proximity</div>
-                                        <div class="text-xs font-medium text-slate-600">
-                                            <?php echo number_format($ground['distance'], 1); ?> km away
+                                        <div class="text-[10px] uppercase font-semibold
+                                            <?php
+                                                $d = floatval($ground['distance']);
+                                                if ($d < 3) echo 'text-emerald-600';
+                                                elseif ($d < 10) echo 'text-amber-500';
+                                                else echo 'text-slate-400';
+                                            ?>
+                                        ">Distance</div>
+                                        <?php
+                                            $d = floatval($ground['distance']);
+                                            if ($d < 3) {
+                                                $badge_class = 'bg-emerald-100 text-emerald-700';
+                                                $label = '🟢';
+                                            } elseif ($d < 10) {
+                                                $badge_class = 'bg-amber-100 text-amber-700';
+                                                $label = '🟡';
+                                            } else {
+                                                $badge_class = 'bg-slate-100 text-slate-600';
+                                                $label = '⚪';
+                                            }
+                                        ?>
+                                        <div class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full <?php echo $badge_class; ?>">
+                                            <?php echo $label; ?> <?php echo number_format($ground['distance'], 1); ?> km away
                                         </div>
                                     </div>
                                 </div>
@@ -535,6 +622,66 @@ try {
                 }
             });
         });
+
+        // =============================================
+        // PLAYER LOCATION DETECTION
+        // =============================================
+        function requestPlayerLocation() {
+            if (!navigator.geolocation) {
+                showExpToast('❌ Geolocation is not supported by your browser.', '#dc2626');
+                return;
+            }
+
+            const btn = document.getElementById('nearMeBtn');
+            if (btn) { btn.textContent = '⏳ Detecting...'; btn.disabled = true; }
+
+            navigator.geolocation.getCurrentPosition(
+                function(pos) {
+                    const lat = pos.coords.latitude.toFixed(6);
+                    const lng = pos.coords.longitude.toFixed(6);
+
+                    // Cache in sessionStorage so we don't re-prompt on every filter change
+                    sessionStorage.setItem('player_lat', lat);
+                    sessionStorage.setItem('player_lng', lng);
+
+                    // Build URL preserving existing filters
+                    const url = new URL(window.location.href);
+                    url.searchParams.set('player_lat', lat);
+                    url.searchParams.set('player_lng', lng);
+                    url.searchParams.set('sort_by', 'proximity');
+                    window.location.href = url.toString();
+                },
+                function(err) {
+                    if (btn) { btn.textContent = '📍 Near Me'; btn.disabled = false; }
+                    let msg = 'Could not get your location.';
+                    if (err.code === err.PERMISSION_DENIED) {
+                        msg = '❌ Location permission denied. Please allow location access in your browser settings.';
+                    } else if (err.code === err.POSITION_UNAVAILABLE) {
+                        msg = '❌ Location unavailable. Check your device GPS/network.';
+                    } else if (err.code === err.TIMEOUT) {
+                        msg = '❌ Location request timed out. Please try again.';
+                    }
+                    showExpToast(msg, '#dc2626');
+                },
+                { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
+            );
+        }
+
+        // On page load: if no real location in URL but we have it in sessionStorage, auto-inject it
+        (function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (!urlParams.has('player_lat')) {
+                const cachedLat = sessionStorage.getItem('player_lat');
+                const cachedLng = sessionStorage.getItem('player_lng');
+                if (cachedLat && cachedLng) {
+                    const url = new URL(window.location.href);
+                    url.searchParams.set('player_lat', cachedLat);
+                    url.searchParams.set('player_lng', cachedLng);
+                    // Redirect to inject cached coordinates
+                    window.location.replace(url.toString());
+                }
+            }
+        })();
 
         // ----- Accept Challenge -----
         let acceptBookingId = null;
