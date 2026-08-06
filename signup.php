@@ -23,6 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = trim($_POST['name'] ?? '');
     $email = trim($_POST['email'] ?? '');
     $phone = trim($_POST['phone'] ?? '');
+    $city = trim($_POST['city'] ?? '');
     $role = trim($_POST['role'] ?? '');
     $password = $_POST['password'] ?? '';
     $confirm_password = $_POST['confirm_password'] ?? '';
@@ -33,8 +34,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $fieldErrors['name'] = 'Full Name is required.';
     } elseif (strlen($name) < 2) {
         $fieldErrors['name'] = 'Full Name must be at least 2 characters long.';
-    } elseif (preg_match('/\d/', $name)) {
-        $fieldErrors['name'] = 'Full Name cannot contain numbers.';
+    } elseif (!preg_match('/^[a-zA-Z0-9_\s]+$/', $name)) {
+        $fieldErrors['name'] = 'Full Name must contain only letters, numbers, underscores, and spaces.';
     }
 
     if ($email === '') {
@@ -50,6 +51,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!preg_match('/^[0-9]{11}$/', $cleanPhone)) {
             $fieldErrors['phone'] = 'Phone Number must contain exactly 11 digits.';
         }
+    }
+
+    if ($city === '') {
+        $fieldErrors['city'] = 'City is required.';
     }
 
     if ($role === '') {
@@ -90,6 +95,7 @@ INSERT INTO users
     `name`,
     `email`,
     `phone`,
+    `city`,
     `password`,
     `current_role`,
     `current_active_mode`,
@@ -99,13 +105,14 @@ INSERT INTO users
 )
 VALUES
 (
-    ?, ?, ?, ?, ?, ?, ?, ?, ?
+    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
 )
 ");
                 $stmt->execute([
     $name,
     $email,
     $phone,
+    $city,
     $hashed_password,
     $role,
     $role,
@@ -240,6 +247,17 @@ VALUES
                     <p id="phone-error" class="mt-2 text-sm text-red-600"><?php echo htmlspecialchars($fieldErrors['phone'] ?? ''); ?></p>
                 </div>
 
+                <!-- City -->
+                <div>
+                    <label for="city" class="block text-sm font-medium text-slate-700">City</label>
+                    <div class="mt-1">
+                        <input id="city" name="city" type="text" required placeholder="Lahore"
+                               value="<?php echo htmlspecialchars($_POST['city'] ?? ''); ?>"
+                               class="appearance-none block w-full px-3 py-2 border border-slate-300<?php echo isset($fieldErrors['city']) ? ' border-red-500 focus:border-red-500 focus:ring-red-500' : ''; ?> rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm">
+                    </div>
+                    <p id="city-error" class="mt-2 text-sm text-red-600"><?php echo htmlspecialchars($fieldErrors['city'] ?? ''); ?></p>
+                </div>
+
                 <!-- Role Selection -->
                 <div>
                     <label for="role" class="block text-sm font-medium text-slate-700">I want to</label>
@@ -308,6 +326,7 @@ VALUES
             name: document.getElementById('name'),
             email: document.getElementById('email'),
             phone: document.getElementById('phone'),
+            city: document.getElementById('city'),
             role: document.getElementById('role'),
             password: document.getElementById('password'),
             confirm_password: document.getElementById('confirm_password')
@@ -317,6 +336,7 @@ VALUES
             name: document.getElementById('name-error'),
             email: document.getElementById('email-error'),
             phone: document.getElementById('phone-error'),
+            city: document.getElementById('city-error'),
             role: document.getElementById('role-error'),
             password: document.getElementById('password-error'),
             confirm_password: document.getElementById('confirm_password-error')
@@ -328,7 +348,7 @@ VALUES
             name(value) {
                 if (!value.trim()) return 'Full Name is required.';
                 if (value.trim().length < 2) return 'Full Name must be at least 2 characters long.';
-                if (/\d/.test(value)) return 'Full Name cannot contain numbers.';
+                if (!/^[a-zA-Z0-9_\s]+$/.test(value.trim())) return 'Full Name must contain only letters, numbers, underscores, and spaces.';
                 return '';
             },
             email(value) {
@@ -341,6 +361,10 @@ VALUES
                 if (!value.trim()) return 'Phone Number is required.';
                 const cleaned = value.replace(/\D/g, '');
                 if (!/^[0-9]{11}$/.test(cleaned)) return 'Phone Number must contain exactly 11 digits.';
+                return '';
+            },
+            city(value) {
+                if (!value.trim()) return 'City is required.';
                 return '';
             },
             role(value) {
