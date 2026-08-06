@@ -63,6 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $_SESSION['current_role'] = $user['current_role'];
                     $_SESSION['current_active_mode'] = $user['current_active_mode'];
                     $_SESSION['city'] = $user['city'];
+                    $_SESSION['profile_picture'] = $user['profile_picture'] ?? null;
 
                     // Direct based on mode
                     if ($user['current_active_mode'] === 'Owner') {
