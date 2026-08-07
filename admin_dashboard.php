@@ -15,6 +15,7 @@ try { $pdo->exec("ALTER TABLE onboarding_packages ADD COLUMN IF NOT EXISTS rejec
 try { $pdo->exec("ALTER TABLE grounds ADD COLUMN IF NOT EXISTS ground_status ENUM('Active','Suspended','Blocked') NOT NULL DEFAULT 'Active'"); } catch(Exception $e) {}
 try { $pdo->exec("ALTER TABLE grounds ADD COLUMN IF NOT EXISTS block_reason TEXT DEFAULT NULL"); } catch(Exception $e) {}
 try { $pdo->exec("ALTER TABLE wallet_deposit_requests ADD COLUMN IF NOT EXISTS rejection_reason TEXT DEFAULT NULL"); } catch(Exception $e) {}
+try { $pdo->exec("ALTER TABLE users MODIFY COLUMN status ENUM('Active','Blocked','Suspended') NOT NULL DEFAULT 'Active'"); } catch(Exception $e) {}
 
 /* ═══════════════════════════════
    POST HANDLERS
@@ -108,7 +109,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
         /* ── Suspend / Activate user ── */
         elseif ($action === 'set_user_status') {
-            $ns = in_array($_POST['new_status'] ?? '', ['Active','Suspended']) ? $_POST['new_status'] : 'Active';
+            $ns = in_array($_POST['new_status'] ?? '', ['Active','Suspended','Blocked']) ? $_POST['new_status'] : 'Active';
             $pdo->prepare("UPDATE users SET status=? WHERE id=?")->execute([$ns, $target_id]);
             $success_msg = "User status updated to $ns.";
         }
@@ -162,17 +163,63 @@ try {
     )->fetchAll();
 } catch (Exception $e) { $pending_deposits = []; }
 
-// All users
-try {
-    $all_users = $pdo->query(
-        "SELECT id,name,email,current_role,status,city,created_at FROM users WHERE current_role != 'Admin' ORDER BY created_at DESC"
-    )->fetchAll();
-} catch (Exception $e) { $all_users = []; }
-
-$total_users   = count($all_users);
-$suspended_cnt = count(array_filter($all_users, fn($u) => $u['status'] === 'Suspended'));
 $platform_fee  = $_SESSION['platform_fee'] ?? 5;
 $active_page   = $_GET['page'] ?? 'compliance';
+
+// Real-time Dashboard Statistics
+try {
+    $stat_total_users = (int)$pdo->query("SELECT COUNT(*) FROM users WHERE COALESCE(current_role, current_active_mode, 'Player') != 'Admin'")->fetchColumn();
+    $stat_total_players = (int)$pdo->query("SELECT COUNT(*) FROM users WHERE COALESCE(current_role, current_active_mode, 'Player') = 'Player'")->fetchColumn();
+    $stat_total_owners = (int)$pdo->query("SELECT COUNT(*) FROM users WHERE COALESCE(current_role, current_active_mode, 'Player') = 'Owner'")->fetchColumn();
+    $stat_active_users = (int)$pdo->query("SELECT COUNT(*) FROM users WHERE status = 'Active' AND COALESCE(current_role, current_active_mode, 'Player') != 'Admin'")->fetchColumn();
+    $stat_blocked_users = (int)$pdo->query("SELECT COUNT(*) FROM users WHERE (status = 'Blocked' OR status = 'Suspended') AND COALESCE(current_role, current_active_mode, 'Player') != 'Admin'")->fetchColumn();
+} catch (Exception $e) {
+    $stat_total_users = $stat_total_players = $stat_total_owners = $stat_active_users = $stat_blocked_users = 0;
+}
+
+// User Management filters and pagination logic
+$search = trim($_GET['search'] ?? '');
+$filter_role = trim($_GET['account_type'] ?? '');
+$filter_status = trim($_GET['status'] ?? '');
+$page = max(1, intval($_GET['p'] ?? 1));
+$limit = 10;
+$offset = ($page - 1) * $limit;
+
+$params = [];
+$where_clauses = ["COALESCE(current_role, current_active_mode, 'Player') != 'Admin'"];
+
+if ($search !== '') {
+    $where_clauses[] = "(name LIKE ? OR email LIKE ?)";
+    $params[] = "%$search%";
+    $params[] = "%$search%";
+}
+
+if ($filter_role !== '') {
+    $where_clauses[] = "COALESCE(current_role, current_active_mode, 'Player') = ?";
+    $params[] = $filter_role;
+}
+
+if ($filter_status !== '') {
+    $where_clauses[] = "status = ?";
+    $params[] = $filter_status;
+}
+
+$where_sql = implode(" AND ", $where_clauses);
+
+try {
+    $count_stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE $where_sql");
+    $count_stmt->execute($params);
+    $total_matching_users = (int)$count_stmt->fetchColumn();
+    $total_pages = ceil($total_matching_users / $limit);
+
+    $users_stmt = $pdo->prepare("SELECT id, name, email, phone, city, current_role, current_active_mode, status, created_at, profile_picture FROM users WHERE $where_sql ORDER BY created_at DESC LIMIT $limit OFFSET $offset");
+    $users_stmt->execute($params);
+    $users_list = $users_stmt->fetchAll();
+} catch (Exception $e) {
+    $total_matching_users = 0;
+    $total_pages = 0;
+    $users_list = [];
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -195,11 +242,17 @@ $active_page   = $_GET['page'] ?? 'compliance';
 <header class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between h-16 items-center">
         <div class="flex items-center gap-2">
-            <svg class="h-7 w-7 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <!-- Hamburger button for Admin Mobile Menu -->
+            <button type="button" onclick="toggleAdminSidebar()" class="lg:hidden text-slate-500 hover:text-slate-700 focus:outline-none p-1 rounded-md" title="Toggle Navigation">
+                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+            </button>
+            <svg class="h-7 w-7 text-emerald-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 14l9-5-9-5-9 5 9 5z"/>
                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0112 20.055a11.952 11.952 0 01-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"/>
             </svg>
-            <span class="text-emerald-600 text-xl font-bold">ArenaReserve</span>
+            <span class="text-emerald-600 text-[12px] sm:text-lg md:text-xl font-bold flex-shrink-0">ArenaReserve</span>
             <span class="ml-2 text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full font-bold uppercase">Admin</span>
         </div>
         <div class="flex items-center gap-3">
@@ -210,19 +263,44 @@ $active_page   = $_GET['page'] ?? 'compliance';
     </div>
 </header>
 
-<div class="flex-1 flex max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 gap-6">
+<div class="flex-1 flex max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 gap-6 relative">
+
+    <!-- Sidebar Backdrop Overlay -->
+    <div id="adminSidebarBackdrop" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 transition-opacity duration-300 opacity-0 lg:hidden" onclick="toggleAdminSidebar()"></div>
 
     <!-- ══════════ SIDEBAR ══════════ -->
-    <aside class="hidden lg:block w-52 flex-shrink-0">
-        <nav class="space-y-1 bg-white rounded-xl border border-slate-200 p-3 shadow-sm">
+    <aside id="adminSidebar" class="fixed inset-y-0 left-0 w-64 bg-white z-50 shadow-2xl transform -translate-x-full transition-transform duration-300 ease-in-out flex flex-col lg:static lg:translate-x-0 lg:w-52 lg:z-0 lg:shadow-none lg:bg-transparent lg:flex-shrink-0">
+        <!-- Close button on Mobile -->
+        <div class="flex items-center justify-between p-4 border-b border-slate-100 lg:hidden bg-white flex-shrink-0">
+            <div class="flex items-center gap-2">
+                <svg class="h-6 w-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 14l9-5-9-5-9 5 9 5z"/>
+                </svg>
+                <span class="text-emerald-600 text-lg font-bold">ArenaReserve</span>
+            </div>
+            <button onclick="toggleAdminSidebar()" class="text-slate-500 hover:text-slate-700 focus:outline-none">
+                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <nav class="space-y-1 bg-white rounded-xl border border-slate-200 p-3 shadow-sm lg:block flex-1 overflow-y-auto m-0 lg:m-0">
             <a href="admin_dashboard.php?page=compliance"
+               onclick="if(window.innerWidth < 1024) toggleAdminSidebar()"
                class="<?php echo $active_page==='compliance'?'bg-emerald-50 text-emerald-700 font-semibold':'text-slate-600 hover:bg-slate-50'; ?> flex items-center px-3 py-2.5 text-sm rounded-lg transition-colors">
                 <svg class="mr-3 h-5 w-5 <?php echo $active_page==='compliance'?'text-emerald-600':'text-slate-400'; ?>" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
                 </svg>
                 Compliance Panel
             </a>
+            <a href="admin_dashboard.php?page=users"
+               onclick="if(window.innerWidth < 1024) toggleAdminSidebar()"
+               class="<?php echo $active_page==='users'?'bg-emerald-50 text-emerald-700 font-semibold':'text-slate-600 hover:bg-slate-50'; ?> flex items-center px-3 py-2.5 text-sm rounded-lg transition-colors">
+                <svg class="mr-3 h-5 w-5 <?php echo $active_page==='users'?'text-emerald-600':'text-slate-400'; ?>" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                </svg>
+                User Management
+            </a>
             <a href="admin_dashboard.php?page=system"
+               onclick="if(window.innerWidth < 1024) toggleAdminSidebar()"
                class="<?php echo $active_page==='system'?'bg-emerald-50 text-emerald-700 font-semibold':'text-slate-600 hover:bg-slate-50'; ?> flex items-center px-3 py-2.5 text-sm rounded-lg transition-colors">
                 <svg class="mr-3 h-5 w-5 <?php echo $active_page==='system'?'text-emerald-600':'text-slate-400'; ?>" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/>
@@ -257,30 +335,8 @@ $active_page   = $_GET['page'] ?? 'compliance';
             <p class="text-sm text-slate-500 mt-1">Manage platform settings and user accounts</p>
         </div>
 
-        <!-- Stats -->
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-            <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex items-center gap-4">
-                <div class="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center">
-                    <svg class="w-6 h-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                </div>
-                <div><div class="text-xs text-slate-500 font-medium">Total Users</div><div class="text-3xl font-bold text-slate-900"><?php echo $total_users; ?></div></div>
-            </div>
-            <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex items-center gap-4">
-                <div class="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center">
-                    <svg class="w-6 h-6 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
-                </div>
-                <div><div class="text-xs text-slate-500 font-medium">Suspended</div><div class="text-3xl font-bold text-slate-900"><?php echo $suspended_cnt; ?></div></div>
-            </div>
-            <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex items-center gap-4">
-                <div class="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center">
-                    <svg class="w-6 h-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                </div>
-                <div><div class="text-xs text-slate-500 font-medium">Platform Fee</div><div class="text-3xl font-bold text-slate-900"><?php echo $platform_fee; ?>%</div></div>
-            </div>
-        </div>
-
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <!-- Platform Config -->
+        <!-- Platform Config -->
+        <div class="max-w-3xl">
             <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-6">
                 <h2 class="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
                     <svg class="w-5 h-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
@@ -305,43 +361,229 @@ $active_page   = $_GET['page'] ?? 'compliance';
                     </div>
                 </div>
             </div>
+        </div>
 
-            <!-- User Management -->
-            <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-6">
-                <h2 class="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
-                    <svg class="w-5 h-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                    User Management
-                </h2>
-                <div class="space-y-3 max-h-80 overflow-y-auto pr-1">
-                    <?php foreach ($all_users as $user): ?>
-                        <div class="flex items-center justify-between py-2.5 border-b border-slate-100 last:border-0">
-                            <div>
-                                <div class="text-sm font-bold text-slate-800"><?php echo htmlspecialchars($user['name']); ?></div>
-                                <div class="text-xs text-slate-400"><?php echo htmlspecialchars($user['email']); ?></div>
-                                <div class="flex items-center gap-2 mt-0.5">
-                                    <span class="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-100 px-2 py-0.5 rounded font-bold"><?php echo $user['current_role']; ?></span>
-                                    <span class="text-[10px] text-slate-400">Joined <?php echo date('Y-m-d', strtotime($user['created_at'])); ?></span>
-                                </div>
-                            </div>
-                            <form method="POST" action="admin_dashboard.php?page=system">
-                                <input type="hidden" name="action" value="set_user_status">
-                                <input type="hidden" name="target_id" value="<?php echo $user['id']; ?>">
-                                <?php if ($user['status'] === 'Suspended'): ?>
-                                    <input type="hidden" name="new_status" value="Active">
-                                    <button type="submit" class="text-xs bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-3 py-1.5 rounded-lg">Activate</button>
-                                <?php else: ?>
-                                    <input type="hidden" name="new_status" value="Suspended">
-                                    <button type="submit" class="text-xs bg-red-500 hover:bg-red-600 text-white font-bold px-3 py-1.5 rounded-lg flex items-center gap-1">
-                                        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636"/></svg>
-                                        Suspend
-                                    </button>
-                                <?php endif; ?>
-                            </form>
-                        </div>
-                    <?php endforeach; ?>
-                    <?php if (empty($all_users)): ?><p class="text-sm text-slate-400 text-center py-6">No users yet.</p><?php endif; ?>
+        <?php elseif ($active_page === 'users'): ?>
+        <!-- ══════════════════════════════
+             USER MANAGEMENT PANEL
+        ══════════════════════════════ -->
+        <div class="mb-6">
+            <h1 class="text-2xl font-bold text-slate-900">User Management</h1>
+            <p class="text-sm text-slate-500 mt-1">Search, filter, and manage platform user accounts</p>
+        </div>
+
+        <!-- Real-time Dashboard Statistics -->
+        <div class="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-6">
+            <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center flex-shrink-0">
+                    <svg class="w-5 h-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                </div>
+                <div>
+                    <div class="text-[10px] text-slate-400 font-semibold uppercase font-medium">Total Users</div>
+                    <div class="text-xl font-bold text-slate-900"><?php echo $stat_total_users; ?></div>
                 </div>
             </div>
+
+            <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0">
+                    <svg class="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                </div>
+                <div>
+                    <div class="text-[10px] text-slate-400 font-semibold uppercase font-medium">Players</div>
+                    <div class="text-xl font-bold text-slate-900"><?php echo $stat_total_players; ?></div>
+                </div>
+            </div>
+
+            <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center flex-shrink-0">
+                    <svg class="w-5 h-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    </svg>
+                </div>
+                <div>
+                    <div class="text-[10px] text-slate-400 font-semibold uppercase font-medium">Owners</div>
+                    <div class="text-xl font-bold text-slate-900"><?php echo $stat_total_owners; ?></div>
+                </div>
+            </div>
+
+            <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center flex-shrink-0">
+                    <svg class="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+                <div>
+                    <div class="text-[10px] text-slate-400 font-semibold uppercase font-medium">Active</div>
+                    <div class="text-xl font-bold text-slate-900"><?php echo $stat_active_users; ?></div>
+                </div>
+            </div>
+
+            <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center flex-shrink-0">
+                    <svg class="w-5 h-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636" />
+                    </svg>
+                </div>
+                <div>
+                    <div class="text-[10px] text-slate-400 font-semibold uppercase font-medium">Blocked</div>
+                    <div class="text-xl font-bold text-slate-900"><?php echo $stat_blocked_users; ?></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filter & Search Controls -->
+        <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-4 mb-6">
+            <form method="GET" action="admin_dashboard.php" class="flex flex-col md:flex-row gap-3">
+                <input type="hidden" name="page" value="users">
+
+                <!-- Search -->
+                <div class="flex-1 relative">
+                    <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <svg class="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                    </span>
+                    <input type="text" name="search" value="<?php echo htmlspecialchars($search); ?>" placeholder="Search by name or email..."
+                           class="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400">
+                </div>
+
+                <!-- Filters -->
+                <div class="flex flex-wrap gap-2">
+                    <select name="account_type" class="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-400">
+                        <option value="">All Account Types</option>
+                        <option value="Player" <?php echo $filter_role === 'Player' ? 'selected' : ''; ?>>Player</option>
+                        <option value="Owner" <?php echo $filter_role === 'Owner' ? 'selected' : ''; ?>>Ground Owner</option>
+                    </select>
+
+                    <select name="status" class="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-400">
+                        <option value="">All Statuses</option>
+                        <option value="Active" <?php echo $filter_status === 'Active' ? 'selected' : ''; ?>>Active</option>
+                        <option value="Blocked" <?php echo $filter_status === 'Blocked' ? 'selected' : ''; ?>>Blocked</option>
+                        <option value="Suspended" <?php echo $filter_status === 'Suspended' ? 'selected' : ''; ?>>Suspended</option>
+                    </select>
+
+                    <button type="submit" class="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-sm px-4 py-2 rounded-lg transition-colors">
+                        Apply Filters
+                    </button>
+                    <?php if ($search !== '' || $filter_role !== '' || $filter_status !== ''): ?>
+                        <a href="admin_dashboard.php?page=users" class="border border-slate-200 text-slate-500 hover:bg-slate-50 font-semibold text-sm px-4 py-2 rounded-lg transition-colors flex items-center justify-center">
+                            Reset
+                        </a>
+                    <?php endif; ?>
+                </div>
+            </form>
+        </div>
+
+        <!-- Users Table -->
+        <div class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden mb-6">
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="bg-slate-50 border-b border-slate-100 text-[11px] text-slate-500 uppercase font-semibold tracking-wide">
+                            <th class="px-5 py-3 text-left">User</th>
+                            <th class="px-4 py-3 text-left">Contact Info</th>
+                            <th class="px-4 py-3 text-left">Location</th>
+                            <th class="px-4 py-3 text-left">Account Type</th>
+                            <th class="px-4 py-3 text-left">Reg Date</th>
+                            <th class="px-4 py-3 text-center">Status</th>
+                            <th class="px-4 py-3 text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        <?php foreach ($users_list as $u): ?>
+                            <?php
+                                $status = $u['status'];
+                                $badge_class = 'bg-emerald-50 text-emerald-700 border-emerald-100';
+                                if ($status === 'Blocked' || $status === 'Suspended') {
+                                    $badge_class = 'bg-red-50 text-red-700 border-red-100';
+                                }
+                            ?>
+                            <tr class="hover:bg-slate-50 transition-colors align-middle">
+                                <td class="px-5 py-4">
+                                    <div class="flex items-center gap-3">
+                                        <?php if (!empty($u['profile_picture']) && file_exists(__DIR__ . '/' . $u['profile_picture'])): ?>
+                                            <img src="<?php echo htmlspecialchars($u['profile_picture']); ?>" class="w-10 h-10 rounded-full object-cover border border-slate-200">
+                                        <?php else: ?>
+                                            <div class="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 text-slate-500 flex items-center justify-center font-bold text-sm">
+                                                <?php echo strtoupper(substr($u['name'], 0, 1)); ?>
+                                            </div>
+                                        <?php endif; ?>
+                                        <div>
+                                            <div class="font-bold text-slate-800"><?php echo htmlspecialchars($u['name']); ?></div>
+                                            <div class="text-xs text-slate-400"><?php echo htmlspecialchars($u['email']); ?></div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="px-4 py-4 text-slate-700 text-xs font-medium">
+                                    <?php echo htmlspecialchars($u['phone']); ?>
+                                </td>
+                                <td class="px-4 py-4 text-slate-600 text-xs">
+                                    <?php echo htmlspecialchars($u['city']); ?>
+                                </td>
+                                <td class="px-4 py-4">
+                                    <?php $display_role = $u['current_role'] ?? $u['current_active_mode'] ?? 'Player'; ?>
+                                    <span class="text-[10px] font-bold uppercase px-2 py-0.5 rounded border <?php echo $display_role === 'Owner' ? 'bg-purple-50 text-purple-700 border-purple-100' : 'bg-blue-50 text-blue-700 border-blue-100'; ?>">
+                                        <?php echo $display_role === 'Owner' ? 'Ground Owner' : 'Player'; ?>
+                                    </span>
+                                </td>
+                                <td class="px-4 py-4 text-slate-500 text-xs">
+                                    <?php echo date('Y-m-d', strtotime($u['created_at'])); ?>
+                                </td>
+                                <td class="px-4 py-4 text-center">
+                                    <span class="text-[10px] border px-2.5 py-1 rounded-full font-bold <?php echo $badge_class; ?>">
+                                        <?php echo $status; ?>
+                                    </span>
+                                </td>
+                                <td class="px-4 py-4 text-right">
+                                    <form method="POST" action="admin_dashboard.php?page=users" class="inline toggle-block-form">
+                                        <input type="hidden" name="action" value="set_user_status">
+                                        <input type="hidden" name="target_id" value="<?php echo $u['id']; ?>">
+                                        <?php if ($status === 'Active'): ?>
+                                            <input type="hidden" name="new_status" value="Blocked">
+                                            <button type="button" onclick="confirmAction(event, '<?php echo htmlspecialchars(addslashes($u['name'])); ?>', 'Block')" class="text-xs bg-red-500 hover:bg-red-600 text-white font-bold px-3 py-1.5 rounded-lg shadow-sm transition-colors">
+                                                Block
+                                            </button>
+                                        <?php else: ?>
+                                            <input type="hidden" name="new_status" value="Active">
+                                            <button type="button" onclick="confirmAction(event, '<?php echo htmlspecialchars(addslashes($u['name'])); ?>', 'Unblock')" class="text-xs bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-3 py-1.5 rounded-lg shadow-sm transition-colors">
+                                                Unblock
+                                            </button>
+                                        <?php endif; ?>
+                                    </form>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                        <?php if (empty($users_list)): ?>
+                            <tr>
+                                <td colspan="7" class="text-sm text-slate-400 text-center py-8">No users found matching your search.</td>
+                            </tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            <?php if ($total_pages > 1): ?>
+                <div class="px-5 py-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
+                    <div class="text-xs text-slate-500">
+                        Showing page <span class="font-semibold text-slate-700"><?php echo $page; ?></span> of <span class="font-semibold text-slate-700"><?php echo $total_pages; ?></span> (<?php echo $total_matching_users; ?> total matching users)
+                    </div>
+                    <div class="flex gap-1.5">
+                        <?php if ($page > 1): ?>
+                            <a href="admin_dashboard.php?page=users&p=<?php echo $page-1; ?>&search=<?php echo urlencode($search); ?>&account_type=<?php echo urlencode($filter_role); ?>&status=<?php echo urlencode($filter_status); ?>"
+                               class="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 bg-white hover:bg-slate-50 transition-colors">&larr; Previous</a>
+                        <?php endif; ?>
+                        <?php if ($page < $total_pages): ?>
+                            <a href="admin_dashboard.php?page=users&p=<?php echo $page+1; ?>&search=<?php echo urlencode($search); ?>&account_type=<?php echo urlencode($filter_role); ?>&status=<?php echo urlencode($filter_status); ?>"
+                               class="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 bg-white hover:bg-slate-50 transition-colors">Next &rarr;</a>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            <?php endif; ?>
         </div>
 
         <?php else: ?>
@@ -385,12 +627,10 @@ $active_page   = $_GET['page'] ?? 'compliance';
                         <div class="flex flex-col md:flex-row">
                             <!-- Photo -->
                             <div class="w-full md:w-60 h-48 md:h-auto bg-slate-100 flex-shrink-0 relative">
-                                <?php if (!empty($v['image_path'])): ?>
-                                    <img src="<?php echo htmlspecialchars($v['image_path']); ?>" class="w-full h-full object-cover">
+                                <?php if (!empty($v['image_path']) && file_exists(__DIR__ . '/' . $v['image_path'])): ?>
+                                    <img src="<?php echo htmlspecialchars($v['image_path']); ?>" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='assets/images/football.png';">
                                 <?php else: ?>
-                                    <div class="w-full h-full flex items-center justify-center text-slate-300">
-                                        <svg class="w-16 h-16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                                    </div>
+                                    <img src="assets/images/football.png" class="w-full h-full object-cover opacity-80">
                                 <?php endif; ?>
                                 <span class="absolute top-2 left-2 text-[10px] bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded font-bold uppercase">Pending</span>
                             </div>
@@ -681,6 +921,29 @@ $active_page   = $_GET['page'] ?? 'compliance';
     </main>
 </div>
 
+<!-- Premium Confirmation Modal -->
+<div id="confirm-modal" class="fixed inset-0 z-50 hidden bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-sm w-full shadow-2xl border border-slate-100 p-6 transform scale-95 opacity-0 transition-all duration-200 ease-out" id="confirm-modal-box">
+        <div class="flex items-center gap-3.5 mb-4">
+            <div id="confirm-modal-icon-bg" class="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0">
+                <svg id="confirm-modal-icon" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"></svg>
+            </div>
+            <div>
+                <h3 id="confirm-modal-title" class="font-bold text-slate-900 text-lg">Confirm Action</h3>
+                <p id="confirm-modal-body" class="text-xs text-slate-500 mt-0.5">Are you sure you want to proceed?</p>
+            </div>
+        </div>
+        <div class="flex gap-3 justify-end mt-6">
+            <button type="button" onclick="closeConfirmModal()" class="flex-1 py-2.5 border border-slate-200 text-slate-600 text-xs font-semibold rounded-xl hover:bg-slate-50 transition-colors">
+                Cancel
+            </button>
+            <button type="button" id="confirm-modal-btn" class="flex-1 py-2.5 text-white text-xs font-bold rounded-xl shadow-sm transition-colors">
+                Confirm
+            </button>
+        </div>
+    </div>
+</div>
+
 <script>
 /* ── Tab switching ── */
 function switchTab(tabId) {
@@ -702,6 +965,85 @@ function showInlineForm(id) {
 function hideInlineForm(id) {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
+}
+
+/* ── Custom Confirmation Modal Logic ── */
+let pendingFormToSubmit = null;
+
+function confirmAction(event, name, actionType) {
+    event.preventDefault();
+    pendingFormToSubmit = event.target.closest('form');
+    
+    const modal = document.getElementById('confirm-modal');
+    const modalBox = document.getElementById('confirm-modal-box');
+    const title = document.getElementById('confirm-modal-title');
+    const body = document.getElementById('confirm-modal-body');
+    const btn = document.getElementById('confirm-modal-btn');
+    const iconBg = document.getElementById('confirm-modal-icon-bg');
+    const icon = document.getElementById('confirm-modal-icon');
+    
+    title.textContent = actionType + ' User';
+    body.innerHTML = `Are you sure you want to <strong>${actionType.toLowerCase()}</strong> the user <strong>${name}</strong>?`;
+    
+    if (actionType === 'Block') {
+        btn.textContent = 'Yes, Block User';
+        btn.className = 'flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl shadow-sm transition-colors';
+        iconBg.className = 'w-12 h-12 rounded-full bg-red-50 flex items-center justify-center flex-shrink-0';
+        icon.className = 'w-6 h-6 text-red-600';
+        icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />';
+    } else {
+        btn.textContent = 'Yes, Unblock User';
+        btn.className = 'flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-sm transition-colors';
+        iconBg.className = 'w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center flex-shrink-0';
+        icon.className = 'w-6 h-6 text-emerald-600';
+        icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />';
+    }
+    
+    modal.classList.remove('hidden');
+    setTimeout(() => {
+        modalBox.classList.remove('scale-95', 'opacity-0');
+        modalBox.classList.add('scale-100', 'opacity-100');
+    }, 10);
+    
+    btn.onclick = function() {
+        if (pendingFormToSubmit) {
+            pendingFormToSubmit.submit();
+        }
+    };
+}
+
+function closeConfirmModal() {
+    const modal = document.getElementById('confirm-modal');
+    const modalBox = document.getElementById('confirm-modal-box');
+    
+    modalBox.classList.remove('scale-100', 'opacity-100');
+    modalBox.classList.add('scale-95', 'opacity-0');
+    setTimeout(() => {
+        modal.classList.add('hidden');
+        pendingFormToSubmit = null;
+    }, 200);
+}
+
+function toggleAdminSidebar() {
+    const sidebar = document.getElementById('adminSidebar');
+    const backdrop = document.getElementById('adminSidebarBackdrop');
+    if (!sidebar || !backdrop) return;
+    
+    if (sidebar.classList.contains('-translate-x-full')) {
+        sidebar.classList.remove('-translate-x-full');
+        sidebar.classList.add('translate-x-0');
+        backdrop.classList.remove('hidden');
+        setTimeout(() => {
+            backdrop.classList.remove('opacity-0');
+            backdrop.classList.add('opacity-100');
+        }, 10);
+    } else {
+        sidebar.classList.remove('translate-x-0');
+        sidebar.classList.add('-translate-x-full');
+        backdrop.classList.remove('opacity-100');
+        backdrop.classList.add('opacity-0');
+        setTimeout(() => backdrop.classList.add('hidden'), 300);
+    }
 }
 </script>
 </body>

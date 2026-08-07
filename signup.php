@@ -177,7 +177,7 @@ VALUES
         }
     </style>
 </head>
-<body class="bg-slate-50 min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+<body class="bg-slate-50 min-h-screen flex flex-col justify-start md:justify-center py-6 md:py-12 sm:px-6 lg:px-8">
     <div class="sm:mx-auto sm:w-full sm:max-w-md">
         <!-- Logo -->
         <div class="flex justify-center items-center gap-2">
