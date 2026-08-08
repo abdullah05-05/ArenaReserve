@@ -1,6 +1,8 @@
 <?php
 session_start();
 require_once 'db.php';
+$config = file_exists(__DIR__ . '/config.local.php') ? require __DIR__ . '/config.local.php' : [];
+$google_client_id = $config['google_client_id'] ?? 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
 
 // Redirect if already logged in
 if (isset($_SESSION['user_id'])) {
@@ -23,6 +25,99 @@ if (isset($_GET['registered'])) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // ── Google Sign-In verification ──────────────────────────────────────────
+    if (isset($_POST['google_credential'])) {
+        $id_token = $_POST['google_credential'];
+        $url = "https://oauth2.googleapis.com/tokeninfo?id_token=" . urlencode($id_token);
+        
+        $ctx = stream_context_create([
+            'http' => [
+                'timeout' => 5
+            ]
+        ]);
+        
+        $responseJson = @file_get_contents($url, false, $ctx);
+        if ($responseJson) {
+            $tokenInfo = json_decode($responseJson, true);
+            $issuers = ['accounts.google.com', 'https://accounts.google.com'];
+            
+            if (isset($tokenInfo['email']) && in_array($tokenInfo['iss'] ?? '', $issuers)) {
+                $email = $tokenInfo['email'];
+                $name = $tokenInfo['name'] ?? 'Google User';
+                $picture = $tokenInfo['picture'] ?? null;
+                
+                try {
+                    $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ?");
+                    $stmt->execute([$email]);
+                    $user = $stmt->fetch();
+                    
+                    if ($user) {
+                        if ($user['status'] === 'Blocked' || $user['status'] === 'Suspended') {
+                            $error = 'Your account has been blocked by the administrator. Please contact support for assistance.';
+                        } else {
+                            session_regenerate_id();
+                            $_SESSION['user_id'] = $user['id'];
+                            $_SESSION['name'] = $user['name'];
+                            $_SESSION['email'] = $user['email'];
+                            $_SESSION['current_role'] = $user['current_role'] ?? $user['current_active_mode'] ?? 'Player';
+                            $_SESSION['current_active_mode'] = $user['current_active_mode'] ?? 'Player';
+                            $_SESSION['city'] = $user['city'];
+                            $_SESSION['profile_picture'] = $user['profile_picture'] ?? $picture ?? null;
+                            
+                            if ($_SESSION['current_active_mode'] === 'Owner') {
+                                header("Location: owner_dashboard.php");
+                            } else if ($_SESSION['current_active_mode'] === 'Admin') {
+                                header("Location: admin_dashboard.php");
+                            } else {
+                                header("Location: explore.php");
+                            }
+                            exit;
+                        }
+                    } else {
+                        $role = 'Player';
+                        $random_password = password_hash(bin2hex(random_bytes(16)), PASSWORD_BCRYPT);
+                        
+                        $pdo->beginTransaction();
+                        
+                        $stmt = $pdo->prepare("
+                            INSERT INTO users (
+                                `name`, `email`, `phone`, `city`, `password`, `current_role`, `current_active_mode`, `email_verified`, `profile_picture`
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
+                        ");
+                        $stmt->execute([$name, $email, '', 'Lahore', $random_password, $role, $role, $picture]);
+                        $user_id = $pdo->lastInsertId();
+                        
+                        $stmt = $pdo->prepare("INSERT INTO wallets (user_id, available_balance, frozen_escrow_balance) VALUES (?, 0.00, 0.00)");
+                        $stmt->execute([$user_id]);
+                        
+                        $pdo->commit();
+                        
+                        session_regenerate_id();
+                        $_SESSION['user_id'] = $user_id;
+                        $_SESSION['name'] = $name;
+                        $_SESSION['email'] = $email;
+                        $_SESSION['current_role'] = $role;
+                        $_SESSION['current_active_mode'] = $role;
+                        $_SESSION['city'] = 'Lahore';
+                        $_SESSION['profile_picture'] = $picture;
+                        
+                        header("Location: explore.php");
+                        exit;
+                    }
+                } catch (Exception $e) {
+                    if (isset($pdo) && $pdo->inTransaction()) {
+                        $pdo->rollBack();
+                    }
+                    $error = 'Database error. Please try again.';
+                }
+            } else {
+                $error = 'Invalid Google credential token.';
+            }
+        } else {
+            $error = 'Failed to verify Google account credentials.';
+        }
+    }
+
     $email = trim($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
 
@@ -51,8 +146,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   
                    }
                 else {
-                if ($user['status'] === 'Suspended') {
-                    $error = 'Your account has been suspended by an administrator.';
+                if ($user['status'] === 'Blocked' || $user['status'] === 'Suspended') {
+                    $error = 'Your account has been blocked by the administrator. Please contact support for assistance.';
                 } else {
                     // Regenerate session ID for security
                     session_regenerate_id();
@@ -60,8 +155,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $_SESSION['user_id'] = $user['id'];
                     $_SESSION['name'] = $user['name'];
                     $_SESSION['email'] = $user['email'];
-                    $_SESSION['current_role'] = $user['current_role'];
-                    $_SESSION['current_active_mode'] = $user['current_active_mode'];
+                    $_SESSION['current_role'] = $user['current_role'] ?? $user['current_active_mode'] ?? 'Player';
+                    $_SESSION['current_active_mode'] = $user['current_active_mode'] ?? 'Player';
                     $_SESSION['city'] = $user['city'];
                     $_SESSION['profile_picture'] = $user['profile_picture'] ?? null;
 
@@ -97,6 +192,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Google Fonts Inter -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Google Sign-In SDK -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -148,7 +245,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     </style>
 </head>
-<body class="bg-slate-50 min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+<body class="bg-slate-50 min-h-screen flex flex-col justify-start md:justify-center py-6 md:py-12 sm:px-6 lg:px-8">
     <div class="sm:mx-auto sm:w-full sm:max-w-md">
         <!-- Logo -->
         <div class="flex justify-center items-center gap-2">
@@ -214,7 +311,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
 
                 <!-- Remember Me & Forgot Password -->
-                <div class="flex items-center justify-between">
+                <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div class="flex items-center">
                         <input id="remember_me" name="remember_me" type="checkbox"
                                class="h-4 w-4 text-emerald-600 focus:ring-emerald-500 border-slate-300 rounded">
@@ -222,7 +319,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
 
                     <div class="text-sm">
-                        <a href="#" class="font-medium text-emerald-600 hover:text-emerald-500">Forgot your password?</a>
+                        <a href="forgot-password.php" class="font-medium text-emerald-600 hover:text-emerald-500">Forgot your password?</a>
                     </div>
                 </div>
 
@@ -235,6 +332,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
             </form>
 
+            <!-- Google Sign-In Integration -->
+            <div class="mt-6">
+                <div class="relative">
+                    <div class="absolute inset-0 flex items-center">
+                        <div class="w-full border-t border-slate-200"></div>
+                    </div>
+                    <div class="relative flex justify-center text-sm">
+                        <span class="px-2 bg-white text-slate-500 font-medium">Or continue with</span>
+                    </div>
+                </div>
+
+                <div class="mt-6 flex justify-center">
+                    <div id="g_id_onload"
+                         data-client_id="<?php echo htmlspecialchars($google_client_id); ?>"
+                         data-context="signin"
+                         data-ux_mode="popup"
+                         data-callback="handleCredentialResponse"
+                         data-auto_prompt="false">
+                    </div>
+                    <div class="g_id_signin"
+                         data-type="standard"
+                         data-shape="rectangular"
+                         data-theme="outline"
+                         data-text="continue_with"
+                         data-size="large"
+                         data-logo_alignment="left"
+                         data-width="320">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Hidden Google Form -->
+            <form id="googleLoginForm" action="login.php" method="POST" class="hidden">
+                <input type="hidden" id="googleCredential" name="google_credential" value="">
+            </form>
+
             <div class="mt-6 text-center">
                 <span class="text-sm text-slate-600">Don't have an account?</span>
                 <a href="signup.php" class="font-medium text-emerald-600 hover:text-emerald-500 text-sm ml-1">Sign up</a>
@@ -242,8 +375,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
     </div>
 
-    <!-- Footer Terms of Service and Privacy Policy -->
     <script>
+        function handleCredentialResponse(response) {
+            document.getElementById('googleCredential').value = response.credential;
+            document.getElementById('googleLoginForm').submit();
+        }
+
         const loginForm = document.getElementById('loginForm');
         const loginInputs = {
             email: document.getElementById('email'),

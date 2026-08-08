@@ -10,6 +10,26 @@ if (!isset($_SESSION['user_id'])) {
 $user_id = $_SESSION['user_id'];
 $target_mode = ($_SESSION['current_active_mode'] === 'Player') ? 'Owner' : 'Player';
 
+// Update database active mode and session first so the role/mode state is updated everywhere
+try {
+    // Also upgrade current_role to Owner if switching to Owner
+    $current_role = $_SESSION['current_role'] ?? 'Player';
+    $new_role = $current_role;
+    if ($target_mode === 'Owner') {
+        $new_role = 'Owner';
+    }
+
+    $stmt = $pdo->prepare("UPDATE users SET `current_active_mode` = ?, `current_role` = ? WHERE id = ?");
+    $stmt->execute([$target_mode, $new_role, $user_id]);
+
+    $_SESSION['current_active_mode'] = $target_mode;
+    $_SESSION['current_role'] = $new_role;
+
+} catch (Exception $e) {
+    // If update fails, still toggle in session
+    $_SESSION['current_active_mode'] = $target_mode;
+}
+
 if ($target_mode === 'Owner') {
     // Check if the owner has any grounds registered (even if pending verification)
     try {
@@ -27,28 +47,7 @@ if ($target_mode === 'Owner') {
         header("Location: add_ground.php");
         exit;
     }
-}
-
-// Update database active mode
-try {
-    // Also upgrade current_role to Owner if it was Player and they are switching to Owner
-    $new_role = $_SESSION['current_role'];
-    if ($target_mode === 'Owner' && $_SESSION['current_role'] === 'Player') {
-        $new_role = 'Owner';
-    }
-
-    $stmt = $pdo->prepare("UPDATE users SET `current_active_mode` = ?, `current_role` = ? WHERE id = ?");
-    $stmt->execute([$target_mode, $new_role, $user_id]);
-
-    $_SESSION['current_active_mode'] = $target_mode;
-    $_SESSION['current_role'] = $new_role;
-
-} catch (Exception $e) {
-    // If update fails, still toggle in session
-    $_SESSION['current_active_mode'] = $target_mode;
-}
-
-if ($target_mode === 'Owner') {
+    
     header("Location: owner_dashboard.php");
 } else {
     header("Location: explore.php");
