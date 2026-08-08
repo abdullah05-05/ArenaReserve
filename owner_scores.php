@@ -243,7 +243,6 @@ $sport_icons = [
     </style>
 </head>
 <body class="bg-slate-50 min-h-screen flex flex-col">
-<<<<<<< Updated upstream
     <!-- Top Header -->
     <header class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -377,8 +376,22 @@ $sport_icons = [
             </div>
 
             <!-- Matches List -->
+            <?php if (!empty($bookings)): ?>
             <div class="space-y-6 max-w-4xl">
-                <?php foreach ($_SESSION['owner_matches'] as $match): ?>
+                <?php foreach ($bookings as $bk): ?>
+                    <?php
+                        $slot_date = $bk['slot_date'] ?? date('Y-m-d');
+                        $slot_hour = (int)($bk['slot_hour'] ?? 0);
+                        $slot_end_ts = strtotime($slot_date . ' ' . sprintf('%02d:00:00', $slot_hour + 1));
+                        $slot_over = ($now_ts >= $slot_end_ts);
+                        $slot_remaining = max($slot_end_ts - $now_ts, 0);
+                        $hrs = (int)floor($slot_remaining / 3600);
+                        $mins = (int)floor(($slot_remaining % 3600) / 60);
+                        $already_scored = !empty($bk['score_id']) || (!empty($bk['score_a']) || $bk['score_a'] === '0' || $bk['score_b'] !== null);
+                        $team_a = trim((string)($bk['team_a_name'] ?? 'Team A')) ?: 'Team A';
+                        $team_b = trim((string)($bk['team_b_name'] ?? 'Team B')) ?: 'Team B';
+                        $slot_label = date('D, M j', strtotime($slot_date)) . ' · ' . sprintf('%02d:00', $slot_hour) . ':00';
+                    ?>
                     <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                         <div class="space-y-3">
                             <!-- Venue Details -->
@@ -389,7 +402,7 @@ $sport_icons = [
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
                                     </svg>
                                 </span>
-                                <h3 class="font-bold text-slate-800 text-lg leading-snug"><?php echo htmlspecialchars($match['venue']); ?></h3>
+                                <h3 class="font-bold text-slate-800 text-lg leading-snug"><?php echo htmlspecialchars($bk['ground_title']); ?></h3>
                             </div>
 
                             <!-- Date / Time / Sport Tag -->
@@ -398,176 +411,10 @@ $sport_icons = [
                                     <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
                                     </svg>
-                                    <span><?php echo $match['date_time']; ?></span>
+                                    <span><?php echo date('D, M j, Y', strtotime($slot_date)); ?> · <?php echo sprintf('%02d:00', $slot_hour); ?>:00</span>
                                 </div>
                                 <span class="bg-slate-100 text-slate-700 px-2.5 py-1 rounded font-semibold text-[10px] uppercase">
-                                    <?php echo htmlspecialchars($match['sport']); ?>
-=======
-
-<!-- ── Header ──────────────────────────────────────────────────────────────── -->
-<header class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex justify-between h-16">
-            <!-- Logo & Mobile Toggle -->
-            <div class="flex-shrink-0 flex items-center gap-2">
-                <button type="button" onclick="toggleMobileMenu()" class="lg:hidden text-slate-500 hover:text-slate-700 focus:outline-none p-1 rounded-md">
-                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
-                </button>
-                <span class="text-emerald-600 text-[12px] sm:text-xl md:text-2xl font-bold flex items-center flex-shrink-0 gap-1 sm:gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-[18px] w-[18px] sm:h-7 sm:w-7 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 14l9-5-9-5-9 5 9 5z"/>
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"/>
-                    </svg>
-                    <span>ArenaReserve</span>
-                </span>
-            </div>
-            <!-- Right Side -->
-            <div class="flex-shrink-0 flex items-center gap-1 sm:gap-3">
-                <!-- Mode Toggle -->
-                <div class="flex-shrink-0 flex items-center gap-1 bg-slate-100 p-1 rounded-full border border-slate-200/80 shadow-inner">
-                    <a href="<?php echo ($_SESSION['current_active_mode'] === 'Owner') ? 'switch_role.php' : '#'; ?>"
-                       class="text-[11px] sm:text-xs font-semibold px-2.5 py-1.5 rounded-full transition-all duration-300 flex items-center gap-1 <?php echo ($_SESSION['current_active_mode'] === 'Player') ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'; ?>">
-                       <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
-                       <span class="hidden sm:inline">Player</span>
-                    </a>
-                    <a href="<?php echo ($_SESSION['current_active_mode'] === 'Player') ? 'switch_role.php' : '#'; ?>"
-                       class="text-[11px] sm:text-xs font-semibold px-2.5 py-1.5 rounded-full transition-all duration-300 flex items-center gap-1 <?php echo ($_SESSION['current_active_mode'] === 'Owner') ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'; ?>">
-                       <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
-                       <span class="hidden sm:inline">Owner</span>
-                    </a>
-                </div>
-                <!-- Profile Dropdown -->
-                <div class="relative">
-                    <button id="profileDropdownBtn" onclick="toggleProfileDropdown()" class="flex items-center gap-2 hover:opacity-90 focus:outline-none transition-opacity">
-                        <div class="w-8 h-8 rounded-full overflow-hidden bg-emerald-600 text-white flex items-center justify-center font-bold text-sm flex-shrink-0 shadow-sm border border-emerald-500">
-                            <?php if (!empty($_SESSION['profile_picture']) && file_exists(__DIR__ . '/' . $_SESSION['profile_picture'])): ?>
-                                <img src="<?php echo htmlspecialchars($_SESSION['profile_picture']); ?>" alt="Profile" class="w-full h-full object-cover">
-                            <?php else: ?>
-                                <?php echo strtoupper(substr($_SESSION['name'] ?? 'U', 0, 1)); ?>
-                            <?php endif; ?>
-                        </div>
-                        <div class="hidden md:block text-left">
-                            <div class="text-xs font-semibold text-slate-800 flex items-center gap-1">
-                                <?php echo htmlspecialchars($_SESSION['name'] ?? 'User'); ?>
-                                <svg class="w-3 h-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                            </div>
-                            <div class="text-[10px] text-slate-400 capitalize">Owner</div>
-                        </div>
-                    </button>
-                    <div id="profileDropdownMenu" class="hidden absolute right-0 top-11 w-48 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-50 transform opacity-0 scale-95 transition-all duration-150">
-                        <a href="owner_profile.php" class="flex items-center px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-emerald-600 transition-colors">
-                            <svg class="mr-2.5 h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
-                            Profile Settings
-                        </a>
-                        <div class="border-t border-slate-100 my-1"></div>
-                        <a href="logout.php" class="flex items-center px-4 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 transition-colors">
-                            <svg class="mr-2.5 h-4 w-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
-                            Logout
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <!-- Mobile Nav -->
-    <div id="mobileNavigationMenu" class="hidden lg:hidden border-t border-slate-100 bg-white py-3 px-4 shadow-inner space-y-1">
-        <a href="owner_dashboard.php" class="block px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50">My Venues</a>
-        <a href="add_ground.php"      class="block px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50">List New Venue</a>
-        <a href="owner_analytics.php" class="block px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50">Analytics &amp; Wallet</a>
-        <a href="owner_scores.php"    class="block px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50">Score Entry</a>
-    </div>
-</header>
-
-<div class="flex-1 flex max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 gap-6">
-    <!-- Sidebar -->
-    <aside class="hidden lg:block w-64 flex-shrink-0">
-        <nav class="space-y-1 bg-white rounded-xl border border-slate-200 p-3 shadow-sm">
-            <a href="owner_dashboard.php" class="text-slate-600 hover:bg-slate-50 hover:text-slate-900 flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-colors">
-                <svg class="mr-3 h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
-                My Venues
-            </a>
-            <a href="add_ground.php" class="text-slate-600 hover:bg-slate-50 hover:text-slate-900 flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-colors">
-                <svg class="mr-3 h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                List New Venue
-            </a>
-            <a href="owner_analytics.php" class="text-slate-600 hover:bg-slate-50 hover:text-slate-900 flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-colors">
-                <svg class="mr-3 h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
-                Analytics &amp; Wallet
-            </a>
-            <a href="owner_scores.php" class="bg-emerald-50 text-emerald-700 flex items-center px-3 py-2.5 text-sm font-semibold rounded-lg">
-                <svg class="mr-3 h-5 w-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                Score Entry
-            </a>
-        </nav>
-    </aside>
-
-    <!-- Main Content -->
-    <main class="flex-1 min-w-0">
-
-        <!-- Alerts -->
-        <?php if (!empty($success_msg)): ?>
-            <div class="mb-5 flex items-start gap-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl px-4 py-3.5 shadow-sm text-sm font-medium">
-                <svg class="w-5 h-5 text-emerald-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
-                <?php echo htmlspecialchars($success_msg); ?>
-            </div>
-        <?php endif; ?>
-        <?php if (!empty($error_msg)): ?>
-            <div class="mb-5 flex items-start gap-3 bg-red-50 border border-red-200 text-red-800 rounded-xl px-4 py-3.5 shadow-sm text-sm font-medium">
-                <svg class="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                <?php echo htmlspecialchars($error_msg); ?>
-            </div>
-        <?php endif; ?>
-
-        <div class="mb-6 flex items-center justify-between">
-            <div>
-                <h1 class="text-2xl font-bold text-slate-900">Score Entry</h1>
-                <p class="text-sm text-slate-500 mt-1">Enter results for matches at your venues. Button activates after the slot ends.</p>
-            </div>
-            <div class="hidden sm:flex items-center gap-1.5 bg-amber-50 border border-amber-200 text-amber-700 px-3 py-2 rounded-lg text-xs font-semibold">
-                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                95% commission credited on score entry
-            </div>
-        </div>
-
-        <!-- Booking Cards -->
-        <div class="space-y-4 max-w-4xl">
-            <?php if (empty($bookings)): ?>
-                <div class="bg-white border border-slate-200 rounded-2xl p-12 shadow-sm text-center">
-                    <div class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <svg class="w-8 h-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-                    </div>
-                    <h3 class="text-base font-semibold text-slate-700 mb-1">No bookings yet</h3>
-                    <p class="text-sm text-slate-400">Bookings for your grounds will appear here once players book a slot.</p>
-                </div>
-            <?php else: ?>
-                <?php foreach ($bookings as $bk):
-                    $slot_end_ts  = strtotime($bk['slot_date'] . ' ' . sprintf('%02d:00:00', $bk['slot_hour'] + 1));
-                    $slot_over    = ($now_ts >= $slot_end_ts);
-                    $already_scored = !empty($bk['score_id']);
-                    $sport_icon   = $sport_icons[$bk['sport_type']] ?? '🏟️';
-                    $team_a       = $bk['team_a_name'] ?? 'Team A';
-                    $team_b       = $bk['team_b_name'] ?? ($bk['challenger_team_name'] ?: 'Open Slot');
-                    $slot_label   = date('d M Y', strtotime($bk['slot_date'])) . ' · ' . sprintf('%02d:00', $bk['slot_hour']) . ' – ' . sprintf('%02d:00', $bk['slot_hour'] + 1);
-                    $remaining_secs = $slot_end_ts - $now_ts;
-                    $hrs  = floor($remaining_secs / 3600);
-                    $mins = floor(($remaining_secs % 3600) / 60);
-                ?>
-                <div class="slot-card bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-                    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                        <!-- Left: match info -->
-                        <div class="flex-1 min-w-0 space-y-3">
-                            <!-- Ground name + sport -->
-                            <div class="flex items-center gap-2 flex-wrap">
-                                <span class="text-lg"><?php echo $sport_icon; ?></span>
-                                <h3 class="font-bold text-slate-800 text-base leading-snug truncate"><?php echo htmlspecialchars($bk['ground_title']); ?></h3>
-                                <span class="bg-slate-100 text-slate-600 text-[10px] font-bold uppercase px-2 py-0.5 rounded"><?php echo htmlspecialchars($bk['sport_type']); ?></span>
-                                <?php
-                                    $type_labels = ['direct'=>'Direct','open_challenge'=>'Open Challenge','team_challenge'=>'Team Challenge'];
-                                    $type_colors = ['direct'=>'bg-blue-50 text-blue-700','open_challenge'=>'bg-violet-50 text-violet-700','team_challenge'=>'bg-orange-50 text-orange-700'];
-                                ?>
-                                <span class="text-[10px] font-bold uppercase px-2 py-0.5 rounded <?php echo $type_colors[$bk['booking_type']] ?? 'bg-slate-100 text-slate-600'; ?>">
-                                    <?php echo $type_labels[$bk['booking_type']] ?? $bk['booking_type']; ?>
->>>>>>> Stashed changes
+                                    <?php echo htmlspecialchars($bk['sport_type']); ?>
                                 </span>
                             </div>
 
@@ -633,8 +480,8 @@ $sport_icons = [
                             <?php endif; ?>
                         </div>
                     </div>
-                </div>
                 <?php endforeach; ?>
+            </div>
             <?php endif; ?>
         </div>
     </main>
@@ -711,7 +558,6 @@ function openScoreModal(bookingId, teamA, teamB) {
     document.getElementById('scoreModal').classList.remove('hidden');
 }
 
-<<<<<<< Updated upstream
         function closeScoreModal() {
             document.getElementById('scoreModal').classList.add('hidden');
         }
@@ -744,59 +590,5 @@ function openScoreModal(bookingId, teamA, teamB) {
             if (menu) menu.classList.toggle('hidden');
         }
     </script>
-=======
-function closeScoreModal() {
-    document.getElementById('scoreModal').classList.add('hidden');
-}
-
-function selectWinner(side) {
-    document.getElementById('modal_winner_side').value = side;
-    const btnA = document.getElementById('btnTeamA');
-    const btnB = document.getElementById('btnTeamB');
-    btnA.classList.remove('selected','border-emerald-500','bg-emerald-50');
-    btnB.classList.remove('selected','border-emerald-500','bg-emerald-50');
-    btnA.classList.add('border-slate-200','bg-slate-50');
-    btnB.classList.add('border-slate-200','bg-slate-50');
-
-    const winner = side === 'a' ? btnA : btnB;
-    winner.classList.remove('border-slate-200','bg-slate-50');
-    winner.classList.add('selected','border-emerald-500','bg-emerald-50');
-    document.getElementById('submitScoreBtn').disabled = false;
-}
-
-// Close modal on backdrop click
-document.getElementById('scoreModal').addEventListener('click', function(e) {
-    if (e.target === this) closeScoreModal();
-});
-
-// ── Profile Dropdown ─────────────────────────────────────────────────────────
-function toggleProfileDropdown() {
-    const menu = document.getElementById('profileDropdownMenu');
-    if (!menu) return;
-    if (menu.classList.contains('hidden')) {
-        menu.classList.remove('hidden');
-        setTimeout(() => { menu.classList.remove('opacity-0','scale-95'); menu.classList.add('opacity-100','scale-100'); }, 10);
-    } else {
-        menu.classList.remove('opacity-100','scale-100');
-        menu.classList.add('opacity-0','scale-95');
-        setTimeout(() => menu.classList.add('hidden'), 150);
-    }
-}
-document.addEventListener('click', function(e) {
-    const btn  = document.getElementById('profileDropdownBtn');
-    const menu = document.getElementById('profileDropdownMenu');
-    if (btn && menu && !btn.contains(e.target) && !menu.contains(e.target)) {
-        menu.classList.remove('opacity-100','scale-100');
-        menu.classList.add('opacity-0','scale-95');
-        setTimeout(() => menu.classList.add('hidden'), 150);
-    }
-});
-
-function toggleMobileMenu() {
-    const menu = document.getElementById('mobileNavigationMenu');
-    if (menu) menu.classList.toggle('hidden');
-}
-</script>
->>>>>>> Stashed changes
 </body>
 </html>
