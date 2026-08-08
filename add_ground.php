@@ -91,13 +91,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             try {
                 $pdo->beginTransaction();
 
-                // Insert into grounds (is_verified = 0: Pending)
-                $stmt = $pdo->prepare("INSERT INTO grounds (owner_id, title, address, latitude, longitude, sport_type, base_price, peak_price, image_path, is_verified) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)");
+                // Insert into grounds (is_verified = 1: Verified)
+                $stmt = $pdo->prepare("INSERT INTO grounds (owner_id, title, address, latitude, longitude, sport_type, base_price, peak_price, image_path, is_verified) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)");
                 $stmt->execute([$user_id, $title, $address, $latitude, $longitude, $sport_type, $base_price, $peak_price, $image_path]);
                 $ground_id = $pdo->lastInsertId();
 
-                // Insert into onboarding_packages
-                $stmt = $pdo->prepare("INSERT INTO onboarding_packages (owner_id, ground_id, verification_method, legal_docs_path, security_fee_receipt, approval_status) VALUES (?, ?, ?, ?, ?, 'Pending')");
+                // Insert default slots (hours 0..23)
+                $slot_stmt = $pdo->prepare("INSERT INTO ground_slots (ground_id, hour, is_available, slot_type, price) VALUES (?, ?, ?, ?, ?)");
+                for ($h = 0; $h < 24; $h++) {
+                    $is_peak = ($h >= 17 && $h <= 20);
+                    $slot_type = $is_peak ? 'Peak' : 'Normal';
+                    $slot_price = $is_peak ? $peak_price : $base_price;
+                    // Make common slots available by default
+                    $avail = in_array($h, [3, 5, 10, 18, 19, 20]) ? 1 : 0;
+                    $slot_stmt->execute([$ground_id, $h, $avail, $slot_type, $slot_price]);
+                }
+
+                // Insert into onboarding_packages (Approved)
+                $stmt = $pdo->prepare("INSERT INTO onboarding_packages (owner_id, ground_id, verification_method, legal_docs_path, security_fee_receipt, approval_status) VALUES (?, ?, ?, ?, ?, 'Approved')");
                 $stmt->execute([$user_id, $ground_id, $verification_method, $legal_docs_path, $security_fee_receipt]);
 
                 // Update current user role & active mode to Owner
