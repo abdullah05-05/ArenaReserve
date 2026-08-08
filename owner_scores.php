@@ -542,6 +542,26 @@ $sport_icons = [
 
 <script>
 // ── Modal ────────────────────────────────────────────────────────────────────
+function selectWinner(side) {
+    document.getElementById('modal_winner_side').value = side;
+
+    const btnA = document.getElementById('btnTeamA');
+    const btnB = document.getElementById('btnTeamB');
+
+    // Reset both buttons
+    btnA.classList.remove('border-emerald-500', 'bg-emerald-50', 'ring-2', 'ring-emerald-300');
+    btnA.classList.add('border-slate-200', 'bg-slate-50');
+    btnB.classList.remove('border-emerald-500', 'bg-emerald-50', 'ring-2', 'ring-emerald-300');
+    btnB.classList.add('border-slate-200', 'bg-slate-50');
+
+    // Highlight selected button
+    const selected = side === 'a' ? btnA : btnB;
+    selected.classList.remove('border-slate-200', 'bg-slate-50');
+    selected.classList.add('border-emerald-500', 'bg-emerald-50', 'ring-2', 'ring-emerald-300');
+
+    // Enable submit
+    document.getElementById('submitScoreBtn').disabled = false;
+}
 function openScoreModal(bookingId, teamA, teamB) {
     document.getElementById('modal_booking_id').value = bookingId;
     document.getElementById('modal_winner_side').value = '';
