@@ -185,7 +185,7 @@ body { font-family:'Inter',sans-serif; background:#f8fafc; }
       </div>
     </div>
   </div>
-=======
+
   <!-- Mobile Navigation Menu -->
   <div id="mobileNavigationMenu" class="hidden lg:hidden border-t border-slate-100 bg-white py-3 px-4 shadow-inner space-y-1">
       <?php if ($_SESSION['current_active_mode'] === 'Owner'): ?>
@@ -200,7 +200,8 @@ body { font-family:'Inter',sans-serif; background:#f8fafc; }
           <a href="challenge_team.php" class="block px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50">Challenge Team</a>
           <a href="leaderboard.php" class="block px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50">Leaderboard</a>
           <a href="wallet.php" class="block px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50">My Wallet</a>
-      <?php 
+      <?php endif; ?>
+  </div>
 </header>
 
 <div class="flex max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 gap-6">
