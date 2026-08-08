@@ -23,6 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = trim($_POST['name'] ?? '');
     $email = trim($_POST['email'] ?? '');
     $phone = trim($_POST['phone'] ?? '');
+    $city = trim($_POST['city'] ?? '');
     $role = trim($_POST['role'] ?? '');
     $password = $_POST['password'] ?? '';
     $confirm_password = $_POST['confirm_password'] ?? '';
@@ -33,8 +34,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $fieldErrors['name'] = 'Full Name is required.';
     } elseif (strlen($name) < 2) {
         $fieldErrors['name'] = 'Full Name must be at least 2 characters long.';
-    } elseif (preg_match('/\d/', $name)) {
-        $fieldErrors['name'] = 'Full Name cannot contain numbers.';
+    } elseif (!preg_match('/^[a-zA-Z0-9_\s]+$/', $name)) {
+        $fieldErrors['name'] = 'Full Name must contain only letters, numbers, underscores, and spaces.';
     }
 
     if ($email === '') {
@@ -50,6 +51,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!preg_match('/^[0-9]{11}$/', $cleanPhone)) {
             $fieldErrors['phone'] = 'Phone Number must contain exactly 11 digits.';
         }
+    }
+
+    if ($city === '') {
+        $fieldErrors['city'] = 'City is required.';
     }
 
     if ($role === '') {
@@ -90,6 +95,7 @@ INSERT INTO users
     `name`,
     `email`,
     `phone`,
+    `city`,
     `password`,
     `current_role`,
     `current_active_mode`,
@@ -99,13 +105,14 @@ INSERT INTO users
 )
 VALUES
 (
-    ?, ?, ?, ?, ?, ?, ?, ?, ?
+    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
 )
 ");
                 $stmt->execute([
     $name,
     $email,
     $phone,
+    $city,
     $hashed_password,
     $role,
     $role,
@@ -159,9 +166,18 @@ VALUES
         body {
             font-family: 'Inter', sans-serif;
         }
+
+        input[type="password"]::-ms-reveal,
+        input[type="password"]::-ms-clear {
+            display: none;
+        }
+
+        input[type="password"]::-webkit-textfield-decoration-container {
+            display: none;
+        }
     </style>
 </head>
-<body class="bg-slate-50 min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+<body class="bg-slate-50 min-h-screen flex flex-col justify-start md:justify-center py-6 md:py-12 sm:px-6 lg:px-8">
     <div class="sm:mx-auto sm:w-full sm:max-w-md">
         <!-- Logo -->
         <div class="flex justify-center items-center gap-2">
@@ -224,11 +240,22 @@ VALUES
                 <div>
                     <label for="phone" class="block text-sm font-medium text-slate-700">Phone Number</label>
                     <div class="mt-1">
-                        <input id="phone" name="phone" type="tel" required placeholder="03001234567" maxlength="11" pattern="^\d{11}$"
+                        <input id="phone" name="phone" type="tel" required placeholder="03001234567"
                                value="<?php echo htmlspecialchars($_POST['phone'] ?? ''); ?>"
                                class="appearance-none block w-full px-3 py-2 border border-slate-300<?php echo isset($fieldErrors['phone']) ? ' border-red-500 focus:border-red-500 focus:ring-red-500' : ''; ?> rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm">
                     </div>
                     <p id="phone-error" class="mt-2 text-sm text-red-600"><?php echo htmlspecialchars($fieldErrors['phone'] ?? ''); ?></p>
+                </div>
+
+                <!-- City -->
+                <div>
+                    <label for="city" class="block text-sm font-medium text-slate-700">City</label>
+                    <div class="mt-1">
+                        <input id="city" name="city" type="text" required placeholder="Lahore"
+                               value="<?php echo htmlspecialchars($_POST['city'] ?? ''); ?>"
+                               class="appearance-none block w-full px-3 py-2 border border-slate-300<?php echo isset($fieldErrors['city']) ? ' border-red-500 focus:border-red-500 focus:ring-red-500' : ''; ?> rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm">
+                    </div>
+                    <p id="city-error" class="mt-2 text-sm text-red-600"><?php echo htmlspecialchars($fieldErrors['city'] ?? ''); ?></p>
                 </div>
 
                 <!-- Role Selection -->
@@ -247,19 +274,32 @@ VALUES
                 <!-- Password -->
                 <div>
                     <label for="password" class="block text-sm font-medium text-slate-700">Password</label>
-                    <div class="mt-1">
+                    <div class="mt-1 relative">
                         <input id="password" name="password" type="password" required placeholder="••••••••"
-                               class="appearance-none block w-full px-3 py-2 border border-slate-300<?php echo isset($fieldErrors['password']) ? ' border-red-500 focus:border-red-500 focus:ring-red-500' : ''; ?> rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm">
+                               class="appearance-none block w-full px-3 py-2 pr-10 border border-slate-300<?php echo isset($fieldErrors['password']) ? ' border-red-500 focus:border-red-500 focus:ring-red-500' : ''; ?> rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm">
+                        <button type="button" class="toggle-password absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600" data-target="password" aria-label="Show password">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                        </button>
                     </div>
                     <p id="password-error" class="mt-2 text-sm text-red-600"><?php echo htmlspecialchars($fieldErrors['password'] ?? ''); ?></p>
+                    <p id="password-strength" class="mt-2 text-sm text-red-600 hidden"></p>
                 </div>
 
                 <!-- Confirm Password -->
                 <div>
                     <label for="confirm_password" class="block text-sm font-medium text-slate-700">Confirm Password</label>
-                    <div class="mt-1">
+                    <div class="mt-1 relative">
                         <input id="confirm_password" name="confirm_password" type="password" required placeholder="••••••••"
-                               class="appearance-none block w-full px-3 py-2 border border-slate-300<?php echo isset($fieldErrors['confirm_password']) ? ' border-red-500 focus:border-red-500 focus:ring-red-500' : ''; ?> rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm">
+                               class="appearance-none block w-full px-3 py-2 pr-10 border border-slate-300<?php echo isset($fieldErrors['confirm_password']) ? ' border-red-500 focus:border-red-500 focus:ring-red-500' : ''; ?> rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm">
+                        <button type="button" class="toggle-password absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600" data-target="confirm_password" aria-label="Show password">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                        </button>
                     </div>
                     <p id="confirm_password-error" class="mt-2 text-sm text-red-600"><?php echo htmlspecialchars($fieldErrors['confirm_password'] ?? ''); ?></p>
                 </div>
@@ -286,6 +326,7 @@ VALUES
             name: document.getElementById('name'),
             email: document.getElementById('email'),
             phone: document.getElementById('phone'),
+            city: document.getElementById('city'),
             role: document.getElementById('role'),
             password: document.getElementById('password'),
             confirm_password: document.getElementById('confirm_password')
@@ -295,6 +336,7 @@ VALUES
             name: document.getElementById('name-error'),
             email: document.getElementById('email-error'),
             phone: document.getElementById('phone-error'),
+            city: document.getElementById('city-error'),
             role: document.getElementById('role-error'),
             password: document.getElementById('password-error'),
             confirm_password: document.getElementById('confirm_password-error')
@@ -306,7 +348,7 @@ VALUES
             name(value) {
                 if (!value.trim()) return 'Full Name is required.';
                 if (value.trim().length < 2) return 'Full Name must be at least 2 characters long.';
-                if (/\d/.test(value)) return 'Full Name cannot contain numbers.';
+                if (!/^[a-zA-Z0-9_\s]+$/.test(value.trim())) return 'Full Name must contain only letters, numbers, underscores, and spaces.';
                 return '';
             },
             email(value) {
@@ -321,6 +363,10 @@ VALUES
                 if (!/^[0-9]{11}$/.test(cleaned)) return 'Phone Number must contain exactly 11 digits.';
                 return '';
             },
+            city(value) {
+                if (!value.trim()) return 'City is required.';
+                return '';
+            },
             role(value) {
                 if (!value) return 'Please select a role.';
                 if (!['Player', 'Owner'].includes(value)) return 'Invalid role selection.';
@@ -328,7 +374,6 @@ VALUES
             },
             password(value) {
                 if (!value) return 'Password is required.';
-                if (value.length < 6) return 'Password must be at least 6 characters long.';
                 return '';
             },
             confirm_password(value) {
@@ -348,6 +393,37 @@ VALUES
             } else {
                 error.textContent = '';
                 input.classList.remove('border-red-500', 'focus:border-red-500', 'focus:ring-red-500');
+            }
+        }
+
+        function updatePasswordStrengthHint() {
+            const strengthHint = document.getElementById('password-strength');
+            const value = inputs.password.value;
+
+            if (!value) {
+                strengthHint.textContent = '';
+                strengthHint.className = 'mt-2 text-sm text-red-600 hidden';
+                return;
+            }
+
+            const missing = [];
+            if (value.length < 8) missing.push('at least 8 characters');
+            if (!/[A-Z]/.test(value)) missing.push('an uppercase letter');
+            if (!/[a-z]/.test(value)) missing.push('a lowercase letter');
+            if (!/\d/.test(value)) missing.push('a number');
+            if (!/[^A-Za-z0-9]/.test(value)) missing.push('a special character');
+
+            if (missing.length === 0) {
+                strengthHint.textContent = 'Password is valid.';
+                strengthHint.className = 'mt-2 text-sm text-emerald-600';
+                strengthHint.classList.remove('hidden');
+            } else {
+                const message = missing.length === 1
+                    ? `Add ${missing[0]}.`
+                    : `Add ${missing.slice(0, 2).join(', ')}.`;
+                strengthHint.textContent = message;
+                strengthHint.className = 'mt-2 text-sm text-red-600';
+                strengthHint.classList.remove('hidden');
             }
         }
 
@@ -376,15 +452,38 @@ VALUES
             const inputField = inputs[field];
             const runValidation = () => {
                 validateField(field);
-
-                if (field === 'password' && inputs.confirm_password.value.trim() !== '') {
-                    validateField('confirm_password');
+                if (field === 'password') {
+                    updatePasswordStrengthHint();
+                    if (inputs.confirm_password.value.trim() !== '') {
+                        validateField('confirm_password');
+                    }
                 }
             };
 
             inputField.addEventListener('input', runValidation);
             inputField.addEventListener('blur', runValidation);
             inputField.addEventListener('change', runValidation);
+        });
+
+        document.querySelectorAll('.toggle-password').forEach((button) => {
+            button.addEventListener('click', () => {
+                const targetId = button.getAttribute('data-target');
+                const input = document.getElementById(targetId);
+                const isHidden = input.type === 'password';
+                input.type = isHidden ? 'text' : 'password';
+                button.setAttribute('aria-label', isHidden ? 'Hide password' : 'Show password');
+                button.innerHTML = isHidden ? `
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a9.97 9.97 0 012.082-3.675m2.94-2.94A9.956 9.956 0 0112 5c4.478 0 8.268 2.943 9.542 7a9.97 9.97 0 01-4.043 5.197M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 3l18 18" />
+                    </svg>
+                ` : `
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                `;
+            });
         });
 
         signupForm.addEventListener('submit', function (event) {

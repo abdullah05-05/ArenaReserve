@@ -62,7 +62,10 @@ usort($all_bookings, fn($a,$b) => strcmp($b['slot_date'].$b['slot_hour'], $a['sl
 
 // Stats
 $total      = count($all_bookings);
-$upcoming   = count(array_filter($all_bookings, fn($b) => $b['slot_date'] >= date('Y-m-d') && in_array($b['status'], ['confirmed','challenge_open','challenge_pending','challenge_accepted'])));
+$upcoming   = count(array_filter($all_bookings, function($b) {
+    $st = strtotime($b['slot_date'] . ' ' . sprintf('%02d:00:00', intval($b['slot_hour'])));
+    return $st > time() && in_array($b['status'], ['confirmed','challenge_open','challenge_pending','challenge_accepted']);
+}));
 $confirmed  = count(array_filter($all_bookings, fn($b) => $b['status'] === 'confirmed'));
 $challenges = count(array_filter($all_bookings, fn($b) => in_array($b['status'], ['challenge_open','challenge_pending','challenge_accepted'])));
 $total_spent = array_sum(array_column($all_bookings, 'amount_paid'));
@@ -139,27 +142,84 @@ body { font-family: 'Inter', sans-serif; background: #f8fafc; }
 <!-- Header -->
 <header class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between h-16 items-center">
-    <a href="explore.php" class="flex items-center gap-2 text-emerald-600 text-xl font-bold">
-      <svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 14l9-5-9-5-9 5 9 5z"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0112 20.055a11.952 11.952 0 01-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"/></svg>
-      ArenaReserve
-    </a>
-    <div class="flex items-center gap-3">
-      <a href="wallet.php" class="flex items-center bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-full text-xs font-semibold border border-emerald-200">
-        <span class="w-2 h-2 rounded-full bg-emerald-500 mr-2"></span><?php echo number_format($available_balance, 0); ?> PKR
+    <div class="flex items-center gap-2">
+      <button type="button" onclick="toggleMobileMenu()" class="lg:hidden text-slate-500 hover:text-slate-700 focus:outline-none p-1 rounded-md" title="Toggle Navigation">
+        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </button>
+      <a href="explore.php" class="flex items-center gap-1 sm:gap-2 text-emerald-600 text-[12px] sm:text-xl font-bold flex-shrink-0">
+        <svg class="h-[18px] w-[18px] sm:h-7 sm:w-7 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 14l9-5-9-5-9 5 9 5z"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0112 20.055a11.952 11.952 0 01-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"/></svg>
+        <span>ArenaReserve</span>
       </a>
-      <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs font-semibold">
-        <span class="px-2 py-1 bg-white rounded shadow-sm text-emerald-600">Player</span>
-        <a href="switch_role.php" class="px-2 py-1 text-slate-500 hover:text-slate-700">Owner</a>
+    </div>
+    <div class="flex-shrink-0 flex items-center gap-1 sm:gap-3">
+      <a href="wallet.php" class="hidden sm:flex items-center bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-full text-xs font-semibold border border-emerald-200">
+        <span class="w-2 h-2 rounded-full bg-emerald-500 mr-2"></span><span class="wallet-balance-display"><?php echo number_format($available_balance, 0); ?> PKR</span>
+      </a>
+      <!-- Mode Toggle -->
+      <div class="flex-shrink-0 flex items-center gap-1 bg-slate-100 p-1 rounded-full border border-slate-200/80 shadow-inner">
+          <a href="<?php echo ($_SESSION['current_active_mode'] === 'Owner') ? 'switch_role.php' : '#'; ?>" 
+             class="text-[11px] sm:text-xs font-semibold px-2.5 py-1.5 rounded-full transition-all duration-300 flex items-center gap-1 <?php echo ($_SESSION['current_active_mode'] === 'Player') ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'; ?>" title="Switch to Player Mode">
+             <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+             <span class="hidden sm:inline">Player</span>
+          </a>
+          <a href="<?php echo ($_SESSION['current_active_mode'] === 'Player') ? 'switch_role.php' : '#'; ?>" 
+             class="text-[11px] sm:text-xs font-semibold px-2.5 py-1.5 rounded-full transition-all duration-300 flex items-center gap-1 <?php echo ($_SESSION['current_active_mode'] === 'Owner') ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'; ?>" title="Switch to Owner Mode">
+             <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+             <span class="hidden sm:inline">Owner</span>
+          </a>
       </div>
       <div class="flex items-center gap-2">
-        <div class="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-sm"><?php echo strtoupper(substr($_SESSION['name'], 0, 1)); ?></div>
-        <div class="hidden md:block">
-          <div class="text-xs font-semibold text-slate-800"><?php echo htmlspecialchars($_SESSION['name']); ?></div>
-          <div class="text-[10px] text-slate-400">Player</div>
+        <!-- Profile Dropdown -->
+        <div class="relative">
+          <button id="profileDropdownBtn" onclick="toggleProfileDropdown()" class="flex items-center gap-2 hover:opacity-90 focus:outline-none transition-opacity" title="User Menu">
+            <div class="w-8 h-8 rounded-full overflow-hidden bg-emerald-600 text-white flex items-center justify-center font-bold text-sm flex-shrink-0 shadow-sm border border-emerald-500">
+              <?php if (!empty($_SESSION['profile_picture']) && file_exists(__DIR__ . '/' . $_SESSION['profile_picture'])): ?>
+                <img src="<?php echo htmlspecialchars($_SESSION['profile_picture']); ?>" alt="Profile" class="w-full h-full object-cover">
+              <?php else: ?>
+                <?php echo strtoupper(substr($_SESSION['name'], 0, 1)); ?>
+              <?php endif; ?>
+            </div>
+            <div class="hidden md:block text-left">
+              <div class="text-xs font-semibold text-slate-800 flex items-center gap-1">
+                <?php echo htmlspecialchars($_SESSION['name']); ?>
+                <svg class="w-3 h-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+              </div>
+              <div class="text-[10px] text-slate-400">Player</div>
+            </div>
+          </button>
+          <!-- Dropdown Menu -->
+          <div id="profileDropdownMenu" class="hidden absolute right-0 top-11 w-48 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-50 transform opacity-0 scale-95 transition-all duration-150">
+            <a href="player_profile.php" class="flex items-center px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-emerald-600 transition-colors">
+              <svg class="mr-2.5 h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+              Profile Settings
+            </a>
+            <div class="border-t border-slate-100 my-1"></div>
+            <a href="logout.php" class="flex items-center px-4 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 transition-colors">
+              <svg class="mr-2.5 h-4 w-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+              Logout
+            </a>
+          </div>
         </div>
-        <a href="logout.php" class="text-xs text-red-500 font-medium">Logout</a>
       </div>
     </div>
+  </div>
+  <!-- Mobile Navigation Menu -->
+  <div id="mobileNavigationMenu" class="hidden lg:hidden border-t border-slate-100 bg-white py-3 px-4 shadow-inner space-y-1">
+      <?php if ($_SESSION['current_active_mode'] === 'Owner'): ?>
+          <a href="owner_dashboard.php" class="block px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50">My Venues</a>
+          <a href="add_ground.php" class="block px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50">List New Venue</a>
+          <a href="owner_analytics.php" class="block px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50">Analytics & Wallet</a>
+          <a href="owner_scores.php" class="block px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50">Score Entry</a>
+      <?php else: ?>
+          <a href="explore.php" class="block px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50">Explore Grounds</a>
+          <a href="book_slot.php" class="block px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50">Book Slot</a>
+          <a href="match_history.php" class="block px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50">Match History</a>
+          <a href="challenge_team.php" class="block px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50">Challenge Team</a>
+          <a href="leaderboard.php" class="block px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50">Leaderboard</a>
+          <a href="wallet.php" class="block px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50">My Wallet</a>
+      <?php endif; ?>
   </div>
 </header>
 
@@ -236,11 +296,12 @@ body { font-family: 'Inter', sans-serif; background: #f8fafc; }
           $sc = $statusConfig[$bk['status']] ?? ['badge'=>'bg-slate-100 text-slate-600','label'=>ucfirst($bk['status']),'icon'=>'📋'];
           $tc = $typeConfig[$bk['booking_type']] ?? ['badge'=>'bg-slate-100 text-slate-600','label'=>$bk['booking_type']];
           $timeLabel = formatHourLabel(intval($bk['slot_hour']));
-          $isUpcoming = $bk['slot_date'] >= date('Y-m-d');
+          $slot_start_time = strtotime($bk['slot_date'] . ' ' . sprintf('%02d:00:00', intval($bk['slot_hour'])));
+          $isUpcoming = ($slot_start_time > time());
           $isPast     = !$isUpcoming;
           $sportIcon  = ['Football'=>'⚽','Cricket'=>'🏏','Basketball'=>'🏀','Badminton'=>'🏸','Futsal'=>'⚽'][$bk['sport_type']] ?? '🏟️';
         ?>
-        <div class="booking-row p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+        <div class="booking-row p-5 flex flex-col sm:flex-row sm:items-center gap-4" data-booking-id="<?php echo $bk['id']; ?>">
           <!-- Left: sport icon + info -->
           <div class="flex gap-4 items-start flex-1">
             <div class="w-11 h-11 rounded-xl bg-emerald-50 flex items-center justify-center text-xl flex-shrink-0 border border-emerald-100">
@@ -274,7 +335,7 @@ body { font-family: 'Inter', sans-serif; background: #f8fafc; }
           <!-- Right: badges + cost + cancel -->
           <div class="flex items-center gap-3 sm:flex-col sm:items-end sm:gap-2 flex-shrink-0">
             <div class="flex items-center gap-2">
-              <span class="text-xs font-bold px-2 py-1 rounded-full <?php echo $sc['badge']; ?>">
+              <span class="status-badge text-xs font-bold px-2 py-1 rounded-full <?php echo $sc['badge']; ?>">
                 <?php echo $sc['icon']; ?> <?php echo $sc['label']; ?>
               </span>
               <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded <?php echo $tc['badge']; ?>">
@@ -291,12 +352,12 @@ body { font-family: 'Inter', sans-serif; background: #f8fafc; }
               // Show cancel button only for challenger's own future cancellable bookings
               $cancellable_statuses = ['confirmed', 'challenge_open', 'challenge_pending'];
               $can_cancel = ($bk['role'] === 'challenger')
-                         && in_array($bk['status'], $cancellable_statuses)
-                         && $bk['slot_date'] >= date('Y-m-d');
+                         && in_array(strtolower(trim($bk['status'])), $cancellable_statuses)
+                         && $isUpcoming;
             ?>
             <?php if ($can_cancel): ?>
             <button
-              onclick="openCancelModal(<?php echo $bk['id']; ?>, '<?php echo htmlspecialchars($bk['ground_title']); ?>', '<?php echo date('D, d M Y', strtotime($bk['slot_date'])); ?>', '<?php echo addslashes(formatHourLabel(intval($bk['slot_hour']))); ?>', <?php echo floatval($bk['amount_paid']); ?>, '<?php echo $bk['status']; ?>', '<?php echo $bk['slot_date']; ?>', <?php echo intval($bk['slot_hour']); ?>)"
+              onclick="openCancelModal(<?php echo $bk['id']; ?>, '<?php echo htmlspecialchars($bk['ground_title'], ENT_QUOTES, 'UTF-8'); ?>', '<?php echo date('D, d M Y', strtotime($bk['slot_date'])); ?>', '<?php echo htmlspecialchars(formatHourLabel(intval($bk['slot_hour'])), ENT_QUOTES, 'UTF-8'); ?>', <?php echo floatval($bk['amount_paid']); ?>, '<?php echo htmlspecialchars($bk['status'], ENT_QUOTES, 'UTF-8'); ?>', '<?php echo $bk['slot_date']; ?>', <?php echo intval($bk['slot_hour']); ?>)"
               class="text-[11px] font-semibold text-red-600 border border-red-200 bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded-lg transition-all"
               id="cancel-btn-<?php echo $bk['id']; ?>">
               ✕ Cancel
@@ -482,7 +543,36 @@ document.getElementById('cancel-overlay').addEventListener('click', function(e) 
   if (e.target === this) closeCancelModal();
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeCancelModal(); });
+
+// ---- Profile Dropdown ----
+function toggleProfileDropdown() {
+  const menu = document.getElementById('profileDropdownMenu');
+  if (!menu) return;
+  if (menu.classList.contains('hidden')) {
+    menu.classList.remove('hidden');
+    setTimeout(() => { menu.classList.remove('opacity-0', 'scale-95'); menu.classList.add('opacity-100', 'scale-100'); }, 10);
+  } else {
+    menu.classList.remove('opacity-100', 'scale-100');
+    menu.classList.add('opacity-0', 'scale-95');
+    setTimeout(() => menu.classList.add('hidden'), 150);
+  }
+}
+document.addEventListener('click', function(e) {
+  const btn = document.getElementById('profileDropdownBtn');
+  const menu = document.getElementById('profileDropdownMenu');
+  if (btn && menu && !btn.contains(e.target) && !menu.contains(e.target)) {
+    menu.classList.remove('opacity-100', 'scale-100');
+    menu.classList.add('opacity-0', 'scale-95');
+    setTimeout(() => menu.classList.add('hidden'), 150);
+  }
+});
+
+function toggleMobileMenu() {
+  const menu = document.getElementById('mobileNavigationMenu');
+  if (menu) menu.classList.toggle('hidden');
+}
 </script>
+
 
 </body>
 </html>

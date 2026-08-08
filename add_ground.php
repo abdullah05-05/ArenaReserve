@@ -139,10 +139,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Google Fonts Inter -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Leaflet CSS for Map Picker -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+    <!-- Leaflet JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
     <style>
         body { font-family: 'Inter', sans-serif; }
         .step-content { display: none; }
         .step-content.active { display: block; }
+        /* Map Modal */
+        #mapModal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.65);
+            backdrop-filter: blur(4px);
+            z-index: 9999;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+        #mapModal.open { display: flex; }
+        #mapContainer {
+            width: 100%;
+            height: 420px;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            position: relative;
+            z-index: 1;
+            background: #e2e8f0;
+        }
+        /* Wrapper clips the rounded corners without clipping tiles */
+        #mapContainerWrapper {
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        /* Leaflet popup custom */
+        .leaflet-popup-content { font-size: 12px; font-family: 'Inter', sans-serif; }
+        /* GPS spinner */
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .spin { animation: spin 0.8s linear infinite; display: inline-block; }
+        /* Location badge */
+        #locationBadge { display: none; }
+        #locationBadge.show { display: flex; }
     </style>
 </head>
 <body class="bg-slate-50 min-h-screen flex flex-col">
@@ -150,39 +189,88 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <header class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between h-16">
-                <!-- Logo -->
+                <!-- Logo & Mobile Toggle -->
                 <div class="flex-shrink-0 flex items-center gap-2">
-                    <span class="text-emerald-600 text-2xl font-bold flex items-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 mr-1 inline-block" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <button type="button" onclick="toggleMobileMenu()" class="lg:hidden text-slate-500 hover:text-slate-700 focus:outline-none p-1 rounded-md" title="Toggle Navigation">
+                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                        </svg>
+                    </button>
+                    <span class="text-emerald-600 text-[12px] sm:text-xl md:text-2xl font-bold flex items-center flex-shrink-0 gap-1 sm:gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-[18px] w-[18px] sm:h-7 sm:w-7 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 14l9-5-9-5-9 5 9 5z" />
                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 14l4-2.5V20l-4 2.5L8 20v-8.5l4 2.5z" />
                         </svg>
-                        ArenaReserve
+                        <span>ArenaReserve</span>
                     </span>
                 </div>
 
                 <!-- Right Side Actions -->
-                <div class="flex items-center gap-4">
+                <div class="flex-shrink-0 flex items-center gap-1 sm:gap-3">
                     <!-- Mode Toggle -->
-                    <div class="flex items-center gap-2 bg-slate-100 p-1 rounded-lg border border-slate-200">
-                        <a href="switch_role.php" class="text-xs font-medium px-2 py-1 text-slate-500 hover:text-slate-800 transition-colors">Player</a>
-                        <span class="text-xs font-medium px-2 py-1 text-slate-500 bg-white rounded shadow-sm text-emerald-600 font-bold">Owner</span>
+                    <div class="flex-shrink-0 flex items-center gap-1 bg-slate-100 p-1 rounded-full border border-slate-200/80 shadow-inner">
+                        <a href="<?php echo ($_SESSION['current_active_mode'] === 'Owner') ? 'switch_role.php' : '#'; ?>" 
+                           class="text-[11px] sm:text-xs font-semibold px-2.5 py-1.5 rounded-full transition-all duration-300 flex items-center gap-1 <?php echo ($_SESSION['current_active_mode'] === 'Player') ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'; ?>" title="Switch to Player Mode">
+                           <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                           <span class="hidden sm:inline">Player</span>
+                        </a>
+                        <a href="<?php echo ($_SESSION['current_active_mode'] === 'Player') ? 'switch_role.php' : '#'; ?>" 
+                           class="text-[11px] sm:text-xs font-semibold px-2.5 py-1.5 rounded-full transition-all duration-300 flex items-center gap-1 <?php echo ($_SESSION['current_active_mode'] === 'Owner') ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'; ?>" title="Switch to Owner Mode">
+                           <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+                           <span class="hidden sm:inline">Owner</span>
+                        </a>
                     </div>
 
                     <!-- Profile Dropdown -->
-                    <div class="relative flex items-center gap-2">
-                        <div class="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-sm">
-                            <?php echo strtoupper(substr($_SESSION['name'] ?? 'U', 0, 1)); ?>
+                    <div class="relative">
+                        <button id="profileDropdownBtn" onclick="toggleProfileDropdown()" class="flex items-center gap-2 hover:opacity-90 focus:outline-none transition-opacity" title="User Menu">
+                            <div class="w-8 h-8 rounded-full overflow-hidden bg-emerald-600 text-white flex items-center justify-center font-bold text-sm flex-shrink-0 shadow-sm border border-emerald-500">
+                                <?php if (!empty($_SESSION['profile_picture']) && file_exists(__DIR__ . '/' . $_SESSION['profile_picture'])): ?>
+                                    <img src="<?php echo htmlspecialchars($_SESSION['profile_picture']); ?>" alt="Profile" class="w-full h-full object-cover">
+                                <?php else: ?>
+                                    <?php echo strtoupper(substr($_SESSION['name'] ?? 'U', 0, 1)); ?>
+                                <?php endif; ?>
+                            </div>
+                            <div class="hidden md:block text-left">
+                                <div class="text-xs font-semibold text-slate-800 flex items-center gap-1">
+                                    <?php echo htmlspecialchars($_SESSION['name'] ?? 'User'); ?>
+                                    <svg class="w-3 h-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                </div>
+                                <div class="text-[10px] text-slate-400 capitalize">Owner</div>
+                            </div>
+                        </button>
+                        <!-- Dropdown Menu -->
+                        <div id="profileDropdownMenu" class="hidden absolute right-0 top-11 w-48 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-50 transform opacity-0 scale-95 transition-all duration-150">
+                            <a href="owner_profile.php" class="flex items-center px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-emerald-600 transition-colors">
+                                <svg class="mr-2.5 h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                                Profile Settings
+                            </a>
+                            <div class="border-t border-slate-100 my-1"></div>
+                            <a href="logout.php" class="flex items-center px-4 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 transition-colors">
+                                <svg class="mr-2.5 h-4 w-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+                                Logout
+                            </a>
                         </div>
-                        <div class="hidden md:block text-left">
-                            <div class="text-xs font-semibold text-slate-800"><?php echo htmlspecialchars($_SESSION['name'] ?? 'User'); ?></div>
-                            <div class="text-[10px] text-slate-400 capitalize">Owner</div>
-                        </div>
-                        <a href="logout.php" class="text-xs text-red-500 hover:text-red-700 ml-2 font-medium">Logout</a>
                     </div>
                 </div>
             </div>
+        </div>
+        <!-- Mobile Navigation Menu -->
+        <div id="mobileNavigationMenu" class="hidden lg:hidden border-t border-slate-100 bg-white py-3 px-4 shadow-inner space-y-1">
+            <?php if ($_SESSION['current_active_mode'] === 'Owner'): ?>
+                <a href="owner_dashboard.php" class="block px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50">My Venues</a>
+                <a href="add_ground.php" class="block px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50">List New Venue</a>
+                <a href="owner_analytics.php" class="block px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50">Analytics & Wallet</a>
+                <a href="owner_scores.php" class="block px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50">Score Entry</a>
+            <?php else: ?>
+                <a href="explore.php" class="block px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50">Explore Grounds</a>
+                <a href="book_slot.php" class="block px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50">Book Slot</a>
+                <a href="match_history.php" class="block px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50">Match History</a>
+                <a href="challenge_team.php" class="block px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50">Challenge Team</a>
+                <a href="leaderboard.php" class="block px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50">Leaderboard</a>
+                <a href="wallet.php" class="block px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50">My Wallet</a>
+            <?php endif; ?>
         </div>
     </header>
 
@@ -284,24 +372,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                       class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-lg text-sm placeholder-slate-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500"></textarea>
                         </div>
 
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label for="latitude" class="block text-xs font-semibold text-slate-700">Latitude</label>
-                                <input id="latitude" name="latitude" type="text" value="24.8607" readonly
-                                       class="mt-1 block w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-100 text-slate-600 focus:outline-none">
+                        <!-- Location Section -->
+                        <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+                            <div class="flex items-center justify-between">
+                                <label class="block text-xs font-semibold text-slate-700">📍 Venue Location (Coordinates)</label>
+                                <!-- Detected badge -->
+                                <span id="locationBadge" class="items-center gap-1.5 text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                                    <svg class="h-3 w-3 inline-block" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                                    Location Set
+                                </span>
                             </div>
-                            <div>
-                                <label for="longitude" class="block text-xs font-semibold text-slate-700">Longitude</label>
-                                <input id="longitude" name="longitude" type="text" value="67.0011" readonly
-                                       class="mt-1 block w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-100 text-slate-600 focus:outline-none">
-                            </div>
-                        </div>
 
-                        <div>
-                            <button type="button" onclick="autoDetectGPS()"
-                                    class="w-full py-1.5 border border-emerald-600 text-emerald-600 text-xs font-semibold rounded-lg hover:bg-emerald-50 focus:outline-none transition-colors">
-                                ⌖ Auto-Detect Location
-                            </button>
+                            <!-- Coordinate display fields -->
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label for="latitude" class="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Latitude</label>
+                                    <input id="latitude" name="latitude" type="text" value="24.8607" readonly
+                                           class="mt-1 block w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white text-slate-700 font-mono focus:outline-none focus:ring-1 focus:ring-emerald-400">
+                                </div>
+                                <div>
+                                    <label for="longitude" class="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Longitude</label>
+                                    <input id="longitude" name="longitude" type="text" value="67.0011" readonly
+                                           class="mt-1 block w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white text-slate-700 font-mono focus:outline-none focus:ring-1 focus:ring-emerald-400">
+                                </div>
+                            </div>
+
+                            <!-- GPS Error message -->
+                            <div id="gpsError" class="hidden text-[11px] text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2"></div>
+
+                            <!-- Location Action Buttons -->
+                            <div class="grid grid-cols-2 gap-2">
+                                <button type="button" id="autoDetectBtn" onclick="autoDetectGPS()"
+                                        class="flex items-center justify-center gap-2 py-2 border border-emerald-500 text-emerald-600 text-xs font-semibold rounded-lg hover:bg-emerald-50 focus:outline-none transition-colors">
+                                    <svg id="gpsIcon" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                                    <span id="gpsLabel">Auto-Detect GPS</span>
+                                </button>
+                                <button type="button" onclick="openMapPicker()"
+                                        class="flex items-center justify-center gap-2 py-2 border border-slate-400 text-slate-600 text-xs font-semibold rounded-lg hover:bg-slate-100 focus:outline-none transition-colors">
+                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
+                                    Choose on Map
+                                </button>
+                            </div>
+                            <p class="text-[10px] text-slate-400">Use GPS to detect your device location, or manually pin the venue on the interactive map.</p>
                         </div>
 
                         <div>
@@ -515,15 +627,273 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+        // =============================================
+        // REAL GPS AUTO-DETECTION
+        // =============================================
         function autoDetectGPS() {
-            // Simulate geo-detection
-            const defaultLats = [24.8152, 24.8252, 24.8352, 24.8452];
-            const defaultLngs = [67.033, 67.043, 67.053, 67.063];
-            const randIdx = Math.floor(Math.random() * defaultLats.length);
-            
-            document.getElementById('latitude').value = defaultLats[randIdx];
-            document.getElementById('longitude').value = defaultLngs[randIdx];
-            alert("Location auto-detected successfully: Lat " + defaultLats[randIdx] + ", Lng " + defaultLngs[randIdx]);
+            if (!navigator.geolocation) {
+                showGpsError('Geolocation is not supported by your browser. Please use the map picker instead.');
+                return;
+            }
+
+            // Show spinner
+            const btn = document.getElementById('autoDetectBtn');
+            const icon = document.getElementById('gpsIcon');
+            const label = document.getElementById('gpsLabel');
+            btn.disabled = true;
+            icon.outerHTML = '<svg id="gpsIcon" class="h-4 w-4 spin" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>';
+            label.textContent = 'Detecting…';
+            hideGpsError();
+
+            navigator.geolocation.getCurrentPosition(
+                function(position) {
+                    const lat = position.coords.latitude.toFixed(6);
+                    const lng = position.coords.longitude.toFixed(6);
+                    setCoordinates(lat, lng);
+
+                    // Reset button
+                    document.getElementById('gpsIcon').outerHTML = '<svg id="gpsIcon" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>';
+                    document.getElementById('gpsLabel').textContent = '✓ GPS Detected';
+                    document.getElementById('autoDetectBtn').disabled = false;
+                },
+                function(error) {
+                    // Reset button
+                    document.getElementById('gpsIcon').outerHTML = '<svg id="gpsIcon" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>';
+                    document.getElementById('gpsLabel').textContent = 'Auto-Detect GPS';
+                    document.getElementById('autoDetectBtn').disabled = false;
+
+                    let msg = 'Could not detect location. ';
+                    if (error.code === error.PERMISSION_DENIED) {
+                        msg += 'Location access was denied. Please allow location in browser settings or use the map picker.';
+                    } else if (error.code === error.POSITION_UNAVAILABLE) {
+                        msg += 'Location information is unavailable. Try the map picker instead.';
+                    } else if (error.code === error.TIMEOUT) {
+                        msg += 'Location request timed out. Please try again.';
+                    }
+                    showGpsError(msg);
+                },
+                { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+            );
+        }
+
+        function setCoordinates(lat, lng) {
+            document.getElementById('latitude').value = lat;
+            document.getElementById('longitude').value = lng;
+            document.getElementById('locationBadge').classList.add('show');
+            hideGpsError();
+        }
+
+        function showGpsError(msg) {
+            const el = document.getElementById('gpsError');
+            el.textContent = '⚠ ' + msg;
+            el.classList.remove('hidden');
+        }
+        function hideGpsError() {
+            document.getElementById('gpsError').classList.add('hidden');
+        }
+
+        // =============================================
+        // LEAFLET MAP PICKER WITH FALLBACK LOADER
+        // =============================================
+        let mapInstance = null;
+        let mapMarker = null;
+        let pendingLat = null;
+        let pendingLng = null;
+
+        function openMapPicker() {
+            const modal = document.getElementById('mapModal');
+            modal.classList.add('open');
+
+            ensureLeafletLoaded(function() {
+                setTimeout(initOrRefreshMap, 50);
+                setTimeout(initOrRefreshMap, 250);
+                setTimeout(initOrRefreshMap, 600);
+            });
+        }
+
+        function ensureLeafletLoaded(callback) {
+            if (typeof L !== 'undefined') {
+                callback();
+                return;
+            }
+            // Dynamic script fallback if primary CDN failed or was delayed
+            const css = document.createElement('link');
+            css.rel = 'stylesheet';
+            css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+            document.head.appendChild(css);
+
+            const script = document.createElement('script');
+            script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+            script.onload = callback;
+            script.onerror = function() {
+                alert('Map library could not be loaded. Please check your internet connection.');
+            };
+            document.head.appendChild(script);
+        }
+
+        function initOrRefreshMap() {
+            if (typeof L === 'undefined') return;
+
+            const startLat = parseFloat(document.getElementById('latitude').value) || 24.8607;
+            const startLng = parseFloat(document.getElementById('longitude').value) || 67.0011;
+
+            if (!mapInstance) {
+                const container = document.getElementById('mapContainer');
+                if (!container) return;
+
+                mapInstance = L.map('mapContainer', {
+                    zoomControl: true,
+                    scrollWheelZoom: true
+                }).setView([startLat, startLng], 13);
+
+                // Define Google Maps tile layers (100% Google Maps visual styling & data)
+                const googleStreets = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+                    maxZoom: 20,
+                    subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+                    attribution: '&copy; Google Maps'
+                });
+
+                const googleHybrid = L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+                    maxZoom: 20,
+                    subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+                    attribution: '&copy; Google Maps'
+                });
+
+                const googleSat = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+                    maxZoom: 20,
+                    subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+                    attribution: '&copy; Google Maps'
+                });
+
+                const googleTerrain = L.tileLayer('https://{s}.google.com/vt/lyrs=p&x={x}&y={y}&z={z}', {
+                    maxZoom: 20,
+                    subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+                    attribution: '&copy; Google Maps'
+                });
+
+                // Add default Google Maps Roadmap layer to map
+                googleStreets.addTo(mapInstance);
+
+                // Add built-in Leaflet Layer Control (top-right switcher for Google Maps styles)
+                const baseLayers = {
+                    "🗺️ Google Maps (Default)": googleStreets,
+                    "🛰️ Google Satellite + Roads": googleHybrid,
+                    "📷 Google Satellite Only": googleSat,
+                    "⛰️ Google Terrain": googleTerrain
+                };
+                L.control.layers(baseLayers, null, { position: 'topright' }).addTo(mapInstance);
+
+                // Custom marker icon with standard fallback
+                let pinIcon;
+                try {
+                    pinIcon = L.divIcon({
+                        html: `<div style="width:28px;height:28px;background:#059669;border:3px solid white;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 3px 12px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;"><div style="width:8px;height:8px;background:white;border-radius:50%;transform:rotate(45deg);"></div></div>`,
+                        iconSize: [28, 28],
+                        iconAnchor: [14, 28],
+                        className: ''
+                    });
+                } catch(e) {}
+
+                const markerOptions = { draggable: true };
+                if (pinIcon) markerOptions.icon = pinIcon;
+
+                // Place initial marker
+                mapMarker = L.marker([startLat, startLng], markerOptions).addTo(mapInstance);
+                pendingLat = startLat;
+                pendingLng = startLng;
+
+                // Click to move marker
+                mapInstance.on('click', function(e) {
+                    mapMarker.setLatLng(e.latlng);
+                    pendingLat = e.latlng.lat.toFixed(6);
+                    pendingLng = e.latlng.lng.toFixed(6);
+                    updateMapInfo(pendingLat, pendingLng);
+                    reverseGeocode(pendingLat, pendingLng);
+                });
+
+                // Drag marker
+                mapMarker.on('dragend', function(e) {
+                    const pos = mapMarker.getLatLng();
+                    pendingLat = pos.lat.toFixed(6);
+                    pendingLng = pos.lng.toFixed(6);
+                    updateMapInfo(pendingLat, pendingLng);
+                    reverseGeocode(pendingLat, pendingLng);
+                });
+
+                updateMapInfo(startLat, startLng);
+            }
+
+            if (mapInstance) {
+                mapInstance.invalidateSize();
+                mapInstance.setView([pendingLat || startLat, pendingLng || startLng], 13);
+            }
+        }
+
+        function closeMapPicker() {
+            document.getElementById('mapModal').classList.remove('open');
+        }
+
+        function confirmMapSelection() {
+            if (pendingLat && pendingLng) {
+                setCoordinates(pendingLat, pendingLng);
+            }
+            closeMapPicker();
+        }
+
+        function updateMapInfo(lat, lng) {
+            document.getElementById('mapCoordDisplay').textContent = `Lat: ${parseFloat(lat).toFixed(5)}, Lng: ${parseFloat(lng).toFixed(5)}`;
+        }
+
+        // Nominatim Reverse Geocoding (Free — OpenStreetMap)
+        function reverseGeocode(lat, lng) {
+            const statusEl = document.getElementById('mapAddressPreview');
+            statusEl.textContent = 'Fetching address…';
+
+            fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&accept-language=en`, {
+                headers: { 'Accept': 'application/json' }
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data && data.display_name) {
+                    statusEl.textContent = data.display_name;
+                    // Offer to auto-fill address field
+                    document.getElementById('mapFillAddressBtn').style.display = 'inline-flex';
+                    document.getElementById('mapFillAddressBtn').onclick = function() {
+                        document.getElementById('address').value = data.display_name;
+                    };
+                } else {
+                    statusEl.textContent = 'Address not found for this location.';
+                }
+            })
+            .catch(() => { statusEl.textContent = 'Could not fetch address (check internet).'; });
+        }
+
+        // Search location by name/city
+        function searchMapLocation() {
+            const query = document.getElementById('mapSearchInput').value.trim();
+            if (!query) return;
+            const statusEl = document.getElementById('mapAddressPreview');
+            statusEl.textContent = 'Searching location…';
+
+            fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`)
+            .then(r => r.json())
+            .then(data => {
+                if (data && data.length > 0) {
+                    const lat = parseFloat(data[0].lat);
+                    const lng = parseFloat(data[0].lon);
+                    pendingLat = lat.toFixed(6);
+                    pendingLng = lng.toFixed(6);
+                    if (mapInstance) {
+                        mapInstance.setView([lat, lng], 15);
+                        if (mapMarker) mapMarker.setLatLng([lat, lng]);
+                    }
+                    updateMapInfo(pendingLat, pendingLng);
+                    reverseGeocode(pendingLat, pendingLng);
+                } else {
+                    statusEl.textContent = 'Location not found. Try typing a city, area, or landmark name.';
+                }
+            })
+            .catch(() => { statusEl.textContent = 'Error searching location.'; });
         }
 
         // Live Commission calculator
@@ -536,6 +906,92 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Initialize UI
         updateWizardUI();
+
+        // ---- Profile Dropdown ----
+        function toggleProfileDropdown() {
+            const menu = document.getElementById('profileDropdownMenu');
+            if (!menu) return;
+            if (menu.classList.contains('hidden')) {
+                menu.classList.remove('hidden');
+                setTimeout(() => { menu.classList.remove('opacity-0', 'scale-95'); menu.classList.add('opacity-100', 'scale-100'); }, 10);
+            } else {
+                menu.classList.remove('opacity-100', 'scale-100');
+                menu.classList.add('opacity-0', 'scale-95');
+                setTimeout(() => menu.classList.add('hidden'), 150);
+            }
+        }
+        document.addEventListener('click', function(e) {
+            const btn = document.getElementById('profileDropdownBtn');
+            const menu = document.getElementById('profileDropdownMenu');
+            if (btn && menu && !btn.contains(e.target) && !menu.contains(e.target)) {
+                menu.classList.remove('opacity-100', 'scale-100');
+                menu.classList.add('opacity-0', 'scale-95');
+                setTimeout(() => menu.classList.add('hidden'), 150);
+            }
+        });
+
+        function toggleMobileMenu() {
+            const menu = document.getElementById('mobileNavigationMenu');
+            if (menu) menu.classList.toggle('hidden');
+        }
     </script>
+
+    <!-- =========================================
+         LEAFLET MAP PICKER MODAL
+    ========================================== -->
+    <div id="mapModal" role="dialog" aria-modal="true" aria-label="Choose location on map">
+        <div style="background:white;border-radius:20px;width:100%;max-width:760px;overflow:hidden;box-shadow:0 25px 60px rgba(0,0,0,0.4);display:flex;flex-direction:column;">
+            <!-- Modal Header -->
+            <div style="background:linear-gradient(135deg,#059669,#047857);padding:16px 20px;display:flex;align-items:center;justify-content:space-between;">
+                <div>
+                    <div style="color:rgba(255,255,255,0.75);font-size:11px;font-family:Inter,sans-serif;">Interactive Map</div>
+                    <div style="color:white;font-size:16px;font-weight:700;font-family:Inter,sans-serif;">📍 Pin Your Venue Location</div>
+                </div>
+                <button onclick="closeMapPicker()" style="background:rgba(255,255,255,0.2);border:none;border-radius:50%;width:36px;height:36px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:white;font-size:18px;" aria-label="Close map">&times;</button>
+            </div>
+
+            <!-- Instruction bar -->
+            <div style="background:#f0fdf4;border-bottom:1px solid #d1fae5;padding:10px 20px;font-size:11px;color:#065f46;font-family:Inter,sans-serif;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;">
+                <div>🖱 <strong>Click anywhere</strong> on the map or <strong>drag the pin</strong> to set location.</div>
+                <div style="color:#047857;font-weight:600;">✨ Switch map layers (Street / Satellite / Clean) in the top-right corner</div>
+            </div>
+
+            <!-- Search location bar -->
+            <div style="padding:12px 16px 0;display:flex;gap:8px;">
+                <input id="mapSearchInput" type="text" placeholder="🔍 Search city, area, or landmark (e.g. DHA Karachi, Gulberg Lahore)..."
+                       onkeydown="if(event.key==='Enter'){event.preventDefault();searchMapLocation();}"
+                       style="flex:1;padding:8px 14px;border:1px solid #cbd5e1;border-radius:10px;font-size:12px;outline:none;font-family:Inter,sans-serif;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+                <button type="button" onclick="searchMapLocation()"
+                        style="padding:8px 18px;background:#059669;color:white;border:none;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;font-family:Inter,sans-serif;box-shadow:0 2px 6px rgba(5,150,105,0.25);">
+                    Search
+                </button>
+            </div>
+
+            <!-- Map Container -->
+            <div style="padding:12px 16px 0;">
+                <div id="mapContainer"></div>
+            </div>
+
+            <!-- Coordinates & Address Preview -->
+            <div style="padding:12px 20px;background:#f8fafc;border-top:1px solid #e2e8f0;">
+                <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+                    <div>
+                        <div style="font-size:10px;color:#94a3b8;font-weight:600;text-transform:uppercase;font-family:Inter,sans-serif;">Selected Coordinates</div>
+                        <div id="mapCoordDisplay" style="font-size:13px;font-weight:700;color:#0f172a;font-family:monospace;">—</div>
+                    </div>
+                    <button id="mapFillAddressBtn" onclick="" style="display:none;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#059669;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;padding:6px 12px;cursor:pointer;font-family:Inter,sans-serif;">
+                        ✎ Auto-fill address field
+                    </button>
+                </div>
+                <div id="mapAddressPreview" style="margin-top:6px;font-size:11px;color:#64748b;font-family:Inter,sans-serif;min-height:18px;">Click the map to see address preview</div>
+            </div>
+
+            <!-- Modal Footer Buttons -->
+            <div style="padding:14px 20px;display:flex;gap:10px;justify-content:flex-end;border-top:1px solid #e2e8f0;">
+                <button onclick="closeMapPicker()" style="padding:8px 20px;border:1px solid #cbd5e1;border-radius:10px;font-size:12px;font-weight:600;color:#475569;background:white;cursor:pointer;font-family:Inter,sans-serif;">Cancel</button>
+                <button onclick="confirmMapSelection()" style="padding:8px 24px;background:#059669;border:none;border-radius:10px;font-size:12px;font-weight:700;color:white;cursor:pointer;box-shadow:0 2px 8px rgba(5,150,105,0.3);font-family:Inter,sans-serif;">✓ Confirm Location</button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

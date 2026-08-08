@@ -65,11 +65,11 @@ try {
         exit;
     }
 
-    // 4. Cannot cancel past bookings
-    $today = date('Y-m-d');
-    if ($booking['slot_date'] < $today) {
+    // 4. Cannot cancel past bookings (slot start time has already passed)
+    $slot_start_time = strtotime($booking['slot_date'] . ' ' . sprintf('%02d:00:00', intval($booking['slot_hour'])));
+    if ($slot_start_time <= time()) {
         $pdo->rollBack();
-        echo json_encode(['success' => false, 'message' => 'Cannot cancel a past booking.']);
+        echo json_encode(['success' => false, 'message' => 'Cannot cancel a past or currently active booking.']);
         exit;
     }
 
