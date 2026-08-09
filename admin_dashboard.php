@@ -125,6 +125,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         /* ── Upload website logo ── */
         elseif ($action === 'upload_logo') {
             if (!isset($_FILES['logo']) || $_FILES['logo']['error'] !== UPLOAD_ERR_OK) {
+                $upload_err_code = $_FILES['logo']['error'] ?? UPLOAD_ERR_NO_FILE;
+                if ($upload_err_code === UPLOAD_ERR_INI_SIZE || $upload_err_code === UPLOAD_ERR_FORM_SIZE) {
+                    throw new Exception('The uploaded picture exceeds the 2MB server limit.');
+                }
                 throw new Exception('No file uploaded or upload error occurred.');
             }
             
@@ -488,17 +492,18 @@ try {
                         <input type="hidden" name="action" value="upload_logo">
                         <label class="text-xs font-semibold text-slate-500 block mb-1">Upload New Logo</label>
                         <div class="flex flex-col sm:flex-row gap-3">
-                            <input type="file" name="logo" accept=".svg,.png,.jpg,.jpeg,.webp" required
-                                   class="flex-1 text-sm file:mr-4 file:py-2.5 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 border border-slate-200 rounded-lg p-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white">
-                            <button type="submit" class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-sm px-5 py-2.5 rounded-lg transition-colors whitespace-nowrap">Upload</button>
+                            <input type="file" name="logo" accept=".svg,.png,.jpg,.jpeg,.webp" required onchange="validateLogoSize(this)"
+                                   class="flex-1 text-xs file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 border border-slate-200 rounded-lg p-1 focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white">
+                            <button type="submit" class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs px-4 py-2 rounded-lg transition-colors whitespace-nowrap">Upload</button>
                         </div>
+                        <p id="logo-size-error" class="text-xs font-semibold text-red-500 mt-1.5 hidden"></p>
                     </form>
 
                     <!-- Revert Button -->
                     <?php if (has_custom_logo()): ?>
                         <form method="POST" action="admin_dashboard.php?page=system" onsubmit="return confirm('Are you sure you want to delete the custom logo and revert to the default ArenaReserve logo?');" class="w-full sm:w-auto">
                             <input type="hidden" name="action" value="delete_logo">
-                            <button type="submit" class="w-full sm:w-auto bg-slate-100 hover:bg-red-50 hover:text-red-600 hover:border-red-200 text-slate-600 font-semibold text-sm px-4 py-2.5 rounded-lg border border-slate-200 transition-all">Revert to Default</button>
+                            <button type="submit" class="w-full sm:w-auto bg-slate-100 hover:bg-red-50 hover:text-red-600 hover:border-red-200 text-slate-600 font-semibold text-xs px-4 py-2 rounded-lg border border-slate-200 transition-all">Revert to Default</button>
                         </form>
                     <?php endif; ?>
                 </div>
@@ -1185,6 +1190,25 @@ function toggleAdminSidebar() {
         backdrop.classList.remove('opacity-100');
         backdrop.classList.add('opacity-0');
         setTimeout(() => backdrop.classList.add('hidden'), 300);
+    }
+}
+
+/* ── Validate logo file size (max 2MB) before upload ── */
+function validateLogoSize(input) {
+    const file = input.files[0];
+    const errorDiv = document.getElementById('logo-size-error');
+    if (file) {
+        // Max size: 2MB (2,097,152 bytes)
+        const maxSize = 2 * 1024 * 1024;
+        if (file.size > maxSize) {
+            errorDiv.textContent = '❌ Warning: The selected picture is ' + (file.size / (1024 * 1024)).toFixed(2) + 'MB, which is greater than the 2MB limit. Please select a smaller file.';
+            errorDiv.classList.remove('hidden');
+            input.value = ''; // Reset file input
+        } else {
+            errorDiv.classList.add('hidden');
+        }
+    } else {
+        errorDiv.classList.add('hidden');
     }
 }
 </script>
