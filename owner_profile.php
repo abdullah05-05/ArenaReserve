@@ -181,7 +181,7 @@ $name_initials = strtoupper(substr($user['name'], 0, 1));
     </style>
     <?php
     $page_description = 'Manage your ground owner profile on ArenaReserve. Update your details, venues, and contact information.';
-    include_once 'logo_head.php';
+    include 'logo_head.php';
     ?>
 </head>
 <body class="bg-slate-50 min-h-screen flex flex-col">

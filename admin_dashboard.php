@@ -328,7 +328,10 @@ try {
         .tab-content.active { display: block; }
         .inline-form  { display: none; }
     </style>
-    <?php include_once 'logo_head.php'; ?>
+    <?php
+    $page_description = 'ArenaReserve Admin Panel – Manage users, ground owners, bookings, wallet audits, and platform settings from the admin dashboard.';
+    include 'logo_head.php';
+    ?>
 </head>
 <body class="bg-slate-50 min-h-screen flex flex-col">
 

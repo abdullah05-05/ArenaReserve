@@ -90,7 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     </style>
     <?php
     $page_description = 'Analyse your ground performance on ArenaReserve. View booking trends, revenue insights, and player activity reports.';
-    include_once 'logo_head.php';
+    include 'logo_head.php';
     ?>
 </head>
 <body class="bg-slate-50 min-h-screen flex flex-col">

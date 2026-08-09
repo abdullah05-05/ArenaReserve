@@ -109,7 +109,7 @@ try {
     </style>
     <?php
     $page_description = 'Manage your ArenaReserve wallet. Top up your balance, track transactions, and pay for ground bookings with ease.';
-    include_once 'logo_head.php';
+    include 'logo_head.php';
     ?>
 </head>
 <body class="bg-slate-50 min-h-screen flex flex-col">

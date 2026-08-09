@@ -203,7 +203,7 @@ body { background: #f5f6fa; }
 </style>
     <?php
     $page_description = 'Book a sports ground slot on ArenaReserve. Choose your date, time, and venue – confirmed in seconds.';
-    include_once 'logo_head.php';
+    include 'logo_head.php';
     ?>
 </head>
 <body class="bg-slate-50 min-h-screen flex flex-col">

@@ -134,7 +134,7 @@ body { font-family:'Inter',sans-serif; background:#f8fafc; }
 </style>
     <?php
     $page_description = 'Challenge another team on ArenaReserve – Set the ground, time, and stakes for your next competitive sports match.';
-    include_once 'logo_head.php';
+    include 'logo_head.php';
     ?>
 </head>
 <body>

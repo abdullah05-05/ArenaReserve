@@ -191,7 +191,7 @@ $name_initials = strtoupper(substr($user['name'], 0, 1));
     </style>
     <?php
     $page_description = 'View player profile on ArenaReserve. Check stats, match history, and team affiliations for any registered player.';
-    include_once 'logo_head.php';
+    include 'logo_head.php';
     ?>
 </head>
 <body class="bg-slate-50 min-h-screen flex flex-col">
