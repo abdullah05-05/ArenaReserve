@@ -75,7 +75,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             font-family: 'Inter', sans-serif;
         }
     </style>
-    <?php include_once 'logo_head.php'; ?>
+    <?php
+    $page_description = 'Reset your ArenaReserve password securely. Get back to booking your favourite sports grounds in minutes.';
+    include_once 'logo_head.php';
+    ?>
 </head>
 <body class="bg-slate-50 min-h-screen flex flex-col justify-start md:justify-center py-6 md:py-12 sm:px-6 lg:px-8">
     <div class="sm:mx-auto sm:w-full sm:max-w-md">
