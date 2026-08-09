@@ -1,0 +1,6 @@
+# Route requests for favicon.ico and favicon.png to the dynamic favicon.php router
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^favicon\.ico$ favicon.php [L]
+    RewriteRule ^favicon\.png$ favicon.php [L]
+</IfModule>
