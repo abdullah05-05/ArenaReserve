@@ -3,8 +3,9 @@ session_start();
 require_once 'db.php';
 require_once 'logo_helper.php';
 $config = file_exists(__DIR__ . '/config.local.php') ? require __DIR__ . '/config.local.php' : [];
-$google_client_id = $config['google_client_id'] ?? 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
-
+$google_client_id = $config['google_client_id']
+    ?? getenv('GOOGLE_CLIENT_ID')
+    ?? 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
 // Redirect if already logged in
 if (isset($_SESSION['user_id'])) {
     if ($_SESSION['current_active_mode'] === 'Owner') {
