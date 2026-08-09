@@ -146,13 +146,8 @@ body { font-family:'Inter',sans-serif; background:#f8fafc; }
       </a>
     </div>
     <div class="flex-shrink-0 flex items-center gap-1 sm:gap-2">
+      <!-- Wallet (hidden on mobile) -->
       <a href="wallet.php" class="hidden sm:flex items-center bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-full text-xs font-semibold border border-emerald-200">
-    <a href="explore.php" class="flex items-center gap-2 text-emerald-600 text-xl font-bold">
-      <svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 14l9-5-9-5-9 5 9 5z"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0112 20.055a11.952 11.952 0 01-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"/></svg>
-      ArenaReserve
-    </a>
-    <div class="flex items-center gap-3">
-      <a href="wallet.php" class="flex items-center bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-full text-xs font-semibold border border-emerald-200">
         <span class="w-2 h-2 rounded-full bg-emerald-500 mr-2"></span><?php echo number_format($available_balance,0); ?> PKR
       </a>
       <!-- Mode Toggle -->
@@ -168,7 +163,6 @@ body { font-family:'Inter',sans-serif; background:#f8fafc; }
              <span class="hidden sm:inline">Owner</span>
           </a>
       </div>
-      <div class="flex items-center gap-2">
         <!-- Profile Dropdown -->
         <div class="relative">
           <button id="profileDropdownBtn" onclick="toggleProfileDropdown()" class="flex items-center gap-2 hover:opacity-90 focus:outline-none transition-opacity" title="User Menu">
@@ -200,8 +194,6 @@ body { font-family:'Inter',sans-serif; background:#f8fafc; }
             </a>
           </div>
         </div>
-      </div>
-    </div>
   </div>
 
   <!-- Mobile Navigation Menu -->
