@@ -107,7 +107,10 @@ try {
             font-family: 'Inter', sans-serif;
         }
     </style>
-    <?php include_once 'logo_head.php'; ?>
+    <?php
+    $page_description = 'Manage your ArenaReserve wallet. Top up your balance, track transactions, and pay for ground bookings with ease.';
+    include_once 'logo_head.php';
+    ?>
 </head>
 <body class="bg-slate-50 min-h-screen flex flex-col">
     <!-- Top Header -->
@@ -123,12 +126,12 @@ try {
                     </button>
                     <span class="text-emerald-600 text-[12px] sm:text-xl md:text-2xl font-bold flex items-center flex-shrink-0 gap-1 sm:gap-2">
                         <?php echo get_logo_markup('h-[18px] w-[18px] sm:h-7 sm:w-7 flex-shrink-0'); ?>
-                        <span>ArenaReserve</span>
+                        <span class="hidden min-[360px]:inline">ArenaReserve</span>
                     </span>
                 </div>
 
                 <!-- Right Side Actions -->
-                <div class="flex-shrink-0 flex items-center gap-1 sm:gap-3">
+                <div class="flex-shrink-0 flex items-center gap-1 sm:gap-2">
                     <!-- Wallet Display -->
                     <div class="hidden sm:flex items-center bg-slate-100 text-slate-800 px-3 py-1.5 rounded-full text-xs font-semibold border border-slate-200">
                         <span class="w-2 h-2 rounded-full bg-emerald-500 mr-2"></span>
@@ -138,12 +141,12 @@ try {
                     <!-- Mode Toggle -->
                     <div class="flex-shrink-0 flex items-center gap-1 bg-slate-100 p-1 rounded-full border border-slate-200/80 shadow-inner">
                         <a href="<?php echo ($_SESSION['current_active_mode'] === 'Owner') ? 'switch_role.php' : '#'; ?>" 
-                           class="text-[11px] sm:text-xs font-semibold px-2.5 py-1.5 rounded-full transition-all duration-300 flex items-center gap-1 <?php echo ($_SESSION['current_active_mode'] === 'Player') ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'; ?>" title="Switch to Player Mode">
+                           class="text-[11px] sm:text-xs font-semibold px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-full transition-all duration-300 flex items-center gap-1 <?php echo ($_SESSION['current_active_mode'] === 'Player') ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'; ?>" title="Switch to Player Mode">
                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
                            <span class="hidden sm:inline">Player</span>
                         </a>
                         <a href="<?php echo ($_SESSION['current_active_mode'] === 'Player') ? 'switch_role.php' : '#'; ?>" 
-                           class="text-[11px] sm:text-xs font-semibold px-2.5 py-1.5 rounded-full transition-all duration-300 flex items-center gap-1 <?php echo ($_SESSION['current_active_mode'] === 'Owner') ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'; ?>" title="Switch to Owner Mode">
+                           class="text-[11px] sm:text-xs font-semibold px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-full transition-all duration-300 flex items-center gap-1 <?php echo ($_SESSION['current_active_mode'] === 'Owner') ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'; ?>" title="Switch to Owner Mode">
                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
                            <span class="hidden sm:inline">Owner</span>
                     </div>
