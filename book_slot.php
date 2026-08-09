@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once 'db.php';
+require_once 'logo_helper.php';
 if (!isset($_SESSION['user_id'])) { header("Location: login.php"); exit; }
 $user_id = $_SESSION['user_id'];
 
@@ -200,6 +201,7 @@ body { background: #f5f6fa; }
 #toast.error   { background: linear-gradient(135deg, #dc2626, #b91c1c); }
 #toast.info    { background: linear-gradient(135deg, #3b82f6, #2563eb); }
 </style>
+    <?php include_once 'logo_head.php'; ?>
 </head>
 <body class="bg-slate-50 min-h-screen flex flex-col">
 
@@ -216,7 +218,7 @@ body { background: #f5f6fa; }
         </svg>
       </button>
       <a href="explore.php" class="flex items-center gap-1 sm:gap-2 text-emerald-600 text-[12px] sm:text-xl font-bold flex-shrink-0">
-        <svg class="h-[18px] w-[18px] sm:h-7 sm:w-7 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 14l9-5-9-5-9 5 9 5z"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0112 20.055a11.952 11.952 0 01-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"/></svg>
+        <?php echo get_logo_markup('h-[18px] w-[18px] sm:h-7 sm:w-7 flex-shrink-0'); ?>
         <span>ArenaReserve</span>
       </a>
     </div>
