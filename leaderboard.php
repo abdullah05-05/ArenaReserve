@@ -3,7 +3,30 @@ session_start();
 require_once 'db.php';
 require_once 'logo_helper.php';
 if (!isset($_SESSION['user_id'])) { header("Location: login.php"); exit; }
+
 $user_id = $_SESSION['user_id'];
+
+// ── Ensure match_scores table exists ──────────────────────────────────────────
+try {
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS `match_scores` (
+            `id`               INT AUTO_INCREMENT PRIMARY KEY,
+            `booking_id`       INT NOT NULL UNIQUE,
+            `ground_id`        INT NOT NULL,
+            `owner_id`         INT NOT NULL,
+            `team_a_user`      INT NOT NULL,
+            `team_b_user`      INT DEFAULT NULL,
+            `score_a`          TINYINT NOT NULL COMMENT '1=win 0=loss',
+            `score_b`          TINYINT NOT NULL COMMENT '1=win 0=loss',
+            `commission_paid`  DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+            `scored_at`        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (`booking_id`) REFERENCES `bookings`(`id`) ON DELETE CASCADE,
+            FOREIGN KEY (`owner_id`)   REFERENCES `users`(`id`)    ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    ");
+} catch (Exception $e) {}
+
+// ── Wallet balance ────────────────────────────────────────────────────────────
 try {
     $stmt = $pdo->prepare("SELECT available_balance FROM wallets WHERE user_id = ?");
     $stmt->execute([$user_id]);
@@ -11,40 +34,101 @@ try {
     $available_balance = $wallet['available_balance'] ?? 0.00;
 } catch (Exception $e) { $available_balance = 0.00; }
 
-$my_name = htmlspecialchars($_SESSION['name'] ?? 'You');
-// Mock leaderboard data per sport
-$leaderboards = [
-    'overall' => [
-        ['rank'=>1,'name'=>'Ahmed Khan','sport'=>'Football','wins'=>24,'rating'=>4.97,'team'=>'Street Kings','badge'=>'🥇','city'=>'Lahore'],
-        ['rank'=>2,'name'=>'Ali Raza','sport'=>'Cricket','wins'=>21,'rating'=>4.91,'team'=>'Thunder XI','badge'=>'🥈','city'=>'Karachi'],
-        ['rank'=>3,'name'=>'Sara Baig','sport'=>'Badminton','wins'=>19,'rating'=>4.87,'team'=>'Smash Bros','badge'=>'🥉','city'=>'Islamabad'],
-        ['rank'=>4,'name'=>'Usman Tariq','sport'=>'Basketball','wins'=>17,'rating'=>4.79,'team'=>'City Ballers','badge'=>'','city'=>'Karachi'],
-        ['rank'=>5,'name'=>'Fatima Malik','sport'=>'Football','wins'=>15,'rating'=>4.72,'team'=>'Kick Force','badge'=>'','city'=>'Karachi'],
-        ['rank'=>6,'name'=>'Zaid Ahmed','sport'=>'Cricket','wins'=>14,'rating'=>4.65,'team'=>'Thunder XI','badge'=>'','city'=>'Karachi'],
-        ['rank'=>7,'name'=>'Hamza Shah','sport'=>'Basketball','wins'=>12,'rating'=>4.58,'team'=>'Hoop Dreams','badge'=>'','city'=>'Lahore'],
-        ['rank'=>8,'name'=>'Nadia Iqbal','sport'=>'Badminton','wins'=>11,'rating'=>4.50,'team'=>'Smash Bros','badge'=>'','city'=>'Islamabad'],
-        ['rank'=>9,'name'=>$my_name,'sport'=>'Football','wins'=>8,'rating'=>4.35,'team'=>'My Team','badge'=>'⭐','city'=>'Karachi'],
-        ['rank'=>10,'name'=>'Omar Qayyum','sport'=>'Cricket','wins'=>7,'rating'=>4.20,'team'=>'Spin Kings','badge'=>'','city'=>'Faisalabad'],
-    ]
-];
-$sport_icons = ['Football'=>'⚽','Cricket'=>'🏏','Basketball'=>'🏀','Badminton'=>'🏸','Futsal'=>'⚽'];
+// ── Logged-in user's city (default filter) ────────────────────────────────────
+try {
+    $stmt = $pdo->prepare("SELECT city, name FROM users WHERE id = ?");
+    $stmt->execute([$user_id]);
+    $me = $stmt->fetch();
+    $my_city = $me['city'] ?? 'Lahore';
+    $my_name = $me['name'] ?? '';
+} catch (Exception $e) {
+    $my_city = 'Lahore';
+    $my_name = $_SESSION['name'] ?? '';
+}
+
+// ── City filter (from GET or user's own city) ─────────────────────────────────
+$selected_city = trim($_GET['city'] ?? $my_city);
+
+// ── All distinct cities (for dropdown) ───────────────────────────────────────
+$all_cities = [];
+try {
+    $stmt = $pdo->query("SELECT DISTINCT city FROM users WHERE city != '' ORDER BY city ASC");
+    $all_cities = $stmt->fetchAll(PDO::FETCH_COLUMN);
+} catch (Exception $e) {
+    $all_cities = [$my_city];
+}
+
+// ── Leaderboard query ─────────────────────────────────────────────────────────
+// Count wins per player (team_a or team_b) from match_scores, filtered by city
+$leaderboard = [];
+try {
+    $stmt = $pdo->prepare("
+        SELECT
+            u.id,
+            u.name,
+            u.city,
+            COUNT(
+                CASE
+                    WHEN ms.team_a_user = u.id AND ms.score_a = 1 THEN 1
+                    WHEN ms.team_b_user = u.id AND ms.score_b = 1 THEN 1
+                END
+            ) AS wins,
+            COUNT(
+                CASE
+                    WHEN ms.team_a_user = u.id OR ms.team_b_user = u.id THEN 1
+                END
+            ) AS total_matches
+        FROM users u
+        LEFT JOIN match_scores ms ON (ms.team_a_user = u.id OR ms.team_b_user = u.id)
+        WHERE u.city = :city
+          AND u.current_role IN ('Player', 'Owner')
+          AND u.status = 'Active'
+        GROUP BY u.id, u.name, u.city
+        ORDER BY wins DESC, total_matches DESC, u.name ASC
+        LIMIT 50
+    ");
+    $stmt->execute([':city' => $selected_city]);
+    $leaderboard = $stmt->fetchAll();
+} catch (Exception $e) {
+    $leaderboard = [];
+}
+
+// Assign ranks
+foreach ($leaderboard as $i => &$row) {
+    $row['rank'] = $i + 1;
+}
+unset($row);
+
+$sport_icons = ['Football'=>'⚽','Cricket'=>'🏏','Basketball'=>'🏀','Badminton'=>'🏸','Futsal'=>'⚽','Tennis'=>'🎾'];
+$podium = array_slice($leaderboard, 0, 3);
+// Pad podium to 3 entries if fewer
+while (count($podium) < 3) {
+    $podium[] = ['name'=>'—','wins'=>0,'rank'=> count($podium)+1,'city'=>$selected_city, 'id'=>null];
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Leaderboard - ArenaReserve</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Leaderboard – ArenaReserve</title>
+<meta name="description" content="See the top players in your city on the ArenaReserve leaderboard, ranked by match wins.">
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-body{font-family:'Inter',sans-serif;background:#f8fafc;}
-.podium-1{background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#fff;}
-.podium-2{background:linear-gradient(135deg,#94a3b8,#64748b);color:#fff;}
-.podium-3{background:linear-gradient(135deg,#f97316,#ea580c);color:#fff;}
+body { font-family:'Inter',sans-serif; background:#f8fafc; }
+.podium-1 { background: linear-gradient(135deg,#fbbf24,#f59e0b); color:#fff; }
+.podium-2 { background: linear-gradient(135deg,#94a3b8,#64748b); color:#fff; }
+.podium-3 { background: linear-gradient(135deg,#f97316,#ea580c); color:#fff; }
+.my-row   { background: linear-gradient(90deg,rgba(16,185,129,.06),transparent); border-left: 3px solid #10b981; }
+.city-select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 0.5rem center; background-size: 1.2em; padding-right: 2rem; appearance: none; -webkit-appearance: none; }
+.rank-badge { width:2rem;height:2rem;display:flex;align-items:center;justify-content:center;border-radius:50%;font-weight:800;font-size:.75rem; }
 </style>
     <?php include_once 'logo_head.php'; ?>
 </head>
 <body>
+
+<!-- ── Header ──────────────────────────────────────────────────────────────── -->
 <header class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between h-16 items-center">
     <div class="flex items-center gap-2">
@@ -60,6 +144,12 @@ body{font-family:'Inter',sans-serif;background:#f8fafc;}
     </div>
     <div class="flex-shrink-0 flex items-center gap-1 sm:gap-3">
       <a href="wallet.php" class="hidden sm:flex items-center bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-full text-xs font-semibold border border-emerald-200">
+    <a href="explore.php" class="flex items-center gap-2 text-emerald-600 text-xl font-bold">
+      <svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 14l9-5-9-5-9 5 9 5z"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0112 20.055a11.952 11.952 0 01-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"/></svg>
+      ArenaReserve
+    </a>
+    <div class="flex items-center gap-3">
+      <a href="wallet.php" class="flex items-center bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-full text-xs font-semibold border border-emerald-200">
         <span class="w-2 h-2 rounded-full bg-emerald-500 mr-2"></span><?php echo number_format($available_balance,0); ?> PKR
       </a>
       <!-- Mode Toggle -->
@@ -110,6 +200,7 @@ body{font-family:'Inter',sans-serif;background:#f8fafc;}
       </div>
     </div>
   </div>
+
   <!-- Mobile Navigation Menu -->
   <div id="mobileNavigationMenu" class="hidden lg:hidden border-t border-slate-100 bg-white py-3 px-4 shadow-inner space-y-1">
       <?php if ($_SESSION['current_active_mode'] === 'Owner'): ?>
@@ -132,97 +223,183 @@ body{font-family:'Inter',sans-serif;background:#f8fafc;}
   <!-- Sidebar -->
   <aside class="hidden lg:block w-64 flex-shrink-0">
     <nav class="space-y-1 bg-white rounded-xl border border-slate-200 p-3 shadow-sm">
-      <a href="explore.php" class="text-slate-600 hover:bg-slate-50 flex items-center px-3 py-2.5 text-sm font-medium rounded-lg"><svg class="mr-3 h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/></svg>Explore Grounds</a>
-      <a href="book_slot.php" class="text-slate-600 hover:bg-slate-50 flex items-center px-3 py-2.5 text-sm font-medium rounded-lg"><svg class="mr-3 h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>Book Slot</a>
-      <a href="match_history.php" class="text-slate-600 hover:bg-slate-50 flex items-center px-3 py-2.5 text-sm font-medium rounded-lg"><svg class="mr-3 h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>Match History</a>
-      <a href="challenge_team.php" class="text-slate-600 hover:bg-slate-50 flex items-center px-3 py-2.5 text-sm font-medium rounded-lg"><svg class="mr-3 h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>Challenge Team</a>
-      <a href="leaderboard.php" class="bg-emerald-50 text-emerald-700 flex items-center px-3 py-2.5 text-sm font-semibold rounded-lg"><svg class="mr-3 h-5 w-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>Leaderboard</a>
+      <a href="explore.php" class="text-slate-600 hover:bg-slate-50 flex items-center px-3 py-2.5 text-sm font-medium rounded-lg">
+        <svg class="mr-3 h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/></svg>
+        Explore Grounds
+      </a>
+      <a href="book_slot.php" class="text-slate-600 hover:bg-slate-50 flex items-center px-3 py-2.5 text-sm font-medium rounded-lg">
+        <svg class="mr-3 h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+        Book Slot
+      </a>
+      <a href="match_history.php" class="text-slate-600 hover:bg-slate-50 flex items-center px-3 py-2.5 text-sm font-medium rounded-lg">
+        <svg class="mr-3 h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        Match History
+      </a>
+      <a href="challenge_team.php" class="text-slate-600 hover:bg-slate-50 flex items-center px-3 py-2.5 text-sm font-medium rounded-lg">
+        <svg class="mr-3 h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        Challenge Team
+      </a>
+      <a href="leaderboard.php" class="bg-emerald-50 text-emerald-700 flex items-center px-3 py-2.5 text-sm font-semibold rounded-lg">
+        <svg class="mr-3 h-5 w-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+        Leaderboard
+      </a>
       <div class="border-t border-slate-100 mt-2 pt-2">
-        <a href="wallet.php" class="text-slate-600 hover:bg-slate-50 flex items-center px-3 py-2.5 text-sm font-medium rounded-lg"><svg class="mr-3 h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>My Wallet</a>
+        <a href="wallet.php" class="text-slate-600 hover:bg-slate-50 flex items-center px-3 py-2.5 text-sm font-medium rounded-lg">
+          <svg class="mr-3 h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+          My Wallet
+        </a>
       </div>
     </nav>
   </aside>
 
-  <!-- Main Content -->
+  <!-- Main -->
   <main class="flex-1 min-w-0">
-    <div class="mb-6">
-      <h1 class="text-2xl font-bold text-slate-900">Leaderboard</h1>
-      <p class="text-sm text-slate-500 mt-1">Top players across all sports in ArenaReserve</p>
-    </div>
 
-    <!-- Top 3 Podium -->
-    <div class="grid grid-cols-3 gap-4 mb-8">
-      <!-- 2nd Place -->
-      <div class="podium-2 rounded-2xl p-5 text-center shadow-md mt-6">
-        <div class="text-3xl mb-2">🥈</div>
-        <div class="w-12 h-12 rounded-full bg-white/20 mx-auto flex items-center justify-center font-extrabold text-lg">
-          <?php echo strtoupper(substr($leaderboards['overall'][1]['name'],0,1)); ?>
-        </div>
-        <div class="mt-2 font-bold text-sm truncate"><?php echo $leaderboards['overall'][1]['name']; ?></div>
-        <div class="text-xs opacity-80"><?php echo $leaderboards['overall'][1]['wins']; ?> wins</div>
+    <!-- Page Header + City Filter -->
+    <div class="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div>
+        <h1 class="text-2xl font-bold text-slate-900">Leaderboard</h1>
+        <p class="text-sm text-slate-500 mt-1">Top players by wins in <span class="font-semibold text-emerald-600"><?php echo htmlspecialchars($selected_city); ?></span></p>
       </div>
-      <!-- 1st Place -->
-      <div class="podium-1 rounded-2xl p-5 text-center shadow-xl">
-        <div class="text-4xl mb-2">🥇</div>
-        <div class="w-14 h-14 rounded-full bg-white/20 mx-auto flex items-center justify-center font-extrabold text-xl">
-          <?php echo strtoupper(substr($leaderboards['overall'][0]['name'],0,1)); ?>
-        </div>
-        <div class="mt-2 font-extrabold truncate"><?php echo $leaderboards['overall'][0]['name']; ?></div>
-        <div class="text-xs opacity-80"><?php echo $leaderboards['overall'][0]['wins']; ?> wins</div>
-        <div class="text-xs opacity-80 font-semibold">★ <?php echo $leaderboards['overall'][0]['rating']; ?></div>
-      </div>
-      <!-- 3rd Place -->
-      <div class="podium-3 rounded-2xl p-5 text-center shadow-md mt-8">
-        <div class="text-3xl mb-2">🥉</div>
-        <div class="w-12 h-12 rounded-full bg-white/20 mx-auto flex items-center justify-center font-extrabold text-lg">
-          <?php echo strtoupper(substr($leaderboards['overall'][2]['name'],0,1)); ?>
-        </div>
-        <div class="mt-2 font-bold text-sm truncate"><?php echo $leaderboards['overall'][2]['name']; ?></div>
-        <div class="text-xs opacity-80"><?php echo $leaderboards['overall'][2]['wins']; ?> wins</div>
-      </div>
-    </div>
 
-    <!-- Full Leaderboard Table -->
-    <div class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-      <div class="p-4 border-b border-slate-100 flex items-center justify-between">
-        <h2 class="text-sm font-bold text-slate-800">All Rankings</h2>
-        <div class="flex gap-2">
-          <select class="text-xs border border-slate-300 rounded-lg px-2 py-1.5 focus:outline-none bg-white">
-            <option>All Sports</option><option>Football</option><option>Cricket</option><option>Basketball</option><option>Badminton</option>
-          </select>
-          <select class="text-xs border border-slate-300 rounded-lg px-2 py-1.5 focus:outline-none bg-white">
-            <option>This Month</option><option>This Week</option><option>All Time</option>
+      <!-- City Filter Form -->
+      <form method="GET" action="leaderboard.php" class="flex items-center gap-2">
+        <div class="relative">
+          <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+          </svg>
+          <select id="cityFilter" name="city"
+                  onchange="this.form.submit()"
+                  class="city-select pl-9 pr-8 py-2 text-sm font-semibold border border-slate-200 rounded-xl bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 shadow-sm">
+            <?php foreach ($all_cities as $city): ?>
+              <option value="<?php echo htmlspecialchars($city); ?>" <?php echo ($city === $selected_city) ? 'selected' : ''; ?>>
+                <?php echo htmlspecialchars($city); ?>
+              </option>
+            <?php endforeach; ?>
+            <?php if (!in_array($selected_city, $all_cities) && $selected_city): ?>
+              <option value="<?php echo htmlspecialchars($selected_city); ?>" selected><?php echo htmlspecialchars($selected_city); ?></option>
+            <?php endif; ?>
           </select>
         </div>
-      </div>
-      <div class="divide-y divide-slate-100">
-        <?php foreach ($leaderboards['overall'] as $p): ?>
-        <div class="px-5 py-4 flex items-center gap-4 hover:bg-slate-50 transition-colors <?php echo ($p['name'] === htmlspecialchars($_SESSION['name'])) ? 'bg-emerald-50/60 border-l-4 border-emerald-500' : ''; ?>">
-          <!-- Rank -->
-          <div class="w-8 text-center font-extrabold <?php echo $p['rank']<=3?'text-amber-500':'text-slate-400'; ?> text-sm flex-shrink-0">
-            <?php echo $p['badge'] ?: '#'.$p['rank']; ?>
-          </div>
-          <!-- Avatar -->
-          <div class="w-9 h-9 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-sm flex-shrink-0">
-            <?php echo strtoupper(substr($p['name'],0,1)); ?>
-          </div>
-          <!-- Info -->
-          <div class="flex-1 min-w-0">
-            <div class="font-semibold text-slate-800 text-sm truncate"><?php echo htmlspecialchars($p['name']); ?><?php if($p['badge']==='⭐') echo ' <span class="text-xs text-emerald-600 font-bold">(You)</span>'; ?></div>
-            <div class="text-xs text-slate-500"><?php echo $p['team']; ?> &bull; <?php echo $p['city']; ?></div>
-          </div>
-          <!-- Sport -->
-          <div class="hidden sm:block text-xs font-semibold text-slate-600">
-            <?php echo ($sport_icons[$p['sport']] ?? '') . ' ' . $p['sport']; ?>
-          </div>
-          <!-- Wins -->
-          <div class="text-sm font-bold text-slate-700 flex-shrink-0"><?php echo $p['wins']; ?> <span class="text-xs font-normal text-slate-400">wins</span></div>
-          <!-- Rating -->
-          <div class="text-xs font-bold text-amber-500 flex-shrink-0">★ <?php echo $p['rating']; ?></div>
-        </div>
-        <?php endforeach; ?>
-      </div>
+      </form>
     </div>
+
+    <?php if (empty($leaderboard)): ?>
+      <!-- Empty state -->
+      <div class="bg-white border border-slate-200 rounded-2xl p-14 shadow-sm text-center">
+        <div class="text-5xl mb-4">🏆</div>
+        <h3 class="text-base font-bold text-slate-700 mb-2">No rankings yet for <?php echo htmlspecialchars($selected_city); ?></h3>
+        <p class="text-sm text-slate-400 max-w-xs mx-auto">Rankings appear here after matches are played and scores are entered by ground owners. Be the first to play!</p>
+        <a href="book_slot.php" class="mt-5 inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold px-5 py-2.5 rounded-xl shadow-sm transition-colors">
+          Book a Match Slot
+        </a>
+      </div>
+
+    <?php else: ?>
+
+      <!-- ── Podium (top 3) ──────────────────────────────────────────────── -->
+      <?php if (count($leaderboard) >= 1): ?>
+      <div class="grid grid-cols-3 gap-3 mb-8">
+
+        <!-- 2nd place (left) -->
+        <div class="podium-2 rounded-2xl p-5 text-center shadow-md mt-6 flex flex-col items-center">
+          <div class="text-3xl mb-2">🥈</div>
+          <div class="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center font-extrabold text-lg mb-1">
+            <?php echo $podium[1]['id'] ? strtoupper(substr($podium[1]['name'],0,1)) : '—'; ?>
+          </div>
+          <div class="font-bold text-sm truncate w-full text-center"><?php echo htmlspecialchars($podium[1]['name']); ?></div>
+          <div class="text-xs opacity-80 mt-0.5"><?php echo $podium[1]['wins']; ?> win<?php echo $podium[1]['wins'] != 1 ? 's' : ''; ?></div>
+        </div>
+
+        <!-- 1st place (center, tallest) -->
+        <div class="podium-1 rounded-2xl p-5 text-center shadow-xl flex flex-col items-center">
+          <div class="text-4xl mb-2">🥇</div>
+          <div class="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center font-extrabold text-xl mb-1">
+            <?php echo $podium[0]['id'] ? strtoupper(substr($podium[0]['name'],0,1)) : '—'; ?>
+          </div>
+          <div class="font-extrabold truncate w-full text-center"><?php echo htmlspecialchars($podium[0]['name']); ?></div>
+          <div class="text-xs opacity-80 mt-0.5"><?php echo $podium[0]['wins']; ?> win<?php echo $podium[0]['wins'] != 1 ? 's' : ''; ?></div>
+          <?php if ($podium[0]['id']): ?>
+            <div class="text-[10px] opacity-70 mt-0.5 font-semibold"><?php echo $podium[0]['total_matches'] ?? 0; ?> matches</div>
+          <?php endif; ?>
+        </div>
+
+        <!-- 3rd place (right) -->
+        <div class="podium-3 rounded-2xl p-5 text-center shadow-md mt-8 flex flex-col items-center">
+          <div class="text-3xl mb-2">🥉</div>
+          <div class="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center font-extrabold text-lg mb-1">
+            <?php echo $podium[2]['id'] ? strtoupper(substr($podium[2]['name'],0,1)) : '—'; ?>
+          </div>
+          <div class="font-bold text-sm truncate w-full text-center"><?php echo htmlspecialchars($podium[2]['name']); ?></div>
+          <div class="text-xs opacity-80 mt-0.5"><?php echo $podium[2]['wins']; ?> win<?php echo $podium[2]['wins'] != 1 ? 's' : ''; ?></div>
+        </div>
+
+      </div>
+      <?php endif; ?>
+
+      <!-- ── Full Rankings Table ─────────────────────────────────────────── -->
+      <div class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+        <div class="p-4 border-b border-slate-100 flex items-center justify-between">
+          <h2 class="text-sm font-bold text-slate-800">All Rankings · <?php echo htmlspecialchars($selected_city); ?></h2>
+          <span class="text-xs text-slate-400 font-medium"><?php echo count($leaderboard); ?> player<?php echo count($leaderboard) != 1 ? 's' : ''; ?></span>
+        </div>
+        <div class="divide-y divide-slate-100">
+          <?php foreach ($leaderboard as $p):
+            $is_me = ($p['id'] == $user_id);
+            $rank  = $p['rank'];
+          ?>
+          <div class="px-5 py-4 flex items-center gap-4 hover:bg-slate-50 transition-colors <?php echo $is_me ? 'my-row' : ''; ?>">
+            <!-- Rank badge -->
+            <div class="flex-shrink-0">
+              <?php if ($rank === 1): ?>
+                <div class="rank-badge bg-amber-100 text-amber-600">🥇</div>
+              <?php elseif ($rank === 2): ?>
+                <div class="rank-badge bg-slate-100 text-slate-500">🥈</div>
+              <?php elseif ($rank === 3): ?>
+                <div class="rank-badge bg-orange-100 text-orange-600">🥉</div>
+              <?php else: ?>
+                <div class="rank-badge bg-slate-50 text-slate-400 border border-slate-200 text-xs font-bold">#<?php echo $rank; ?></div>
+              <?php endif; ?>
+            </div>
+
+            <!-- Avatar -->
+            <div class="w-9 h-9 rounded-full <?php echo $is_me ? 'bg-emerald-500 text-white ring-2 ring-emerald-300' : 'bg-slate-200 text-slate-600'; ?> flex items-center justify-center font-bold text-sm flex-shrink-0">
+              <?php echo strtoupper(substr($p['name'], 0, 1)); ?>
+            </div>
+
+            <!-- Name & city -->
+            <div class="flex-1 min-w-0">
+              <div class="font-semibold text-slate-800 text-sm truncate flex items-center gap-1.5">
+                <?php echo htmlspecialchars($p['name']); ?>
+                <?php if ($is_me): ?><span class="text-[10px] bg-emerald-100 text-emerald-700 font-bold px-1.5 py-0.5 rounded-full">You</span><?php endif; ?>
+              </div>
+              <div class="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
+                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                <?php echo htmlspecialchars($p['city']); ?>
+                <span class="text-slate-300">·</span>
+                <?php echo $p['total_matches'] ?? 0; ?> match<?php echo ($p['total_matches'] ?? 0) != 1 ? 'es' : ''; ?>
+              </div>
+            </div>
+
+            <!-- Wins -->
+            <div class="flex-shrink-0 text-right">
+              <div class="text-sm font-bold text-slate-800">
+                <?php echo $p['wins']; ?>
+                <span class="text-xs font-normal text-slate-400">win<?php echo $p['wins'] != 1 ? 's' : ''; ?></span>
+              </div>
+              <?php if ($p['total_matches'] > 0): ?>
+              <div class="text-[10px] text-slate-400 mt-0.5">
+                <?php echo round(($p['wins'] / $p['total_matches']) * 100); ?>% win rate
+              </div>
+              <?php endif; ?>
+            </div>
+          </div>
+          <?php endforeach; ?>
+        </div>
+      </div>
+
+    <?php endif; ?>
   </main>
 </div>
 </body>

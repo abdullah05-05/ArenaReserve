@@ -3,74 +3,244 @@ session_start();
 require_once 'db.php';
 require_once 'logo_helper.php';
 
-// Redirect if not logged in
 if (!isset($_SESSION['user_id'])) {
     header("Location: login.php");
     exit;
 }
 
-$user_id = $_SESSION['user_id'];
+$user_id     = $_SESSION['user_id'];
 $success_msg = '';
+$error_msg   = '';
 
-// Initialize session-based matches for scores demo if not set
-if (!isset($_SESSION['owner_matches'])) {
-    $_SESSION['owner_matches'] = [
-        [
-            'id' => 1,
-            'venue' => 'Champions Stadium A',
-            'date_time' => '2026-05-30 06:00 PM',
-            'sport' => 'Football',
-            'team_a' => 'Thunder Warriors',
-            'team_b' => 'Phoenix Strikers',
-            'score_a' => null,
-            'score_b' => null,
-            'status' => 'Pending'
-        ],
-        [
-            'id' => 2,
-            'venue' => 'Elite Cricket Ground',
-            'date_time' => '2026-05-29 05:00 PM',
-            'sport' => 'Cricket',
-            'team_a' => 'Lightning Squad',
-            'team_b' => 'Eagle Shooters',
-            'score_a' => 185,
-            'score_b' => 178,
-            'status' => 'Finalized'
-        ]
-    ];
-}
+// ── Ensure match_scores table & enum exist ────────────────────────────────────
+try {
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS `match_scores` (
+            `id`               INT AUTO_INCREMENT PRIMARY KEY,
+            `booking_id`       INT NOT NULL UNIQUE,
+            `ground_id`        INT NOT NULL,
+            `owner_id`         INT NOT NULL,
+            `team_a_user`      INT NOT NULL,
+            `team_b_user`      INT DEFAULT NULL,
+            `score_a`          TINYINT NOT NULL COMMENT '1=win 0=loss',
+            `score_b`          TINYINT NOT NULL COMMENT '1=win 0=loss',
+            `commission_paid`  DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+            `scored_at`        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (`booking_id`) REFERENCES `bookings`(`id`) ON DELETE CASCADE,
+            FOREIGN KEY (`owner_id`)   REFERENCES `users`(`id`)    ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    ");
+} catch (Exception $e) {}
 
-// Handle score entry post
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'save_score') {
-    $match_id = intval($_POST['match_id'] ?? 0);
-    $score_a = trim($_POST['score_a'] ?? '');
-    $score_b = trim($_POST['score_b'] ?? '');
+// ── Handle score submission ────────────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_score') {
+    $booking_id = intval($_POST['booking_id'] ?? 0);
+    $winner_side = trim($_POST['winner_side'] ?? ''); // 'a' or 'b'
 
-    if ($score_a !== '' && $score_b !== '') {
-        foreach ($_SESSION['owner_matches'] as &$match) {
-            if ($match['id'] === $match_id) {
-                $match['score_a'] = intval($score_a);
-                $match['score_b'] = intval($score_b);
-                $match['status'] = 'Finalized';
-                break;
+    if (!$booking_id || !in_array($winner_side, ['a', 'b'])) {
+        $error_msg = 'Invalid submission. Please select a winner.';
+    } else {
+        try {
+            $pdo->beginTransaction();
+
+            // Verify this booking belongs to a ground owned by the current user
+            // and slot time has passed, and is not already scored
+            // Fetch booking details for score entry
+            $stmt = $pdo->prepare("
+                SELECT b.id, b.ground_id, b.booked_by, b.opponent_id,
+                       b.amount_paid, b.slot_date, b.slot_hour, b.booking_type,
+                       b.status, b.challenger_team_name,
+                       g.owner_id AS ground_owner_id,
+                       booker.name AS team_a_name,
+                       opp.name    AS team_b_name
+                FROM bookings b
+                JOIN grounds g ON g.id = b.ground_id
+                LEFT JOIN users booker ON booker.id = b.booked_by
+                LEFT JOIN users opp    ON opp.id    = b.opponent_id
+                WHERE b.id = ?
+                  AND b.status NOT IN ('cancelled')
+            ");
+            $stmt->execute([$booking_id]);
+            $bk = $stmt->fetch();
+
+            if (!$bk) {
+                throw new Exception('Booking not found or already cancelled.');
             }
+
+            $ground_owner_id = intval($bk['ground_owner_id']);
+
+            // Verify slot has ended
+            $slot_end_ts = strtotime($bk['slot_date'] . ' ' . sprintf('%02d:00:00', $bk['slot_hour'] + 1));
+            if (time() < $slot_end_ts) {
+                throw new Exception('The match slot has not ended yet.');
+            }
+
+            // Check not already scored
+            $stmt2 = $pdo->prepare("SELECT id FROM match_scores WHERE booking_id = ?");
+            $stmt2->execute([$booking_id]);
+            if ($stmt2->fetch()) {
+                throw new Exception('Score has already been entered for this booking.');
+            }
+
+            $score_a = ($winner_side === 'a') ? 1 : 0;
+            $score_b = ($winner_side === 'b') ? 1 : 0;
+
+            // Insert into match_scores
+            $stmt3 = $pdo->prepare("
+                INSERT INTO match_scores
+                    (booking_id, ground_id, owner_id, team_a_user, team_b_user, score_a, score_b, commission_paid)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ");
+            $commission = round(floatval($bk['amount_paid']) * 0.95, 2);
+            $stmt3->execute([
+                $booking_id,
+                $bk['ground_id'],
+                $ground_owner_id,
+                $bk['booked_by'],
+                $bk['opponent_id'],
+                $score_a,
+                $score_b,
+                $commission
+            ]);
+
+            // Credit 95% commission to actual ground owner's wallet
+            $wStmt = $pdo->prepare("SELECT id FROM wallets WHERE user_id = ? FOR UPDATE");
+            $wStmt->execute([$ground_owner_id]);
+            $ownerWallet = $wStmt->fetch();
+
+            if (!$ownerWallet) {
+                $pdo->prepare("INSERT INTO wallets (user_id, available_balance) VALUES (?, ?)")
+                    ->execute([$ground_owner_id, $commission]);
+                $ownerWalletId = $pdo->lastInsertId();
+            } else {
+                $ownerWalletId = $ownerWallet['id'];
+                $pdo->prepare("UPDATE wallets SET available_balance = available_balance + ? WHERE id = ?")
+                    ->execute([$commission, $ownerWalletId]);
+            }
+
+            // Record transaction
+            $pdo->prepare("
+                INSERT INTO wallet_transactions (wallet_id, amount, transaction_type, reference_id)
+                VALUES (?, ?, 'Commission', ?)
+            ")->execute([$ownerWalletId, $commission, 'SCORE-BK-' . $booking_id]);
+
+            $pdo->commit();
+            $success_msg = '✅ Score recorded! PKR ' . number_format($commission, 2) . ' (95% commission) credited to venue owner.';
+
+        } catch (Exception $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            $error_msg = '❌ ' . $e->getMessage();
         }
-        $success_msg = 'Score entered and match finalized successfully!';
     }
 }
+
+// ── Fetch bookings for score entry ─────────────────────────────────────────────
+$bookings = [];
+try {
+    // Check if user is Admin or owns specific grounds
+    $user_role = $_SESSION['current_role'] ?? 'Player';
+    $user_mode = $_SESSION['current_active_mode'] ?? 'Player';
+    $is_admin  = ($user_role === 'Admin' || $user_mode === 'Admin');
+
+    $stmt_check = $pdo->prepare("SELECT COUNT(*) FROM grounds WHERE owner_id = ?");
+    $stmt_check->execute([$user_id]);
+    $my_grounds_count = $stmt_check->fetchColumn();
+
+    if ($is_admin || $my_grounds_count == 0) {
+        // Admin or owner without specific registered grounds: fetch all non-cancelled bookings
+        $stmt = $pdo->prepare("
+            SELECT
+                b.id            AS booking_id,
+                b.slot_date,
+                b.slot_hour,
+                b.amount_paid,
+                b.booking_type,
+                b.status        AS booking_status,
+                b.challenger_team_name,
+                g.id            AS ground_id,
+                g.title         AS ground_title,
+                g.sport_type,
+                booker.name     AS team_a_name,
+                opp.name        AS team_b_name,
+                ms.id           AS score_id,
+                ms.score_a,
+                ms.score_b,
+                ms.commission_paid,
+                ms.scored_at
+            FROM bookings b
+            JOIN grounds g    ON g.id = b.ground_id
+            LEFT JOIN users booker ON booker.id = b.booked_by
+            LEFT JOIN users opp    ON opp.id    = b.opponent_id
+            LEFT JOIN match_scores ms ON ms.booking_id = b.id
+            WHERE b.status NOT IN ('cancelled')
+            ORDER BY b.slot_date DESC, b.slot_hour DESC
+        ");
+        $stmt->execute();
+    } else {
+        // Fetch bookings for grounds owned by this user
+        $stmt = $pdo->prepare("
+            SELECT
+                b.id            AS booking_id,
+                b.slot_date,
+                b.slot_hour,
+                b.amount_paid,
+                b.booking_type,
+                b.status        AS booking_status,
+                b.challenger_team_name,
+                g.id            AS ground_id,
+                g.title         AS ground_title,
+                g.sport_type,
+                booker.name     AS team_a_name,
+                opp.name        AS team_b_name,
+                ms.id           AS score_id,
+                ms.score_a,
+                ms.score_b,
+                ms.commission_paid,
+                ms.scored_at
+            FROM bookings b
+            JOIN grounds g    ON g.id  = b.ground_id  AND g.owner_id = :owner
+            LEFT JOIN users booker ON booker.id = b.booked_by
+            LEFT JOIN users opp    ON opp.id    = b.opponent_id
+            LEFT JOIN match_scores ms ON ms.booking_id = b.id
+            WHERE b.status NOT IN ('cancelled')
+            ORDER BY b.slot_date DESC, b.slot_hour DESC
+        ");
+        $stmt->execute([':owner' => $user_id]);
+    }
+    $bookings = $stmt->fetchAll();
+} catch (Exception $e) {
+    $error_msg = 'Could not load bookings: ' . $e->getMessage();
+}
+
+// Current server time
+$now_ts = time();
+
+$sport_icons = [
+    'Football'   => '⚽',
+    'Cricket'    => '🏏',
+    'Basketball' => '🏀',
+    'Badminton'  => '🏸',
+    'Futsal'     => '⚽',
+    'Tennis'     => '🎾',
+];
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Authoritative Score Entry - ArenaReserve</title>
-    <!-- Tailwind CSS CDN -->
+    <title>Score Entry – ArenaReserve</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Google Fonts Inter -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Inter', sans-serif; }
+        .btn-disabled { opacity: 0.45; cursor: not-allowed; pointer-events: none; }
+        .countdown-badge { animation: pulse 2s cubic-bezier(0.4,0,0.6,1) infinite; }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.6} }
+        .winner-btn { transition: all .2s; }
+        .winner-btn.selected { box-shadow: 0 0 0 3px #10b981; transform: scale(1.02); }
+        .slot-card { transition: box-shadow .2s; }
+        .slot-card:hover { box-shadow: 0 4px 24px 0 rgba(16,185,129,.10); }
     </style>
     <?php include_once 'logo_head.php'; ?>
 </head>
@@ -204,8 +374,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             </div>
 
             <!-- Matches List -->
+            <?php if (!empty($bookings)): ?>
             <div class="space-y-6 max-w-4xl">
-                <?php foreach ($_SESSION['owner_matches'] as $match): ?>
+                <?php foreach ($bookings as $bk): ?>
+                    <?php
+                        $slot_date = $bk['slot_date'] ?? date('Y-m-d');
+                        $slot_hour = (int)($bk['slot_hour'] ?? 0);
+                        $slot_end_ts = strtotime($slot_date . ' ' . sprintf('%02d:00:00', $slot_hour + 1));
+                        $slot_over = ($now_ts >= $slot_end_ts);
+                        $slot_remaining = max($slot_end_ts - $now_ts, 0);
+                        $hrs = (int)floor($slot_remaining / 3600);
+                        $mins = (int)floor(($slot_remaining % 3600) / 60);
+                        $already_scored = !empty($bk['score_id']) || (!empty($bk['score_a']) || $bk['score_a'] === '0' || $bk['score_b'] !== null);
+                        $team_a = trim((string)($bk['team_a_name'] ?? 'Team A')) ?: 'Team A';
+                        $team_b = trim((string)($bk['team_b_name'] ?? 'Team B')) ?: 'Team B';
+                        $slot_label = date('D, M j', strtotime($slot_date)) . ' · ' . sprintf('%02d:00', $slot_hour) . ':00';
+                    ?>
                     <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                         <div class="space-y-3">
                             <!-- Venue Details -->
@@ -216,7 +400,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
                                     </svg>
                                 </span>
-                                <h3 class="font-bold text-slate-800 text-lg leading-snug"><?php echo htmlspecialchars($match['venue']); ?></h3>
+                                <h3 class="font-bold text-slate-800 text-lg leading-snug"><?php echo htmlspecialchars($bk['ground_title']); ?></h3>
                             </div>
 
                             <!-- Date / Time / Sport Tag -->
@@ -225,92 +409,172 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                     <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
                                     </svg>
-                                    <span><?php echo $match['date_time']; ?></span>
+                                    <span><?php echo date('D, M j, Y', strtotime($slot_date)); ?> · <?php echo sprintf('%02d:00', $slot_hour); ?>:00</span>
                                 </div>
                                 <span class="bg-slate-100 text-slate-700 px-2.5 py-1 rounded font-semibold text-[10px] uppercase">
-                                    <?php echo htmlspecialchars($match['sport']); ?>
+                                    <?php echo htmlspecialchars($bk['sport_type']); ?>
                                 </span>
                             </div>
 
-                            <!-- Teams / Matchup Display -->
-                            <div class="flex items-center gap-2.5 text-slate-700 font-medium text-sm">
-                                <?php if ($match['status'] === 'Finalized'): ?>
-                                    <span class="font-semibold text-slate-900"><?php echo htmlspecialchars($match['team_a']); ?></span>
-                                    <span class="bg-slate-100 text-slate-800 font-bold px-2 py-0.5 rounded text-xs"><?php echo $match['score_a']; ?></span>
-                                    <span class="text-slate-400 font-normal">vs</span>
-                                    <span class="bg-slate-100 text-slate-800 font-bold px-2 py-0.5 rounded text-xs"><?php echo $match['score_b']; ?></span>
-                                    <span class="font-semibold text-slate-900"><?php echo htmlspecialchars($match['team_b']); ?></span>
+                            <!-- Slot time -->
+                            <div class="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+                                <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                <?php echo $slot_label; ?>
+                                <span class="text-emerald-600 font-semibold">· PKR <?php echo number_format($bk['amount_paid'], 0); ?> paid</span>
+                            </div>
+
+                            <!-- Teams -->
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <?php if ($already_scored): ?>
+                                    <!-- Show final result -->
+                                    <span class="font-semibold text-slate-900 text-sm <?php echo $bk['score_a'] == 1 ? 'text-emerald-700' : 'text-slate-500 line-through decoration-1'; ?>">
+                                        <?php echo htmlspecialchars($team_a); ?>
+                                    </span>
+                                    <span class="bg-slate-100 text-slate-800 font-bold px-2.5 py-0.5 rounded text-xs"><?php echo $bk['score_a']; ?></span>
+                                    <span class="text-slate-400 text-sm">vs</span>
+                                    <span class="bg-slate-100 text-slate-800 font-bold px-2.5 py-0.5 rounded text-xs"><?php echo $bk['score_b']; ?></span>
+                                    <span class="font-semibold text-slate-900 text-sm <?php echo $bk['score_b'] == 1 ? 'text-emerald-700' : 'text-slate-500 line-through decoration-1'; ?>">
+                                        <?php echo htmlspecialchars($team_b); ?>
+                                    </span>
                                 <?php else: ?>
-                                    <span class="font-semibold text-slate-850"><?php echo htmlspecialchars($match['team_a']); ?></span>
-                                    <span class="text-slate-400 font-normal">vs</span>
-                                    <span class="font-semibold text-slate-850"><?php echo htmlspecialchars($match['team_b']); ?></span>
+                                    <span class="font-semibold text-slate-800 text-sm"><?php echo htmlspecialchars($team_a); ?></span>
+                                    <span class="text-slate-400 text-sm">vs</span>
+                                    <span class="font-semibold text-slate-800 text-sm"><?php echo htmlspecialchars($team_b); ?></span>
                                 <?php endif; ?>
                             </div>
                         </div>
 
-                        <!-- Action side -->
-                        <div class="flex-shrink-0">
-                            <?php if ($match['status'] === 'Finalized'): ?>
-                                <span class="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 px-4 py-2 rounded-lg text-xs font-bold border border-emerald-100 shadow-sm">
-                                    <!-- Trophy or check icon -->
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
-                                    </svg>
-                                    Finalized
+                        <!-- Right: action -->
+                        <div class="flex-shrink-0 flex flex-col items-end gap-2">
+                            <?php if ($already_scored): ?>
+                                <!-- Finalized state -->
+                                <div class="flex items-center gap-2">
+                                    <span class="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 px-4 py-2 rounded-xl text-xs font-bold border border-emerald-200 shadow-sm">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                                        Finalized
+                                    </span>
+                                </div>
+                                <span class="text-xs text-emerald-600 font-semibold">+PKR <?php echo number_format($bk['commission_paid'], 0); ?> earned</span>
+                            <?php elseif (!$slot_over): ?>
+                                <!-- Match not yet ended -->
+                                <button disabled class="btn-disabled inline-flex items-center gap-2 bg-slate-200 text-slate-500 text-xs font-bold px-5 py-2.5 rounded-xl border border-slate-300">
+                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                                    Enter Score
+                                </button>
+                                <span class="countdown-badge text-[10px] text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                                    ⏱ <?php
+                                        if ($hrs > 0) echo "{$hrs}h {$mins}m remaining";
+                                        else echo "{$mins}m remaining";
+                                    ?>
                                 </span>
                             <?php else: ?>
-                                <button onclick="openScoreModal(<?php echo $match['id']; ?>, '<?php echo htmlspecialchars($match['team_a']); ?>', '<?php echo htmlspecialchars($match['team_b']); ?>')" 
-                                        class="bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold px-5 py-2.5 rounded-lg shadow-sm transition-colors">
-                                    Enter Scores
+                                <!-- Slot ended – can score -->
+                                <button onclick="openScoreModal(<?php echo $bk['booking_id']; ?>, '<?php echo htmlspecialchars(addslashes($team_a)); ?>', '<?php echo htmlspecialchars(addslashes($team_b)); ?>')"
+                                        class="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white text-xs font-bold px-5 py-2.5 rounded-xl shadow-sm transition-colors">
+                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                    Enter Score
                                 </button>
+                                <span class="text-[10px] text-slate-400 font-medium">Match has ended</span>
                             <?php endif; ?>
                         </div>
                     </div>
                 <?php endforeach; ?>
             </div>
-        </main>
-    </div>
-
-    <!-- Score Entry Modal -->
-    <div id="scoreModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center hidden">
-        <div class="bg-white rounded-2xl border border-slate-200 shadow-xl max-w-md w-full p-6 mx-4">
-            <h3 class="text-base font-bold text-slate-950 mb-4 border-b border-slate-100 pb-3">Enter Authoritative Scores</h3>
-            <form action="owner_scores.php" method="POST" class="space-y-4">
-                <input type="hidden" name="action" value="save_score">
-                <input type="hidden" id="modal_match_id" name="match_id" value="">
-                
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label for="score_a" id="label_team_a" class="text-xs font-semibold text-slate-500 block mb-1">Team A Score</label>
-                        <input type="number" id="score_a" name="score_a" required min="0" placeholder="0"
-                               class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-1 focus:ring-emerald-500 text-slate-800 font-semibold">
-                    </div>
-                    <div>
-                        <label for="score_b" id="label_team_b" class="text-xs font-semibold text-slate-500 block mb-1">Team B Score</label>
-                        <input type="number" id="score_b" name="score_b" required min="0" placeholder="0"
-                               class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-1 focus:ring-emerald-500 text-slate-800 font-semibold">
-                    </div>
-                </div>
-
-                <div class="flex gap-3 justify-end mt-6">
-                    <button type="button" onclick="closeScoreModal()" class="px-4 py-2 border border-slate-200 text-slate-600 rounded-lg text-xs font-semibold hover:bg-slate-50">
-                        Cancel
-                    </button>
-                    <button type="submit" class="px-5 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-xs font-bold shadow-sm">
-                        Submit Final Scores
-                    </button>
-                </div>
-            </form>
+            <?php endif; ?>
         </div>
-    </div>
+    </main>
+</div>
 
-    <script>
-        function openScoreModal(matchId, teamA, teamB) {
-            document.getElementById('modal_match_id').value = matchId;
-            document.getElementById('label_team_a').textContent = teamA + ' Score';
-            document.getElementById('label_team_b').textContent = teamB + ' Score';
-            document.getElementById('scoreModal').classList.remove('hidden');
-        }
+<!-- ── Score Modal ─────────────────────────────────────────────────────────── -->
+<div id="scoreModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-sm w-full p-6 mx-4">
+        <div class="flex items-center justify-between mb-5">
+            <h3 class="text-base font-bold text-slate-900">Who won the match?</h3>
+            <button onclick="closeScoreModal()" class="text-slate-400 hover:text-slate-600 transition-colors">
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+
+        <p class="text-xs text-slate-500 mb-4">Select the winning team. The winner receives <span class="font-semibold text-slate-700">score 1</span>, the loser <span class="font-semibold text-slate-700">score 0</span>.</p>
+
+        <form id="scoreForm" action="owner_scores.php" method="POST">
+            <input type="hidden" name="action" value="save_score">
+            <input type="hidden" id="modal_booking_id" name="booking_id" value="">
+            <input type="hidden" id="modal_winner_side" name="winner_side" value="">
+
+            <!-- Team buttons -->
+            <div class="grid grid-cols-2 gap-3 mb-6">
+                <button type="button" id="btnTeamA"
+                        onclick="selectWinner('a')"
+                        class="winner-btn flex flex-col items-center gap-2 border-2 border-slate-200 hover:border-emerald-400 bg-slate-50 hover:bg-emerald-50 rounded-xl px-4 py-5 transition-all">
+                    <div class="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-lg" id="avatarA">?</div>
+                    <span class="text-xs font-bold text-slate-700 text-center leading-tight" id="labelTeamA">Team A</span>
+                    <span class="text-[10px] text-emerald-600 font-semibold">🏆 Win (1)</span>
+                </button>
+                <button type="button" id="btnTeamB"
+                        onclick="selectWinner('b')"
+                        class="winner-btn flex flex-col items-center gap-2 border-2 border-slate-200 hover:border-emerald-400 bg-slate-50 hover:bg-emerald-50 rounded-xl px-4 py-5 transition-all">
+                    <div class="w-10 h-10 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center font-bold text-lg" id="avatarB">?</div>
+                    <span class="text-xs font-bold text-slate-700 text-center leading-tight" id="labelTeamB">Team B</span>
+                    <span class="text-[10px] text-emerald-600 font-semibold">🏆 Win (1)</span>
+                </button>
+            </div>
+
+            <!-- Commission note -->
+            <div class="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 text-xs text-amber-800 font-medium mb-5 text-center">
+                💰 You'll receive <strong>95% commission</strong> of the booking amount upon submission.
+            </div>
+
+            <div class="flex gap-3">
+                <button type="button" onclick="closeScoreModal()" class="flex-1 px-4 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-xs font-semibold hover:bg-slate-50 transition-colors">
+                    Cancel
+                </button>
+                <button type="submit" id="submitScoreBtn" disabled
+                        class="flex-1 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold shadow-sm transition-colors">
+                    Submit Result
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+// ── Modal ────────────────────────────────────────────────────────────────────
+function selectWinner(side) {
+    document.getElementById('modal_winner_side').value = side;
+
+    const btnA = document.getElementById('btnTeamA');
+    const btnB = document.getElementById('btnTeamB');
+
+    // Reset both buttons
+    btnA.classList.remove('border-emerald-500', 'bg-emerald-50', 'ring-2', 'ring-emerald-300');
+    btnA.classList.add('border-slate-200', 'bg-slate-50');
+    btnB.classList.remove('border-emerald-500', 'bg-emerald-50', 'ring-2', 'ring-emerald-300');
+    btnB.classList.add('border-slate-200', 'bg-slate-50');
+
+    // Highlight selected button
+    const selected = side === 'a' ? btnA : btnB;
+    selected.classList.remove('border-slate-200', 'bg-slate-50');
+    selected.classList.add('border-emerald-500', 'bg-emerald-50', 'ring-2', 'ring-emerald-300');
+
+    // Enable submit
+    document.getElementById('submitScoreBtn').disabled = false;
+}
+function openScoreModal(bookingId, teamA, teamB) {
+    document.getElementById('modal_booking_id').value = bookingId;
+    document.getElementById('modal_winner_side').value = '';
+    document.getElementById('labelTeamA').textContent = teamA;
+    document.getElementById('labelTeamB').textContent = teamB;
+    document.getElementById('avatarA').textContent = teamA.charAt(0).toUpperCase();
+    document.getElementById('avatarB').textContent = teamB.charAt(0).toUpperCase();
+    // Reset selection
+    document.getElementById('btnTeamA').classList.remove('selected','border-emerald-500','bg-emerald-50');
+    document.getElementById('btnTeamB').classList.remove('selected','border-emerald-500','bg-emerald-50');
+    document.getElementById('btnTeamA').classList.add('border-slate-200','bg-slate-50');
+    document.getElementById('btnTeamB').classList.add('border-slate-200','bg-slate-50');
+    document.getElementById('submitScoreBtn').disabled = true;
+    document.getElementById('scoreModal').classList.remove('hidden');
+}
 
         function closeScoreModal() {
             document.getElementById('scoreModal').classList.add('hidden');
