@@ -248,7 +248,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </style>
     <?php
     $page_description = 'Sign in to ArenaReserve – Your go-to platform for booking sports grounds. Access your bookings, challenges, and wallet in one place.';
-    include_once 'logo_head.php';
+    include 'logo_head.php';
     ?>
 </head>
 <body class="bg-slate-50 min-h-screen flex flex-col justify-start md:justify-center py-6 md:py-12 sm:px-6 lg:px-8">

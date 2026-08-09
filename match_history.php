@@ -138,7 +138,7 @@ body { font-family: 'Inter', sans-serif; background: #f8fafc; }
 </style>
     <?php
     $page_description = 'View your complete match history on ArenaReserve. Track your wins, bookings, and ground performance over time.';
-    include_once 'logo_head.php';
+    include 'logo_head.php';
     ?>
 </head>
 <body>

@@ -244,7 +244,7 @@ $sport_icons = [
     </style>
     <?php
     $page_description = 'Track scores and match results for your ArenaReserve grounds. Monitor competitive activity and player engagement.';
-    include_once 'logo_head.php';
+    include 'logo_head.php';
     ?>
 </head>
 <body class="bg-slate-50 min-h-screen flex flex-col">

@@ -131,7 +131,7 @@ try {
     </style>
     <?php
     $page_description = 'Explore sports grounds near you on ArenaReserve. Search, filter, and book cricket, football, and multi-sport venues instantly.';
-    include_once 'logo_head.php';
+    include 'logo_head.php';
     ?>
 </head>
 <body class="bg-slate-50 min-h-screen flex flex-col">

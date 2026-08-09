@@ -179,7 +179,7 @@ VALUES
     </style>
     <?php
     $page_description = 'Join ArenaReserve – Create your free account and start booking top-rated sports grounds. Play more, worry less.';
-    include_once 'logo_head.php';
+    include 'logo_head.php';
     ?>
 </head>
 <body class="bg-slate-50 min-h-screen flex flex-col justify-start md:justify-center py-6 md:py-12 sm:px-6 lg:px-8">

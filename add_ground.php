@@ -186,7 +186,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </style>
     <?php
     $page_description = 'List your sports ground on ArenaReserve and start accepting bookings today. Reach thousands of players near you.';
-    include_once 'logo_head.php';
+    include 'logo_head.php';
     ?>
 </head>
 <body class="bg-slate-50 min-h-screen flex flex-col">

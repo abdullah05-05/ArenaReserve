@@ -182,7 +182,7 @@ try {
     </style>
     <?php
     $page_description = 'Manage your sports grounds on ArenaReserve. Track bookings, revenue, and venue performance from your owner dashboard.';
-    include_once 'logo_head.php';
+    include 'logo_head.php';
     ?>
 </head>
 <body class="bg-slate-50 min-h-screen flex flex-col">

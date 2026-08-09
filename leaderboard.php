@@ -126,7 +126,7 @@ body { font-family:'Inter',sans-serif; background:#f8fafc; }
 </style>
     <?php
     $page_description = 'Check the ArenaReserve leaderboard – See top players, team rankings, and match results across all sports venues.';
-    include_once 'logo_head.php';
+    include 'logo_head.php';
     ?>
 </head>
 <body>
