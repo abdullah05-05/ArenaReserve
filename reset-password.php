@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once 'db.php';
+require_once 'logo_helper.php';
 
 // Redirect if already logged in
 if (isset($_SESSION['user_id'])) {
@@ -86,6 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $user) {
             font-family: 'Inter', sans-serif;
         }
     </style>
+    <?php include_once 'logo_head.php'; ?>
 </head>
 <body class="bg-slate-50 min-h-screen flex flex-col justify-start md:justify-center py-6 md:py-12 sm:px-6 lg:px-8">
     <div class="sm:mx-auto sm:w-full sm:max-w-md">
@@ -93,11 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $user) {
         <div class="flex justify-center items-center gap-2">
             <a href="login.php" class="text-emerald-600 text-3xl font-bold flex items-center">
                 <!-- SVG Trophy Icon -->
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mr-1 inline-block" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 14l9-5-9-5-9 5 9 5z" />
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 14l4-2.5V20l-4 2.5L8 20v-8.5l4 2.5z" />
-                </svg>
+                <?php echo get_logo_markup('h-8 w-8 mr-1 inline-block'); ?>
                 ArenaReserve
             </a>
         </div>

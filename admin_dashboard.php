@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once 'db.php';
+require_once 'logo_helper.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['current_role'] !== 'Admin') {
     header("Location: login.php");
@@ -16,6 +17,7 @@ try { $pdo->exec("ALTER TABLE grounds ADD COLUMN IF NOT EXISTS ground_status ENU
 try { $pdo->exec("ALTER TABLE grounds ADD COLUMN IF NOT EXISTS block_reason TEXT DEFAULT NULL"); } catch(Exception $e) {}
 try { $pdo->exec("ALTER TABLE wallet_deposit_requests ADD COLUMN IF NOT EXISTS rejection_reason TEXT DEFAULT NULL"); } catch(Exception $e) {}
 try { $pdo->exec("ALTER TABLE users MODIFY COLUMN status ENUM('Active','Blocked','Suspended') NOT NULL DEFAULT 'Active'"); } catch(Exception $e) {}
+try { $pdo->exec("CREATE TABLE IF NOT EXISTS settings (setting_key VARCHAR(50) PRIMARY KEY, setting_value TEXT NOT NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"); } catch(Exception $e) {}
 
 /* ═══════════════════════════════
    POST HANDLERS
@@ -118,6 +120,93 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         elseif ($action === 'update_fee') {
             $_SESSION['platform_fee'] = floatval($_POST['fee'] ?? 5);
             $success_msg = "Platform fee updated to {$_SESSION['platform_fee']}%.";
+        }
+
+        /* ── Upload website logo ── */
+        elseif ($action === 'upload_logo') {
+            if (!isset($_FILES['logo']) || $_FILES['logo']['error'] !== UPLOAD_ERR_OK) {
+                throw new Exception('No file uploaded or upload error occurred.');
+            }
+            
+            $file = $_FILES['logo'];
+            $filename = $file['name'];
+            $tmp_name = $file['tmp_name'];
+            $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+            
+            $allowed_exts = ['svg', 'png', 'jpg', 'jpeg', 'webp'];
+            if (!in_array($ext, $allowed_exts)) {
+                throw new Exception('Invalid file extension. Only SVG, PNG, JPG, JPEG, and WEBP files are allowed.');
+            }
+            
+            // Validate MIME type
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            $mime = finfo_file($finfo, $tmp_name);
+            finfo_close($finfo);
+            
+            $allowed_mimes = [
+                'image/svg+xml',
+                'image/svg',
+                'image/png',
+                'image/jpeg',
+                'image/pjpeg',
+                'image/webp'
+            ];
+            if (!in_array($mime, $allowed_mimes)) {
+                throw new Exception('Invalid file type. Only SVG, PNG, JPG, JPEG, and WEBP images are allowed.');
+            }
+            
+            // Check file size (max 2MB)
+            if ($file['size'] > 2 * 1024 * 1024) {
+                throw new Exception('File is too large. Maximum allowed size is 2MB.');
+            }
+            
+            // Ensure uploads/logo directory exists
+            $upload_dir = __DIR__ . '/uploads/logo';
+            if (!file_exists($upload_dir)) {
+                mkdir($upload_dir, 0777, true);
+            }
+            
+            // Delete old custom logo file if it exists
+            $stmt = $pdo->prepare("SELECT setting_value FROM settings WHERE setting_key = 'custom_logo'");
+            $stmt->execute();
+            $old_row = $stmt->fetch();
+            if ($old_row && !empty($old_row['setting_value'])) {
+                $old_file = __DIR__ . '/' . $old_row['setting_value'];
+                if (file_exists($old_file)) {
+                    @unlink($old_file);
+                }
+            }
+            
+            // Save new logo with a unique name to prevent cache issues
+            $new_filename = 'logo_' . time() . '.' . $ext;
+            $new_path = 'uploads/logo/' . $new_filename;
+            
+            if (!move_uploaded_file($tmp_name, __DIR__ . '/' . $new_path)) {
+                throw new Exception('Failed to save uploaded file.');
+            }
+            
+            // Save or update in database
+            $stmt = $pdo->prepare("INSERT INTO settings (setting_key, setting_value) VALUES ('custom_logo', ?) 
+                                   ON DUPLICATE KEY UPDATE setting_value = ?");
+            $stmt->execute([$new_path, $new_path]);
+            
+            $success_msg = 'Logo updated successfully!';
+        }
+        
+        /* ── Delete website logo ── */
+        elseif ($action === 'delete_logo') {
+            $stmt = $pdo->prepare("SELECT setting_value FROM settings WHERE setting_key = 'custom_logo'");
+            $stmt->execute();
+            $row = $stmt->fetch();
+            if ($row && !empty($row['setting_value'])) {
+                $file_path = __DIR__ . '/' . $row['setting_value'];
+                if (file_exists($file_path)) {
+                    @unlink($file_path);
+                }
+            }
+            
+            $pdo->prepare("DELETE FROM settings WHERE setting_key = 'custom_logo'")->execute();
+            $success_msg = 'Custom logo removed. Default ArenaReserve logo is now active.';
         }
 
     } catch (Exception $e) {
@@ -235,6 +324,7 @@ try {
         .tab-content.active { display: block; }
         .inline-form  { display: none; }
     </style>
+    <?php include_once 'logo_head.php'; ?>
 </head>
 <body class="bg-slate-50 min-h-screen flex flex-col">
 
@@ -248,10 +338,7 @@ try {
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
             </button>
-            <svg class="h-7 w-7 text-emerald-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 14l9-5-9-5-9 5 9 5z"/>
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0112 20.055a11.952 11.952 0 01-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"/>
-            </svg>
+            <?php echo get_logo_markup('h-7 w-7 flex-shrink-0'); ?>
             <span class="text-emerald-600 text-[12px] sm:text-lg md:text-xl font-bold flex-shrink-0">ArenaReserve</span>
             <span class="ml-2 text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full font-bold uppercase">Admin</span>
         </div>
@@ -273,9 +360,7 @@ try {
         <!-- Close button on Mobile -->
         <div class="flex items-center justify-between p-4 border-b border-slate-100 lg:hidden bg-white flex-shrink-0">
             <div class="flex items-center gap-2">
-                <svg class="h-6 w-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 14l9-5-9-5-9 5 9 5z"/>
-                </svg>
+                <?php echo get_logo_markup('h-6 w-6'); ?>
                 <span class="text-emerald-600 text-lg font-bold">ArenaReserve</span>
             </div>
             <button onclick="toggleAdminSidebar()" class="text-slate-500 hover:text-slate-700 focus:outline-none">
@@ -359,6 +444,63 @@ try {
                         <div class="flex justify-between"><span>Platform Fee (<?php echo $platform_fee; ?>%):</span><span class="font-semibold text-slate-800"><?php echo number_format(3000*$platform_fee/100,0); ?> PKR</span></div>
                         <div class="flex justify-between border-t border-slate-200 pt-1.5 mt-1.5"><span class="font-bold text-slate-700">Venue Owner Receives:</span><span class="font-bold text-emerald-600"><?php echo number_format(3000-(3000*$platform_fee/100),0); ?> PKR</span></div>
                     </div>
+                </div>
+            </div>
+
+            <!-- Logo Management Card -->
+            <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-6 mt-6">
+                <h2 class="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    Logo Management
+                </h2>
+                
+                <!-- Logo Status & Preview -->
+                <div class="mb-5 flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 bg-slate-50 border border-slate-100 rounded-lg">
+                    <div class="flex-shrink-0">
+                        <div class="text-xs font-semibold text-slate-400 mb-2">Active Logo Preview</div>
+                        <!-- Grid checkerboard pattern background for transparent logos -->
+                        <div class="w-24 h-24 rounded-lg border border-slate-200 bg-white flex items-center justify-center p-2" 
+                             style="background-image: radial-gradient(#e2e8f0 20%, transparent 20%), radial-gradient(#e2e8f0 20%, transparent 20%); background-size: 8px 8px; background-position: 0 0, 4px 4px;">
+                            <?php echo get_logo_markup('h-full w-full object-contain'); ?>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="text-xs font-semibold text-slate-400">Current Logo Status</div>
+                        <div class="mt-1 flex items-center gap-2">
+                            <?php if (has_custom_logo()): ?>
+                                <span class="px-2.5 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">Custom Logo Active</span>
+                            <?php else: ?>
+                                <span class="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">Default Logo Active</span>
+                            <?php endif; ?>
+                        </div>
+                        <p class="text-xs text-slate-500 mt-2">
+                            The logo is displayed on the navbar, login/signup flows, and as the browser favicon. 
+                            Supported formats: SVG, PNG, JPG, JPEG, WEBP. Max size: 2MB.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="flex flex-col sm:flex-row gap-4 items-end">
+                    <!-- Upload Form -->
+                    <form method="POST" action="admin_dashboard.php?page=system" enctype="multipart/form-data" class="flex-1 w-full">
+                        <input type="hidden" name="action" value="upload_logo">
+                        <label class="text-xs font-semibold text-slate-500 block mb-1">Upload New Logo</label>
+                        <div class="flex flex-col sm:flex-row gap-3">
+                            <input type="file" name="logo" accept=".svg,.png,.jpg,.jpeg,.webp" required
+                                   class="flex-1 text-sm file:mr-4 file:py-2.5 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 border border-slate-200 rounded-lg p-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white">
+                            <button type="submit" class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-sm px-5 py-2.5 rounded-lg transition-colors whitespace-nowrap">Upload</button>
+                        </div>
+                    </form>
+
+                    <!-- Revert Button -->
+                    <?php if (has_custom_logo()): ?>
+                        <form method="POST" action="admin_dashboard.php?page=system" onsubmit="return confirm('Are you sure you want to delete the custom logo and revert to the default ArenaReserve logo?');" class="w-full sm:w-auto">
+                            <input type="hidden" name="action" value="delete_logo">
+                            <button type="submit" class="w-full sm:w-auto bg-slate-100 hover:bg-red-50 hover:text-red-600 hover:border-red-200 text-slate-600 font-semibold text-sm px-4 py-2.5 rounded-lg border border-slate-200 transition-all">Revert to Default</button>
+                        </form>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
