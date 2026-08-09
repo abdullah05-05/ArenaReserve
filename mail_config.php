@@ -25,14 +25,14 @@ function sendVerificationEmail($toEmail, $toName, $token)
 
     try {
         $mail->isSMTP();
-        $mail->Host = 'smtp.gmail.com';
+        $mail->Host = getenv('BREVO_SMTP_HOST');
         $mail->SMTPAuth = true;
-        $mail->Username = 'abdullahtariq0505@gmail.com';
-        $mail->Password = 'fricnoxitxaktvjz';
+        $mail->Username = getenv('BREVO_SMTP_USERNAME');
+        $mail->Password = getenv('BREVO_SMTP_PASSWORD');
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port = 587;
+        $mail->Port = (int) getenv('BREVO_SMTP_PORT');
 
-        $mail->setFrom('abdullahtariq0505@gmail.com', 'ArenaReserve');
+        $mail->setFrom(getenv('BREVO_SMTP_EMAIL'), getenv('BREVO_SMTP_NAME'));
         $mail->addAddress($toEmail, $toName);
 
         $mail->isHTML(true);
@@ -109,14 +109,14 @@ function sendPasswordResetEmail($toEmail, $toName, $token)
 
     try {
         $mail->isSMTP();
-        $mail->Host = 'smtp.gmail.com';
+        $mail->Host = getenv('BREVO_SMTP_HOST');
         $mail->SMTPAuth = true;
-        $mail->Username = 'abdullahtariq0505@gmail.com';
-        $mail->Password = 'fricnoxitxaktvjz';
+        $mail->Username = getenv('BREVO_SMTP_USERNAME');
+        $mail->Password = getenv('BREVO_SMTP_PASSWORD');
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port = 587;
+        $mail->Port = (int) getenv('BREVO_SMTP_PORT');
 
-        $mail->setFrom('abdullahtariq0505@gmail.com', 'ArenaReserve');
+        $mail->setFrom(getenv('BREVO_SMTP_EMAIL'), getenv('BREVO_SMTP_NAME'));
         $mail->addAddress($toEmail, $toName);
 
         $mail->isHTML(true);
