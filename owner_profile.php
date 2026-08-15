@@ -214,6 +214,9 @@ $name_initials = strtoupper(substr($user['name'], 0, 1));
                         </a>
                     </div>
 
+                    <!-- Notification Bell -->
+                    <?php include __DIR__ . '/assets/notification_bell.php'; ?>
+
                     <!-- Profile Dropdown (Only Profile Settings & Logout) -->
                     <div class="relative">
                         <button id="profileDropdownBtn" onclick="toggleProfileDropdown()" class="flex items-center gap-2 hover:opacity-90 focus:outline-none transition-opacity" title="User Menu">

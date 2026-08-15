@@ -28,21 +28,24 @@ try {
     $my_bookings = $stmt->fetchAll();
 } catch (Exception $e) { $my_bookings = []; }
 
-// Fetch challenges where this user is the OPPONENT (accepted challenges)
+// Fetch challenges where this user is the OPPONENT (accepted challenges OR incoming team challenges)
 try {
     $stmt = $pdo->prepare("
         SELECT b.id, b.slot_date, b.slot_hour, b.price, b.amount_paid,
-               b.booking_type, b.status, b.challenger_team_name,
+               b.booking_type, b.status, b.challenger_team_name, b.challenged_user_id,
                b.created_at,
                g.title AS ground_title, g.sport_type, g.address,
                u.name AS challenger_name
         FROM bookings b
         JOIN grounds g ON g.id = b.ground_id
         JOIN users u ON u.id = b.booked_by
-        WHERE b.opponent_id = ?
+        WHERE (
+            b.opponent_id = ?
+            OR (b.status = 'challenge_pending' AND b.challenged_user_id = ?)
+        )
         ORDER BY b.slot_date DESC, b.slot_hour DESC
     ");
-    $stmt->execute([$user_id]);
+    $stmt->execute([$user_id, $user_id]);
     $accepted_challenges = $stmt->fetchAll();
 } catch (Exception $e) { $accepted_challenges = []; }
 
@@ -171,6 +174,8 @@ body { font-family: 'Inter', sans-serif; background: #f8fafc; }
           </a>
       </div>
       <div class="flex items-center gap-2">
+        <!-- Notification Bell -->
+        <?php include __DIR__ . '/assets/notification_bell.php'; ?>
         <!-- Profile Dropdown -->
         <div class="relative">
           <button id="profileDropdownBtn" onclick="toggleProfileDropdown()" class="flex items-center gap-2 hover:opacity-90 focus:outline-none transition-opacity" title="User Menu">
@@ -320,7 +325,11 @@ body { font-family: 'Inter', sans-serif; background: #f8fafc; }
                 📅 <?php echo date('D, d M Y', strtotime($bk['slot_date'])); ?>
                 &nbsp;⏰ <?php echo $timeLabel; ?>
               </div>
-              <?php if ($bk['role'] === 'opponent'): ?>
+              <?php if ($bk['role'] === 'opponent' && $bk['status'] === 'challenge_pending'): ?>
+              <div class="text-xs text-orange-600 font-medium mt-0.5">
+                ⚡ Team Challenge from <span class="font-bold"><?php echo htmlspecialchars($bk['challenger_name'] ?? 'Unknown'); ?></span> — awaiting your acceptance
+              </div>
+              <?php elseif ($bk['role'] === 'opponent'): ?>
               <div class="text-xs text-blue-600 font-medium mt-0.5">
                 🏆 Accepted challenge from <span class="font-bold"><?php echo htmlspecialchars($bk['challenger_name'] ?? 'Unknown'); ?></span>
               </div>
@@ -361,6 +370,20 @@ body { font-family: 'Inter', sans-serif; background: #f8fafc; }
               class="text-[11px] font-semibold text-red-600 border border-red-200 bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded-lg transition-all"
               id="cancel-btn-<?php echo $bk['id']; ?>">
               ✕ Cancel
+            </button>
+            <?php endif; ?>
+            <?php
+              // Show Accept button for incoming team challenges
+              $can_accept_team = ($bk['role'] === 'opponent')
+                              && ($bk['status'] === 'challenge_pending')
+                              && $isUpcoming;
+            ?>
+            <?php if ($can_accept_team): ?>
+            <button
+              onclick="acceptChallenge(<?php echo $bk['id']; ?>, this)"
+              class="text-[11px] font-bold text-white bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 px-3 py-1.5 rounded-lg transition-all shadow-sm"
+              id="accept-btn-<?php echo $bk['id']; ?>">
+              ⚡ Accept Challenge
             </button>
             <?php endif; ?>
           </div>
@@ -478,6 +501,54 @@ function closeCancelModal() {
   document.getElementById('cancel-overlay').classList.remove('open');
 }
 
+// ---- Accept a specific team challenge ----
+function acceptChallenge(bookingId, btn) {
+  if (!confirm('Accept this challenge? 50% of the slot price will be deducted from your wallet.')) return;
+  btn.disabled = true;
+  btn.textContent = 'Processing…';
+
+  fetch('accept_challenge.php', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+    body: 'booking_id=' + bookingId
+  })
+  .then(r => r.json())
+  .then(res => {
+    if (res.success) {
+      showToast('🎉 Challenge accepted! Match confirmed.', 'success');
+      btn.outerHTML = '<span class="text-[11px] font-bold text-blue-600 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-lg">🏆 Match Set</span>';
+      
+      // Update status badge in the row
+      const row = document.querySelector('[data-booking-id="' + bookingId + '"]');
+      if (row) {
+        const statusBadge = row.querySelector('.status-badge');
+        if (statusBadge) {
+          statusBadge.className = 'status-badge text-xs font-bold px-2 py-1 rounded-full bg-blue-100 text-blue-700';
+          statusBadge.textContent = '🏆 Match Set ✓';
+        }
+      }
+
+      // Update wallet balance in navbar
+      if (res.amount_paid !== undefined) {
+        document.querySelectorAll('.wallet-balance-display').forEach(el => {
+          const current = parseFloat(el.textContent.replace(/[^0-9.]/g, '') || '0');
+          const newBal = Math.max(0, current - parseFloat(res.amount_paid));
+          el.textContent = formatNum(newBal) + ' PKR';
+        });
+      }
+    } else {
+      showToast('❌ ' + (res.message || 'Failed to accept challenge.'), 'error');
+      btn.disabled = false;
+      btn.textContent = '⚡ Accept Challenge';
+    }
+  })
+  .catch(() => {
+    showToast('❌ Network error. Please try again.', 'error');
+    btn.disabled = false;
+    btn.textContent = '⚡ Accept Challenge';
+  });
+}
+
 function confirmCancel() {
   const btn = document.getElementById('confirm-cancel-btn');
   btn.disabled = true;
@@ -512,8 +583,6 @@ function confirmCancel() {
         const walletEls = document.querySelectorAll('.wallet-balance-display');
         walletEls.forEach(el => { el.textContent = formatNum(res.new_balance) + ' PKR'; });
       }
-      // Reload after a short delay to show fresh data
-      setTimeout(() => location.reload(), 2500);
     } else {
       showToast('❌ ' + res.message, 'error');
       btn.disabled = false;

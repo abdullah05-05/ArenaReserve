@@ -6,6 +6,7 @@
  */
 session_start();
 require_once 'db.php';
+require_once 'notifications.php';
 header('Content-Type: application/json');
 
 if (!isset($_SESSION['user_id'])) {
@@ -19,6 +20,7 @@ $slot_date            = trim($_POST['slot_date'] ?? '');
 $slot_hour            = intval($_POST['slot_hour'] ?? -1);
 $booking_type         = trim($_POST['booking_type'] ?? '');
 $challenger_team_name = trim($_POST['challenger_team_name'] ?? '');
+$challenged_user_id   = intval($_POST['challenged_user_id'] ?? 0); // specific opponent for team_challenge
 
 $valid_types = ['direct', 'open_challenge', 'team_challenge'];
 if (!$ground_id || !$slot_date || $slot_hour < 0 || !in_array($booking_type, $valid_types)) {
@@ -104,16 +106,17 @@ try {
     $ref = 'BK-' . strtoupper($booking_type) . '-' . $ground_id . '-' . $slot_date . '-' . $slot_hour;
     $stmt->execute([$wallet['id'], -$amount_to_charge, $ref]);
 
-    // 9. Insert booking
+    // 9. Insert booking (with challenged_user_id for team_challenge)
     $stmt = $pdo->prepare("
-        INSERT INTO bookings (ground_id, booked_by, slot_date, slot_hour, price, amount_paid, booking_type, status, challenger_team_name)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO bookings (ground_id, booked_by, slot_date, slot_hour, price, amount_paid, booking_type, status, challenger_team_name, challenged_user_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ");
     $stmt->execute([
         $ground_id, $user_id, $slot_date, $slot_hour,
         $full_price, $amount_to_charge,
         $booking_type, $booking_status,
-        $challenger_team_name ?: null
+        $challenger_team_name ?: null,
+        ($booking_type === 'team_challenge' && $challenged_user_id > 0) ? $challenged_user_id : null
     ]);
     $booking_id = $pdo->lastInsertId();
 
@@ -121,7 +124,94 @@ try {
     $stmt = $pdo->prepare("DELETE FROM slot_holds WHERE ground_id = ? AND slot_date = ? AND slot_hour = ?");
     $stmt->execute([$ground_id, $slot_date, $slot_hour]);
 
+    // 11. Fetch ground + owner + player details for notifications
+    $infoStmt = $pdo->prepare("
+        SELECT g.title AS ground_title, g.owner_id,
+               u_player.name AS player_name, u_player.email AS player_email,
+               u_owner.name AS owner_name, u_owner.email AS owner_email
+        FROM grounds g
+        JOIN users u_player ON u_player.id = ?
+        JOIN users u_owner  ON u_owner.id  = g.owner_id
+        WHERE g.id = ?
+    ");
+    $infoStmt->execute([$user_id, $ground_id]);
+    $info = $infoStmt->fetch();
+
     $pdo->commit();
+
+    // ── In-app notification for player ──
+    $playerNotifTitles = [
+        'direct'          => 'Booking Confirmed!',
+        'open_challenge'  => 'Open Challenge Posted!',
+        'team_challenge'  => 'Team Challenge Sent!',
+    ];
+    $playerNotifMsgs = [
+        'direct'          => "Your slot at {$info['ground_title']} on {$slot_date} " . sprintf('%02d:00', $slot_hour) . " is confirmed.",
+        'open_challenge'  => "Your open challenge at {$info['ground_title']} on {$slot_date} is live. Waiting for an opponent!",
+        'team_challenge'  => "Your team challenge at {$info['ground_title']} on {$slot_date} is sent. Awaiting acceptance.",
+    ];
+    createNotification($pdo, $user_id, 'booking_confirmed',
+        $playerNotifTitles[$booking_type],
+        $playerNotifMsgs[$booking_type],
+        'match_history.php'
+    );
+
+    // ── In-app notification for ground owner ──
+    if ($info && $info['owner_id'] != $user_id) {
+        createNotification($pdo, $info['owner_id'], 'new_booking_owner',
+            'New Booking on ' . $info['ground_title'],
+            "{$info['player_name']} booked a slot on {$slot_date} at " . sprintf('%02d:00', $slot_hour) . ".",
+            'owner_dashboard.php'
+        );
+    }
+
+    // ── In-app + Email: Notify the challenged user (team_challenge only) ──
+    if ($booking_type === 'team_challenge' && $challenged_user_id > 0 && $info) {
+        // Fetch challenged user's details
+        $chalStmt = $pdo->prepare("SELECT name, email FROM users WHERE id = ?");
+        $chalStmt->execute([$challenged_user_id]);
+        $chalUser = $chalStmt->fetch();
+        if ($chalUser) {
+            // In-app notification to the challenged user
+            createNotification($pdo, $challenged_user_id, 'challenge_received',
+                '⚡ Team Challenge Received!',
+                "{$info['player_name']} has challenged your team at {$info['ground_title']} on {$slot_date}. Check Match History to accept!",
+                'match_history.php'
+            );
+            // Email the challenged user
+            sendTeamChallengeSentEmail($chalUser['email'], $chalUser['name'], [
+                'ground_title'    => $info['ground_title'],
+                'slot_date'       => $slot_date,
+                'slot_hour'       => $slot_hour,
+                'booking_id'      => $booking_id,
+                'challenger_name' => $info['player_name'],
+                'message'         => $_POST['ch_message'] ?? '',
+            ]);
+        }
+    }
+
+    // \u2500\u2500 Email notification for player + owner (async-safe: after commit) \u2500\u2500
+    if ($info) {
+        sendBookingConfirmedEmail($info['player_email'], $info['player_name'], [
+            'ground_title'  => $info['ground_title'],
+            'slot_date'     => $slot_date,
+            'slot_hour'     => $slot_hour,
+            'booking_type'  => $booking_type,
+            'amount_paid'   => $amount_to_charge,
+            'booking_id'    => $booking_id,
+        ]);
+
+        // Email owner too
+        if ($info['owner_id'] != $user_id) {
+            sendNewBookingOwnerEmail($info['owner_email'], $info['owner_name'], [
+                'ground_title'  => $info['ground_title'],
+                'slot_date'     => $slot_date,
+                'slot_hour'     => $slot_hour,
+                'booking_type'  => $booking_type,
+                'player_name'   => $info['player_name'],
+            ]);
+        }
+    }
 
     $messages = [
         'direct'         => '✅ Booking confirmed! Full payment deducted from wallet.',

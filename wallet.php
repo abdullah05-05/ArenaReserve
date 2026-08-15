@@ -150,6 +150,9 @@ try {
                            <span class="hidden sm:inline">Owner</span>
                     </div>
 
+                    <!-- Notification Bell -->
+                    <?php include __DIR__ . '/assets/notification_bell.php'; ?>
+
                     <div class="relative">
                         <button id="profileDropdownBtn" onclick="toggleProfileDropdown()" class="flex items-center gap-2 hover:opacity-90 focus:outline-none transition-opacity" title="User Menu">
                             <div class="w-8 h-8 rounded-full overflow-hidden bg-emerald-600 text-white flex items-center justify-center font-bold text-sm flex-shrink-0 shadow-sm border border-emerald-500">

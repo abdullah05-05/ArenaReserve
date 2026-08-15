@@ -6,6 +6,7 @@
  */
 session_start();
 require_once 'db.php';
+require_once 'notifications.php';
 header('Content-Type: application/json');
 
 if (!isset($_SESSION['user_id'])) {
@@ -24,15 +25,19 @@ if (!$booking_id) {
 try {
     $pdo->beginTransaction();
 
-    // 1. Lock and fetch the challenge booking
+    // 1. Lock and fetch the challenge booking (open_challenge OR team_challenge targeted at this user)
     $stmt = $pdo->prepare("
         SELECT b.*, g.title AS ground_title
         FROM bookings b
         JOIN grounds g ON g.id = b.ground_id
-        WHERE b.id = ? AND b.status = 'challenge_open'
+        WHERE b.id = ?
+        AND (
+            (b.status = 'challenge_open')
+            OR (b.status = 'challenge_pending' AND b.challenged_user_id = ?)
+        )
         FOR UPDATE
     ");
-    $stmt->execute([$booking_id]);
+    $stmt->execute([$booking_id, $user_id]);
     $booking = $stmt->fetch();
 
     if (!$booking) {
@@ -86,6 +91,45 @@ try {
     $stmt->execute([$user_id, $amount_to_charge, $booking_id]);
 
     $pdo->commit();
+
+    // ── Fetch details for notifications ──
+    $infoStmt = $pdo->prepare("
+        SELECT u_challenger.name  AS challenger_name,  u_challenger.email AS challenger_email,
+               u_opponent.name    AS opponent_name,    u_opponent.email   AS opponent_email
+        FROM users u_challenger
+        JOIN users u_opponent ON u_opponent.id = ?
+        WHERE u_challenger.id = ?
+    ");
+    $infoStmt->execute([$user_id, $booking['booked_by']]);
+    $info = $infoStmt->fetch();
+
+    if ($info) {
+        // In-app: challenger
+        createNotification($pdo, $booking['booked_by'], 'challenge_accepted',
+            'Challenge Accepted! ⚡',
+            "{$info['opponent_name']} accepted your challenge at {$booking['ground_title']} on {$booking['slot_date']}. Game on!",
+            'match_history.php'
+        );
+        // In-app: opponent
+        createNotification($pdo, $user_id, 'challenge_accepted',
+            'Challenge Confirmed!',
+            "You accepted a challenge at {$booking['ground_title']} on {$booking['slot_date']}. Good luck!",
+            'match_history.php'
+        );
+
+        // Email both parties
+        sendChallengeAcceptedEmail(
+            $info['challenger_email'], $info['challenger_name'],
+            $info['opponent_email'],   $info['opponent_name'],
+            [
+                'ground_title' => $booking['ground_title'],
+                'slot_date'    => $booking['slot_date'],
+                'slot_hour'    => $booking['slot_hour'],
+                'booking_id'   => $booking_id,
+                'amount_paid'  => $amount_to_charge,
+            ]
+        );
+    }
 
     echo json_encode([
         'success'     => true,

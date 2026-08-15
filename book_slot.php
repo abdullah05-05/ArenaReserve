@@ -221,8 +221,8 @@ body { background: #f5f6fa; }
       </a>
     </div>
     <div class="flex-shrink-0 flex items-center gap-1 sm:gap-3">
-      <a href="wallet.php" class="hidden sm:flex items-center bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-full text-xs font-semibold border border-emerald-200">
-        <span class="w-2 h-2 rounded-full bg-emerald-500 mr-2"></span><?php echo number_format($available_balance, 0); ?> PKR
+      <a href="wallet.php" id="navbar-wallet-badge" class="hidden sm:flex items-center bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-full text-xs font-semibold border border-emerald-200">
+        <span class="w-2 h-2 rounded-full bg-emerald-500 mr-2"></span><span id="navbar-wallet-amount"><?php echo number_format($available_balance, 0); ?></span> PKR
       </a>
       <!-- Mode Toggle -->
       <div class="flex-shrink-0 flex items-center gap-1 bg-slate-100 p-1 rounded-full border border-slate-200/80 shadow-inner">
@@ -238,6 +238,8 @@ body { background: #f5f6fa; }
           </a>
       </div>
       <div class="flex items-center gap-2">
+        <!-- Notification Bell -->
+        <?php include __DIR__ . '/assets/notification_bell.php'; ?>
         <!-- Profile Dropdown -->
         <div class="relative">
           <button id="profileDropdownBtn" onclick="toggleProfileDropdown()" class="flex items-center gap-2 hover:opacity-90 focus:outline-none transition-opacity" title="User Menu">
@@ -342,10 +344,10 @@ body { background: #f5f6fa; }
         </div>
       </div>
       <select id="ground-select" data-ground-name="<?php echo htmlspecialchars($selected_ground['title'] ?? ''); ?>"
-              onchange="location.href='book_slot.php?ground='+this.value+'&date='+document.getElementById('booking-date').value"
+              onchange="onGroundChanged(this.value)"
               class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-400">
         <?php foreach ($grounds as $g): ?>
-          <option value="<?php echo $g['id']; ?>" <?php echo ($g['id']==$selected_ground_id)?'selected':''; ?>>
+          <option value="<?php echo $g['id']; ?>" data-sport="<?php echo htmlspecialchars($g['sport_type']); ?>" data-title="<?php echo htmlspecialchars($g['title']); ?>" <?php echo ($g['id']==$selected_ground_id)?'selected':''; ?>>
             <?php echo htmlspecialchars($g['title']); ?> — <?php echo $g['sport_type']; ?>
           </option>
         <?php endforeach; ?>
@@ -365,7 +367,7 @@ body { background: #f5f6fa; }
         </div>
       </div>
       <input id="booking-date" type="date" min="<?php echo date('Y-m-d'); ?>" value="<?php echo $selected_date; ?>"
-             onchange="location.href='book_slot.php?ground=<?php echo $selected_ground_id; ?>&date='+this.value"
+             onchange="onDateChanged(this.value)"
              class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-400">
     </div>
 
@@ -374,84 +376,92 @@ body { background: #f5f6fa; }
       <div class="flex items-center justify-between mb-4">
         <div>
           <div class="text-sm font-bold text-gray-800">Available Time Slots</div>
-          <div class="text-xs text-gray-400 mt-0.5"><?php echo date('l, F j, Y', strtotime($selected_date)); ?></div>
+          <div class="text-xs text-gray-400 mt-0.5" id="slots-date-label"><?php echo date('l, F j, Y', strtotime($selected_date)); ?></div>
         </div>
-        <?php if ($selected_ground): ?>
-        <div class="text-xs text-slate-500 font-medium bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">
-          <?php echo htmlspecialchars($selected_ground['sport_type']); ?>
-        </div>
-        <?php endif; ?>
-      </div>
-
-      <?php if (empty($slots)): ?>
-        <div class="text-center py-12">
-          <div class="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3">
-            <svg class="w-7 h-7 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <div class="flex items-center gap-2">
+          <span id="live-indicator" class="flex items-center gap-1 text-[11px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>Live
+          </span>
+          <?php if ($selected_ground): ?>
+          <div id="ground-sport-badge" class="text-xs text-slate-500 font-medium bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">
+            <?php echo htmlspecialchars($selected_ground['sport_type']); ?>
           </div>
-          <?php if (!empty($no_slots_configured)): ?>
-            <p class="text-sm font-semibold text-slate-500">No slots configured yet</p>
-            <p class="text-xs text-slate-400 mt-1">The owner hasn't set up time slots for this venue yet.</p>
-          <?php else: ?>
-            <p class="text-sm font-semibold text-slate-500">No available slots</p>
-            <p class="text-xs text-slate-400 mt-1">There are no open slots for this venue on the selected date.</p>
           <?php endif; ?>
         </div>
-      <?php else: ?>
-        <div class="grid grid-cols-2 gap-3" id="slots-grid">
-          <?php foreach ($slots as $slot):
-            $isPeak = ($slot['slot_type'] ?? 'Normal') === 'Peak';
-            // 'available' and 'held' (own hold) are both clickable
-            $isClickable = in_array($slot['type'], ['available', 'held']);
-            $colorClasses = [
-              'available'  => ['text' => 'text-emerald-800', 'price' => 'text-emerald-700'],
-              'booked'     => ['text' => 'text-red-700',     'price' => 'text-red-600'],
-              'my_booking' => ['text' => 'text-amber-700',   'price' => 'text-amber-600'],
-              'challenge'  => ['text' => 'text-violet-700',  'price' => 'text-violet-600'],
-              'held'       => ['text' => 'text-blue-700',    'price' => 'text-blue-600'],
-              'on_hold'    => ['text' => 'text-slate-600',   'price' => 'text-slate-500'],
-            ];
-            $tc = $colorClasses[$slot['type']] ?? $colorClasses['available'];
-          ?>
-          <div class="slot-card slot-<?php echo $slot['type']; ?>"
-               data-hour="<?php echo $slot['hour']; ?>"
-               data-time="<?php echo htmlspecialchars($slot['time']); ?>"
-               data-price="<?php echo $slot['price']; ?>"
-               data-ground="<?php echo $selected_ground_id; ?>"
-               data-date="<?php echo $selected_date; ?>"
-               <?php if (in_array($slot['type'], ['held','on_hold'])): ?>data-hold-remaining="<?php echo $slot['hold_remaining']; ?>"<?php endif; ?>
-               <?php if ($isClickable): ?>onclick="clickSlot(this)"<?php endif; ?>>
+      </div>
 
-            <div class="flex items-center justify-between mb-1.5">
-              <div class="flex items-center gap-1.5 <?php echo $tc['text']; ?>">
-                <svg class="h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2"/></svg>
-                <span class="text-xs font-semibold"><?php echo $slot['time']; ?></span>
-              </div>
-              <span class="text-xs font-bold <?php echo $tc['price']; ?>"><?php echo number_format($slot['price']); ?> PKR</span>
+      <div id="slots-container">
+        <?php if (empty($slots)): ?>
+          <div class="text-center py-12" id="slots-empty-state">
+            <div class="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3">
+              <svg class="w-7 h-7 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             </div>
-
-            <div class="flex items-center justify-between">
-              <?php if ($isPeak): ?>
-                <span class="text-[10px] font-bold bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded">🔥 Peak</span>
-              <?php else: ?>
-                <span class="text-[10px] font-bold bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded">🟢 Normal</span>
-              <?php endif; ?>
-              <?php if ($slot['label']): ?>
-                <span class="text-[10px] font-semibold <?php echo $tc['text']; ?>"><?php echo htmlspecialchars($slot['label']); ?></span>
-              <?php endif; ?>
-            </div>
-
-            <?php if (in_array($slot['type'], ['held', 'on_hold'])): ?>
-            <div class="hold-timer-bar mt-2">
-              <div class="hold-timer-fill" id="fill-<?php echo $slot['hour']; ?>" style="width:<?php echo min(100, round($slot['hold_remaining'] / 3)); ?>%"></div>
-            </div>
-            <div class="text-[10px] text-blue-600 font-semibold mt-1" id="hold-text-<?php echo $slot['hour']; ?>">
-              <?php echo $slot['type'] === 'held' ? '🔵 Your hold – ' : '⏳ On hold – '; ?><?php echo ceil($slot['hold_remaining'] / 60); ?>m remaining
-            </div>
+            <?php if (!empty($no_slots_configured)): ?>
+              <p class="text-sm font-semibold text-slate-500">No slots configured yet</p>
+              <p class="text-xs text-slate-400 mt-1">The owner hasn't set up time slots for this venue yet.</p>
+            <?php else: ?>
+              <p class="text-sm font-semibold text-slate-500">No available slots</p>
+              <p class="text-xs text-slate-400 mt-1">There are no open slots for this venue on the selected date.</p>
             <?php endif; ?>
           </div>
-          <?php endforeach; ?>
-        </div>
-      <?php endif; ?>
+        <?php else: ?>
+          <div class="grid grid-cols-2 gap-3" id="slots-grid">
+            <?php foreach ($slots as $slot):
+              $isPeak = ($slot['slot_type'] ?? 'Normal') === 'Peak';
+              // 'available' and 'held' (own hold) are both clickable
+              $isClickable = in_array($slot['type'], ['available', 'held']);
+              $colorClasses = [
+                'available'  => ['text' => 'text-emerald-800', 'price' => 'text-emerald-700'],
+                'booked'     => ['text' => 'text-red-700',     'price' => 'text-red-600'],
+                'my_booking' => ['text' => 'text-amber-700',   'price' => 'text-amber-600'],
+                'challenge'  => ['text' => 'text-violet-700',  'price' => 'text-violet-600'],
+                'held'       => ['text' => 'text-blue-700',    'price' => 'text-blue-600'],
+                'on_hold'    => ['text' => 'text-slate-600',   'price' => 'text-slate-500'],
+              ];
+              $tc = $colorClasses[$slot['type']] ?? $colorClasses['available'];
+            ?>
+            <div class="slot-card slot-<?php echo $slot['type']; ?>"
+                 id="slot-card-<?php echo $slot['hour']; ?>"
+                 data-hour="<?php echo $slot['hour']; ?>"
+                 data-time="<?php echo htmlspecialchars($slot['time']); ?>"
+                 data-price="<?php echo $slot['price']; ?>"
+                 data-ground="<?php echo $selected_ground_id; ?>"
+                 data-date="<?php echo $selected_date; ?>"
+                 <?php if (in_array($slot['type'], ['held','on_hold'])): ?>data-hold-remaining="<?php echo $slot['hold_remaining']; ?>"<?php endif; ?>
+                 <?php if ($isClickable): ?>onclick="clickSlot(this)"<?php endif; ?>>
+
+              <div class="flex items-center justify-between mb-1.5">
+                <div class="flex items-center gap-1.5 <?php echo $tc['text']; ?>">
+                  <svg class="h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2"/></svg>
+                  <span class="text-xs font-semibold"><?php echo $slot['time']; ?></span>
+                </div>
+                <span class="text-xs font-bold <?php echo $tc['price']; ?>"><?php echo number_format($slot['price']); ?> PKR</span>
+              </div>
+
+              <div class="flex items-center justify-between">
+                <?php if ($isPeak): ?>
+                  <span class="text-[10px] font-bold bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded">🔥 Peak</span>
+                <?php else: ?>
+                  <span class="text-[10px] font-bold bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded">🟢 Normal</span>
+                <?php endif; ?>
+                <?php if ($slot['label']): ?>
+                  <span class="text-[10px] font-semibold <?php echo $tc['text']; ?>"><?php echo htmlspecialchars($slot['label']); ?></span>
+                <?php endif; ?>
+              </div>
+
+              <?php if (in_array($slot['type'], ['held', 'on_hold'])): ?>
+              <div class="hold-timer-bar mt-2">
+                <div class="hold-timer-fill" id="fill-<?php echo $slot['hour']; ?>" style="width:<?php echo min(100, round($slot['hold_remaining'] / 3)); ?>%"></div>
+              </div>
+              <div class="text-[10px] text-blue-600 font-semibold mt-1" id="hold-text-<?php echo $slot['hour']; ?>">
+                <?php echo $slot['type'] === 'held' ? '🔵 Your hold – ' : '⏳ On hold – '; ?><?php echo ceil($slot['hold_remaining'] / 60); ?>m remaining
+              </div>
+              <?php endif; ?>
+            </div>
+            <?php endforeach; ?>
+          </div>
+        <?php endif; ?>
+      </div>
     </div>
   </main>
 </div>
@@ -640,22 +650,160 @@ body { background: #f5f6fa; }
 
 <script>
 // ---- State ----
-let modalData = {};
-let countdownInterval = null;
-let holdSeconds = 300;
-let selectedType = null;
+let currentGroundId     = <?php echo $selected_ground_id; ?>;
+let currentDate         = '<?php echo $selected_date; ?>';
+let currentWalletBalance = <?php echo $available_balance; ?>;
+let modalData           = {};
+let countdownInterval   = null;
+let cardTickInterval    = null;
+let livePollInterval    = null;
+let holdSeconds         = 300;
+let selectedType        = null;
+let isModalOpen         = false;
 
-// ---- Slot Click (available + held by current user) ----
+// ---- Slot Color Theme Mapping ----
+function getSlotColorClasses(type) {
+  const map = {
+    available:  { text: 'text-emerald-800', price: 'text-emerald-700' },
+    booked:     { text: 'text-red-700',     price: 'text-red-600' },
+    my_booking: { text: 'text-amber-700',   price: 'text-amber-600' },
+    challenge:  { text: 'text-violet-700',  price: 'text-violet-600' },
+    held:       { text: 'text-blue-700',    price: 'text-blue-600' },
+    on_hold:    { text: 'text-slate-600',   price: 'text-slate-500' },
+  };
+  return map[type] || map.available;
+}
+
+// ---- Render Single Slot Card HTML ----
+function renderSlotCardHtml(slot, groundId, date) {
+  const isPeak = (slot.slot_type || 'Normal') === 'Peak';
+  const isClickable = (slot.type === 'available' || slot.type === 'held');
+  const tc = getSlotColorClasses(slot.type);
+  const isHeldOrOnHold = (slot.type === 'held' || slot.type === 'on_hold');
+
+  let holdHtml = '';
+  if (isHeldOrOnHold) {
+    const isOwn  = (slot.type === 'held');
+    const prefix = isOwn ? '🔵 Your hold – ' : '⏳ On hold – ';
+    const rem    = Math.max(0, parseInt(slot.hold_remaining || 0));
+    const m      = Math.floor(rem / 60);
+    const s      = String(rem % 60).padStart(2, '0');
+    const widthPct = Math.min(100, Math.max(0, Math.round((rem / 300) * 100)));
+    holdHtml = `
+      <div class="hold-timer-bar mt-2">
+        <div class="hold-timer-fill" id="fill-${slot.hour}" style="width:${widthPct}%"></div>
+      </div>
+      <div class="text-[10px] text-blue-600 font-semibold mt-1" id="hold-text-${slot.hour}">
+        ${prefix}${m}:${s} remaining
+      </div>
+    `;
+  }
+
+  return `
+    <div class="slot-card slot-${slot.type}"
+         id="slot-card-${slot.hour}"
+         data-hour="${slot.hour}"
+         data-time="${escHtml(slot.time)}"
+         data-price="${slot.price}"
+         data-ground="${groundId}"
+         data-date="${date}"
+         ${isHeldOrOnHold ? `data-hold-remaining="${slot.hold_remaining}"` : ''}
+         ${isClickable ? 'onclick="clickSlot(this)"' : ''}>
+
+      <div class="flex items-center justify-between mb-1.5">
+        <div class="flex items-center gap-1.5 ${tc.text}">
+          <svg class="h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2"/></svg>
+          <span class="text-xs font-semibold">${escHtml(slot.time)}</span>
+        </div>
+        <span class="text-xs font-bold ${tc.price}">${formatNum(slot.price)} PKR</span>
+      </div>
+
+      <div class="flex items-center justify-between">
+        ${isPeak ? '<span class="text-[10px] font-bold bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded">🔥 Peak</span>' : '<span class="text-[10px] font-bold bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded">🟢 Normal</span>'}
+        ${slot.label ? `<span class="text-[10px] font-semibold ${tc.text}">${escHtml(slot.label)}</span>` : ''}
+      </div>
+
+      ${holdHtml}
+    </div>
+  `;
+}
+
+// ---- Render Entire Slots Grid in Real Time ----
+function renderSlotsGrid(slots, groundId, date) {
+  const container = document.getElementById('slots-container');
+  if (!container) return;
+
+  if (!slots || slots.length === 0) {
+    container.innerHTML = `
+      <div class="text-center py-12" id="slots-empty-state">
+        <div class="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3">
+          <svg class="w-7 h-7 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        </div>
+        <p class="text-sm font-semibold text-slate-500">No open slots</p>
+        <p class="text-xs text-slate-400 mt-1">There are no slots available for this date.</p>
+      </div>`;
+    return;
+  }
+
+  // Build grid HTML
+  const gridHtml = '<div class="grid grid-cols-2 gap-3" id="slots-grid">' +
+    slots.map(s => renderSlotCardHtml(s, groundId, date)).join('') +
+    '</div>';
+
+  container.innerHTML = gridHtml;
+
+  // Restore selected state if modal is open
+  if (isModalOpen && modalData && modalData.hour !== undefined) {
+    const card = document.getElementById('slot-card-' + modalData.hour);
+    if (card) card.classList.add('slot-selected');
+  }
+}
+
+// ---- Real-time Fetch Slots (Background & Triggered) ----
+function fetchSlotsLive(groundId, date, showLoading = false) {
+  groundId = groundId || currentGroundId;
+  date     = date || currentDate;
+
+  const container = document.getElementById('slots-container');
+  if (showLoading && container) {
+    container.style.opacity = '0.5';
+  }
+
+  fetch(`get_slots.php?ground_id=${groundId}&slot_date=${date}`)
+    .then(r => r.json())
+    .then(res => {
+      if (showLoading && container) container.style.opacity = '1';
+
+      if (res.success) {
+        if (res.available_balance !== undefined) {
+          currentWalletBalance = parseFloat(res.available_balance);
+          updateWalletNavbar(currentWalletBalance);
+        }
+        renderSlotsGrid(res.slots, groundId, date);
+      }
+    })
+    .catch(() => {
+      if (showLoading && container) container.style.opacity = '1';
+    });
+}
+
+// ---- Update Wallet Balance in Navbar & Modal Real-Time ----
+function updateWalletNavbar(bal) {
+  const el = document.getElementById('navbar-wallet-amount');
+  if (el) el.textContent = formatNum(bal);
+}
+
+// ---- Slot Click: Optimistic Local State & AJAX Hold ----
 function clickSlot(el) {
   document.querySelectorAll('.slot-card').forEach(s => { if (s !== el) s.classList.remove('slot-selected'); });
   el.classList.add('slot-selected');
 
-  const hour   = el.dataset.hour;
+  const hour   = parseInt(el.dataset.hour);
   const time   = el.dataset.time;
   const price  = parseFloat(el.dataset.price);
-  const ground = el.dataset.ground;
+  const ground = parseInt(el.dataset.ground);
   const date   = el.dataset.date;
-  modalData = { hour, time, price, ground, date };
+  modalData    = { hour, time, price, ground, date };
 
   // Place / refresh hold via AJAX
   fetch('hold_slot.php', {
@@ -666,26 +814,71 @@ function clickSlot(el) {
   .then(r => r.json())
   .then(res => {
     if (!res.success) {
-      showToast('\u274c ' + res.message, 'error');
+      showToast('❌ ' + (res.message || 'Slot is currently on hold.'), 'error');
       el.classList.remove('slot-selected');
-      setTimeout(() => location.reload(), 1600);
+      // Instantly sync grid in real time without refreshing!
+      fetchSlotsLive(ground, date, false);
       return;
     }
+
     holdSeconds = res.remaining || 300;
+
+    // Instantly update card DOM to held state
+    updateSlotCardHoldState(hour, holdSeconds, true);
+
     openModal();
   })
-  .catch(() => { showToast('\u274c Network error. Please try again.', 'error'); el.classList.remove('slot-selected'); });
+  .catch(() => {
+    showToast('❌ Network error. Please try again.', 'error');
+    el.classList.remove('slot-selected');
+  });
 }
 
-// ---- Modal open / close ----
+// ---- Update Single Slot Card Hold Visuals Directly ----
+function updateSlotCardHoldState(hour, seconds, isOwn) {
+  const card = document.getElementById('slot-card-' + hour);
+  if (!card) return;
+
+  card.className = isOwn ? 'slot-card slot-held slot-selected' : 'slot-card slot-on_hold';
+  card.dataset.holdRemaining = seconds;
+
+  let timerBar = card.querySelector('.hold-timer-bar');
+  let holdText = document.getElementById('hold-text-' + hour);
+
+  const prefix = isOwn ? '🔵 Your hold – ' : '⏳ On hold – ';
+  const m = Math.floor(seconds / 60);
+  const s = String(seconds % 60).padStart(2, '0');
+  const widthPct = Math.min(100, Math.max(0, Math.round((seconds / 300) * 100)));
+
+  if (!timerBar) {
+    const barWrap = document.createElement('div');
+    barWrap.className = 'hold-timer-bar mt-2';
+    barWrap.innerHTML = `<div class="hold-timer-fill" id="fill-${hour}" style="width:${widthPct}%"></div>`;
+    card.appendChild(barWrap);
+  } else {
+    const fill = document.getElementById('fill-' + hour);
+    if (fill) fill.style.width = widthPct + '%';
+  }
+
+  if (!holdText) {
+    holdText = document.createElement('div');
+    holdText.id = 'hold-text-' + hour;
+    holdText.className = 'text-[10px] text-blue-600 font-semibold mt-1';
+    card.appendChild(holdText);
+  }
+  holdText.textContent = `${prefix}${m}:${s} remaining`;
+}
+
+// ---- Modal Open / Close ----
 function openModal() {
+  isModalOpen = true;
   selectedType = null;
   document.querySelectorAll('.choice-card').forEach(c => c.classList.remove('selected'));
   document.getElementById('step1-next-btn').disabled = true;
 
-  // Ground name via data attribute (no em-dash splitting issues)
   const groundEl   = document.getElementById('ground-select');
-  const groundName = groundEl ? groundEl.dataset.groundName : 'Venue';
+  const selectedOpt = groundEl ? groundEl.options[groundEl.selectedIndex] : null;
+  const groundName = selectedOpt ? (selectedOpt.dataset.title || selectedOpt.text.split('—')[0].trim()) : 'Venue';
 
   document.getElementById('modal-ground-name').textContent = groundName;
   document.getElementById('modal-slot-time').textContent   = modalData.time;
@@ -703,24 +896,28 @@ function openModal() {
 }
 
 function closeModal() {
+  isModalOpen = false;
   document.getElementById('booking-modal-overlay').classList.remove('open');
   if (countdownInterval) clearInterval(countdownInterval);
   document.querySelectorAll('.slot-card.slot-selected').forEach(s => s.classList.remove('slot-selected'));
+
+  // Sync slots without page reload
+  fetchSlotsLive(currentGroundId, currentDate, false);
 }
 
-// ---- Modal countdown ----
+// ---- Modal Countdown ----
 function startCountdown(seconds) {
   if (countdownInterval) clearInterval(countdownInterval);
   let remaining = seconds;
   const total   = seconds;
   updateCountdownUI(remaining, total);
+
   countdownInterval = setInterval(() => {
     remaining--;
     if (remaining <= 0) {
       clearInterval(countdownInterval);
-      showToast('\u23f0 Hold expired. Slot released.', 'info');
+      showToast('⏰ Hold expired. Slot released.', 'info');
       closeModal();
-      setTimeout(() => location.reload(), 1000);
       return;
     }
     updateCountdownUI(remaining, total);
@@ -732,44 +929,89 @@ function updateCountdownUI(remaining, total) {
   const s   = String(remaining % 60).padStart(2, '0');
   const el  = document.getElementById('modal-countdown');
   if (el) el.textContent = m + ':' + s;
-  const pct = (remaining / total) * 100;
+  const pct = Math.max(0, Math.min(100, (remaining / total) * 100));
   const bar = document.getElementById('modal-progress');
   if (!bar) return;
   bar.style.width      = pct + '%';
   bar.style.background = pct < 30 ? '#fca5a5' : (pct < 60 ? '#fde68a' : 'white');
 }
 
-// ---- Live slot-card hold countdowns (ticks every second) ----
-(function initCardCountdowns() {
-  const heldCards = document.querySelectorAll('.slot-card[data-hold-remaining]');
-  if (!heldCards.length) return;
-  setInterval(() => {
+// ---- Live Card Countdown Timer (Ticks Every Second) ----
+function initCardCountdowns() {
+  if (cardTickInterval) clearInterval(cardTickInterval);
+  cardTickInterval = setInterval(() => {
+    const heldCards = document.querySelectorAll('.slot-card[data-hold-remaining]');
+    let hasExpired = false;
+
     heldCards.forEach(card => {
       let rem = parseInt(card.dataset.holdRemaining || '0');
-      if (rem <= 0) return;
+      if (rem <= 0) {
+        hasExpired = true;
+        return;
+      }
       rem--;
       card.dataset.holdRemaining = rem;
       const hour = card.dataset.hour;
       const fill = document.getElementById('fill-' + hour);
       const text = document.getElementById('hold-text-' + hour);
-      if (fill) fill.style.width = Math.max(0, Math.round((rem / 300) * 100)) + '%';
+      if (fill) fill.style.width = Math.max(0, Math.min(100, Math.round((rem / 300) * 100))) + '%';
       if (text) {
         if (rem <= 0) {
           text.textContent = 'Hold expired';
-          setTimeout(() => location.reload(), 900);
+          hasExpired = true;
         } else {
           const isOwn  = card.classList.contains('slot-held');
-          const prefix = isOwn ? '\ud83d\udd35 Your hold \u2013 ' : '\u23f3 On hold \u2013 ';
+          const prefix = isOwn ? '🔵 Your hold – ' : '⏳ On hold – ';
           const m      = Math.floor(rem / 60);
           const s      = String(rem % 60).padStart(2, '0');
-          text.textContent = prefix + m + ':' + s;
+          text.textContent = prefix + m + ':' + s + ' remaining';
         }
       }
     });
-  }, 1000);
-})();
 
-// ---- Step navigation ----
+    if (hasExpired && !isModalOpen) {
+      // Revert card state in real time via live fetch — no full reload!
+      fetchSlotsLive(currentGroundId, currentDate, false);
+    }
+  }, 1000);
+}
+
+// ---- Smooth Venue Change without Page Reload ----
+function onGroundChanged(newGroundId) {
+  currentGroundId = parseInt(newGroundId);
+  const groundEl   = document.getElementById('ground-select');
+  const opt        = groundEl ? groundEl.options[groundEl.selectedIndex] : null;
+
+  if (opt) {
+    const sportBadge = document.getElementById('ground-sport-badge');
+    if (sportBadge && opt.dataset.sport) sportBadge.textContent = opt.dataset.sport;
+  }
+
+  // Update URL seamlessly
+  history.pushState(null, '', `book_slot.php?ground=${currentGroundId}&date=${currentDate}`);
+
+  // Fetch slots live
+  fetchSlotsLive(currentGroundId, currentDate, true);
+}
+
+// ---- Smooth Date Change without Page Reload ----
+function onDateChanged(newDate) {
+  currentDate = newDate;
+
+  const dateLabel = document.getElementById('slots-date-label');
+  if (dateLabel) {
+    const d = new Date(newDate + 'T00:00:00');
+    dateLabel.textContent = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  }
+
+  // Update URL seamlessly
+  history.pushState(null, '', `book_slot.php?ground=${currentGroundId}&date=${currentDate}`);
+
+  // Fetch slots live
+  fetchSlotsLive(currentGroundId, currentDate, true);
+}
+
+// ---- Step Navigation in Booking Modal ----
 function showStep(n) {
   ['step-1','step-2-direct','step-2-open','step-2-team'].forEach(id => document.getElementById(id).classList.add('hidden'));
   ['dot-1','dot-2'].forEach(id => document.getElementById(id).classList.remove('active'));
@@ -783,10 +1025,11 @@ function showStep(n) {
   document.getElementById('dot-1').classList.add('active');
   document.getElementById('dot-2').classList.add('active');
 
-  const balance    = <?php echo $available_balance; ?>;
+  const balance    = currentWalletBalance;
   const half       = Math.round(modalData.price * 0.5);
   const groundEl   = document.getElementById('ground-select');
-  const groundName = groundEl ? groundEl.dataset.groundName : 'Venue';
+  const opt        = groundEl ? groundEl.options[groundEl.selectedIndex] : null;
+  const groundName = opt ? (opt.dataset.title || opt.text.split('—')[0].trim()) : 'Venue';
 
   if (selectedType === 'direct') {
     document.getElementById('step-2-direct').classList.remove('hidden');
@@ -802,11 +1045,12 @@ function showStep(n) {
     const payBtn = document.getElementById('direct-pay-btn');
     if (balance < modalData.price) {
       payBtn.disabled    = true;
-      payBtn.textContent = '\u274c Insufficient Balance \u2013 Top Up Wallet';
+      payBtn.textContent = '❌ Insufficient Balance – Top Up Wallet';
       payBtn.className  += ' opacity-50 cursor-not-allowed';
     } else {
       payBtn.disabled    = false;
-      payBtn.textContent = '\u2705 Confirm & Pay from Wallet';
+      payBtn.textContent = '✅ Confirm & Pay from Wallet';
+      payBtn.className   = payBtn.className.replace('opacity-50 cursor-not-allowed','');
     }
   } else if (selectedType === 'open_challenge') {
     document.getElementById('step-2-open').classList.remove('hidden');
@@ -818,11 +1062,12 @@ function showStep(n) {
     const ocBtn = document.getElementById('oc-pay-btn');
     if (balance < half) {
       ocBtn.disabled    = true;
-      ocBtn.textContent = '\u274c Insufficient Balance \u2013 Top Up Wallet';
+      ocBtn.textContent = '❌ Insufficient Balance – Top Up Wallet';
       ocBtn.className  += ' opacity-50 cursor-not-allowed';
     } else {
       ocBtn.disabled    = false;
-      ocBtn.textContent = '\u26a1 Pay 50% & Post Challenge';
+      ocBtn.textContent = '⚡ Pay 50% & Post Challenge';
+      ocBtn.className   = ocBtn.className.replace('opacity-50 cursor-not-allowed','');
     }
   } else {
     document.getElementById('step-2-team').classList.remove('hidden');
@@ -842,41 +1087,57 @@ function selectBookingType(type, el) {
 function proceedToStep2() { if (!selectedType) return; showStep(2); }
 function backToStep1()    { showStep(1); }
 
-// ---- Submit booking ----
+// ---- Submit Booking: Real-Time Instant State Update without Page Reload ----
 function submitBooking(type) {
   const btnId = type === 'direct' ? 'direct-pay-btn' : 'oc-pay-btn';
   const btn   = document.getElementById(btnId);
-  if (btn) { btn.disabled = true; btn.textContent = 'Processing\u2026'; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Processing payment…'; }
 
   fetch('process_booking.php', {
     method: 'POST',
     headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-    body: new URLSearchParams({ ground_id: modalData.ground, slot_date: modalData.date, slot_hour: modalData.hour, booking_type: type })
+    body: new URLSearchParams({
+      ground_id:    modalData.ground,
+      slot_date:    modalData.date,
+      slot_hour:    modalData.hour,
+      booking_type: type
+    })
   })
   .then(r => r.json())
   .then(res => {
     if (res.success) {
       closeModal();
       showToast(res.message, 'success');
-      setTimeout(() => location.reload(), 2200);
+
+      // Deduct wallet balance locally in real time
+      if (res.amount_paid !== undefined) {
+        currentWalletBalance = Math.max(0, currentWalletBalance - parseFloat(res.amount_paid));
+        updateWalletNavbar(currentWalletBalance);
+      }
+
+      // Fetch fresh slots live to immediately show confirmed / challenge state
+      fetchSlotsLive(modalData.ground, modalData.date, false);
     } else {
-      showToast('\u274c ' + res.message, 'error');
+      showToast('❌ ' + res.message, 'error');
       if (btn) {
         btn.disabled    = false;
-        btn.textContent = type === 'direct' ? '\u2705 Confirm & Pay from Wallet' : '\u26a1 Pay 50% & Post Challenge';
+        btn.textContent = type === 'direct' ? '✅ Confirm & Pay from Wallet' : '⚡ Pay 50% & Post Challenge';
       }
     }
   })
-  .catch(() => { showToast('\u274c Network error.', 'error'); if (btn) btn.disabled = false; });
+  .catch(() => {
+    showToast('❌ Network error.', 'error');
+    if (btn) btn.disabled = false;
+  });
 }
 
-// ---- Go to challenge team page ----
+// ---- Go to Challenge Team Page ----
 function goToChallengeTeam() {
   const half = Math.round(modalData.price * 0.5);
   window.location.href = 'challenge_team.php?ground_id=' + modalData.ground + '&date=' + modalData.date + '&hour=' + modalData.hour + '&price=' + modalData.price + '&half=' + half;
 }
 
-// ---- Toast ----
+// ---- Toast Notification ----
 function showToast(message, type) {
   type = type || 'info';
   const toast     = document.getElementById('toast');
@@ -886,7 +1147,13 @@ function showToast(message, type) {
 }
 
 function formatNum(n) { return Math.round(n).toLocaleString('en-PK'); }
+function escHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str || '';
+  return div.innerHTML;
+}
 
+// ---- Event Listeners ----
 document.getElementById('booking-modal-overlay').addEventListener('click', function(e) { if (e.target === this) closeModal(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
@@ -917,6 +1184,18 @@ function toggleMobileMenu() {
   const menu = document.getElementById('mobileNavigationMenu');
   if (menu) menu.classList.toggle('hidden');
 }
+
+// ---- Background Polling (Live Sync Every 4s) ----
+(function startRealTimeSync() {
+  initCardCountdowns();
+  if (livePollInterval) clearInterval(livePollInterval);
+  livePollInterval = setInterval(() => {
+    // Only poll when user is viewing the page and not typing
+    if (!document.hidden && !isModalOpen) {
+      fetchSlotsLive(currentGroundId, currentDate, false);
+    }
+  }, 4000);
+})();
 </script>
 </body>
 </html>
