@@ -14,6 +14,7 @@
  */
 session_start();
 require_once 'db.php';
+require_once 'notifications.php';
 header('Content-Type: application/json');
 
 if (!isset($_SESSION['user_id'])) {
@@ -35,7 +36,7 @@ try {
     // 1. Fetch the booking with a row lock
     $stmt = $pdo->prepare("
         SELECT b.id, b.ground_id, b.booked_by, b.slot_date, b.slot_hour,
-               b.price, b.amount_paid, b.booking_type, b.status,
+               b.price, b.amount_paid, b.booking_type, b.status, b.challenged_user_id,
                w.id AS wallet_id, w.available_balance
         FROM bookings b
         JOIN wallets w ON w.user_id = b.booked_by
@@ -120,6 +121,45 @@ try {
     $pdo->commit();
 
     $new_balance = round(floatval($booking['available_balance']) + $refund_amount, 2);
+
+    // ── Fetch ground info for notifications ──
+    $infoStmt = $pdo->prepare("
+        SELECT g.title AS ground_title, u.email, u.name
+        FROM grounds g
+        JOIN users u ON u.id = ?
+        WHERE g.id = ?
+    ");
+    $infoStmt->execute([$user_id, $booking['ground_id']]);
+    $info = $infoStmt->fetch();
+
+    // ── In-app notification ──
+    $refundMsg = $refund_amount > 0
+        ? "PKR " . number_format($refund_amount, 2) . " has been refunded to your wallet."
+        : "No refund was issued due to cancellation policy.";
+    createNotification($pdo, $user_id, 'booking_cancelled',
+        'Booking Cancelled',
+        "Your booking at " . ($info['ground_title'] ?? 'your venue') . " on {$booking['slot_date']} has been cancelled. {$refundMsg}",
+        'wallet.php'
+    );
+
+    // If a pending team challenge was withdrawn, notify the challenged user
+    if ($booking['status'] === 'challenge_pending' && !empty($booking['challenged_user_id'])) {
+        createNotification($pdo, intval($booking['challenged_user_id']), 'challenge_cancelled',
+            'Challenge Withdrawn',
+            "The team challenge at " . ($info['ground_title'] ?? 'the venue') . " on {$booking['slot_date']} was withdrawn by the challenger.",
+            'match_history.php'
+        );
+    }
+
+    // ── Email notification ──
+    if ($info) {
+        sendBookingCancelledEmail($info['email'], $info['name'], [
+            'ground_title' => $info['ground_title'],
+            'slot_date'    => $booking['slot_date'],
+            'slot_hour'    => $booking['slot_hour'],
+            'booking_id'   => $booking_id,
+        ], $refund_amount);
+    }
 
     echo json_encode([
         'success'       => true,

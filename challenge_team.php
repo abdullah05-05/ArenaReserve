@@ -173,6 +173,8 @@ body { font-family:'Inter',sans-serif; background:#f8fafc; }
           </a>
       </div>
       <div class="flex items-center gap-2">
+        <!-- Notification Bell -->
+        <?php include __DIR__ . '/assets/notification_bell.php'; ?>
         <!-- Profile Dropdown -->
         <div class="relative">
           <button id="profileDropdownBtn" onclick="toggleProfileDropdown()" class="flex items-center gap-2 hover:opacity-90 focus:outline-none transition-opacity" title="User Menu">
@@ -432,32 +434,56 @@ function submitChallenge() {
 
   const btn = document.getElementById('ch-submit-btn');
   btn.disabled    = true;
-  btn.textContent = 'Processing…';
+  btn.textContent = 'Securing slot…';
 
-  const formData = new URLSearchParams({
-    ground_id:            CTX.ground_id,
-    slot_date:            CTX.date,
-    slot_hour:            CTX.hour,
-    booking_type:         'team_challenge',
-    challenger_team_name: selectedTeamName
-  });
-
-  fetch('process_booking.php', {
+  // 1. Ensure/refresh the hold on the slot first
+  fetch('hold_slot.php', {
     method: 'POST',
     headers: {'Content-Type':'application/x-www-form-urlencoded'},
-    body: formData
+    body: new URLSearchParams({
+      ground_id: CTX.ground_id,
+      slot_date: CTX.date,
+      slot_hour: CTX.hour
+    })
   })
   .then(r => r.json())
-  .then(res => {
-    closeChModal();
-    if (res.success) {
-      showCTToast('🎉 Challenge sent to ' + selectedTeamName + '! Payment held.', 'success');
-      setTimeout(() => { window.location.href = 'match_history.php'; }, 2500);
-    } else {
-      showCTToast('❌ ' + res.message, 'error');
+  .then(holdRes => {
+    if (!holdRes.success) {
+      showCTToast('❌ ' + (holdRes.message || 'Slot is no longer available.'), 'error');
       btn.disabled    = false;
       btn.textContent = '⚡ Pay & Send Challenge';
+      return;
     }
+
+    btn.textContent = 'Processing payment…';
+
+    const formData = new URLSearchParams({
+      ground_id:            CTX.ground_id,
+      slot_date:            CTX.date,
+      slot_hour:            CTX.hour,
+      booking_type:         'team_challenge',
+      challenger_team_name: selectedTeamName,
+      challenged_user_id:   selectedTeamId,
+      ch_message:           (document.getElementById('ch-message')?.value || '')
+    });
+
+    return fetch('process_booking.php', {
+      method: 'POST',
+      headers: {'Content-Type':'application/x-www-form-urlencoded'},
+      body: formData
+    })
+    .then(r => r.json())
+    .then(res => {
+      closeChModal();
+      if (res.success) {
+        showCTToast('🎉 Challenge sent to ' + selectedTeamName + '! Payment held.', 'success');
+        setTimeout(() => { window.location.href = 'match_history.php'; }, 2500);
+      } else {
+        showCTToast('❌ ' + res.message, 'error');
+        btn.disabled    = false;
+        btn.textContent = '⚡ Pay & Send Challenge';
+      }
+    });
   })
   .catch(() => {
     showCTToast('❌ Network error.', 'error');

@@ -39,12 +39,17 @@ try {
             `status` ENUM('confirmed','challenge_open','challenge_pending','challenge_accepted','cancelled') NOT NULL DEFAULT 'confirmed',
             `challenger_team_name` VARCHAR(255) DEFAULT NULL,
             `opponent_id` INT DEFAULT NULL,
+            `challenged_user_id` INT DEFAULT NULL,
             `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (`ground_id`) REFERENCES `grounds`(`id`) ON DELETE CASCADE,
             FOREIGN KEY (`booked_by`) REFERENCES `users`(`id`) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     ");
-    $success[] = "✅ bookings table created (or already exists).";
+    $cols = $pdo->query("SHOW COLUMNS FROM bookings LIKE 'challenged_user_id'")->fetchAll();
+    if (empty($cols)) {
+        $pdo->exec("ALTER TABLE bookings ADD COLUMN challenged_user_id INT DEFAULT NULL");
+    }
+    $success[] = "✅ bookings table created/updated with challenged_user_id.";
 } catch (Exception $e) {
     $errors[] = "❌ bookings: " . $e->getMessage();
 }

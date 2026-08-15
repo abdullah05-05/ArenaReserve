@@ -127,6 +127,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         </a>
                     </div>
 
+                    <!-- Notification Bell -->
+                    <?php include __DIR__ . '/assets/notification_bell.php'; ?>
+
                     <!-- Profile Dropdown -->
                     <div class="relative">
                         <button id="profileDropdownBtn" onclick="toggleProfileDropdown()" class="flex items-center gap-2 hover:opacity-90 focus:outline-none transition-opacity" title="User Menu">

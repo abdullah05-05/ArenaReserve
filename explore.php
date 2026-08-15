@@ -92,7 +92,7 @@ try {
     $grounds = [];
 }
 
-// Fetch open challenges
+// Fetch open challenges (only 'challenge_open' — team challenges are private)
 $open_challenges = [];
 try {
     $stmt = $pdo->prepare("
@@ -174,12 +174,8 @@ try {
                         </a>
                     </div>
 
-                    <!-- Notification -->
-                    <button class="p-1 rounded-full text-slate-400 hover:text-slate-600 focus:outline-none">
-                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                        </svg>
-                    </button>
+                    <!-- Notification Bell -->
+                    <?php include __DIR__ . '/assets/notification_bell.php'; ?>
 
                     <!-- Profile Dropdown (Only Profile Settings & Logout) -->
                     <div class="relative">
@@ -532,7 +528,7 @@ try {
             ];
             $badge = $sport_badge_colors[$ch['sport_type']] ?? 'bg-slate-100 text-slate-700';
         ?>
-        <div class="bg-white border border-violet-200 rounded-xl shadow-sm hover:shadow-md hover:border-violet-400 transition-all duration-200 overflow-hidden">
+        <div id="open-challenge-card-<?php echo $ch['id']; ?>" class="bg-white border border-violet-200 rounded-xl shadow-sm hover:shadow-md hover:border-violet-400 transition-all duration-200 overflow-hidden">
             <!-- Top accent -->
             <div class="h-1.5 bg-gradient-to-r from-violet-500 to-purple-600"></div>
             <div class="p-5">
@@ -732,7 +728,14 @@ try {
                 closeAcceptModal();
                 if (res.success) {
                     showExpToast(res.message, '#059669');
-                    setTimeout(() => location.reload(), 2500);
+                    // Real-time animated removal of the accepted challenge card
+                    const card = document.getElementById('open-challenge-card-' + acceptBookingId);
+                    if (card) {
+                        card.style.transition = 'all 0.4s ease';
+                        card.style.opacity = '0';
+                        card.style.transform = 'scale(0.95)';
+                        setTimeout(() => card.remove(), 400);
+                    }
                 } else {
                     showExpToast('❌ ' + res.message, '#dc2626');
                     btn.disabled = false;

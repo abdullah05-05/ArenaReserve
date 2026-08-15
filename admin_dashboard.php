@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once 'db.php';
+require_once 'notifications.php';
 require_once 'logo_helper.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['current_role'] !== 'Admin') {
@@ -33,6 +34,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $pdo->prepare("UPDATE grounds SET is_verified=1, ground_status='Active', block_reason=NULL WHERE id=?")->execute([$target_id]);
             $pdo->prepare("UPDATE onboarding_packages SET approval_status='Approved', rejection_reason=NULL WHERE ground_id=?")->execute([$target_id]);
             $pdo->commit();
+            // Notify owner
+            $ownerStmt = $pdo->prepare("SELECT g.title, u.id AS owner_id, u.name, u.email FROM grounds g JOIN users u ON u.id=g.owner_id WHERE g.id=?");
+            $ownerStmt->execute([$target_id]);
+            $ownerInfo = $ownerStmt->fetch();
+            if ($ownerInfo) {
+                createNotification($pdo, $ownerInfo['owner_id'], 'venue_approved',
+                    'Venue Approved! ✅',
+                    "Your venue '{$ownerInfo['title']}' has been approved and is now live on ArenaReserve!",
+                    'owner_dashboard.php'
+                );
+                sendVenueApprovedEmail($ownerInfo['email'], $ownerInfo['name'], $ownerInfo['title']);
+            }
             $success_msg = 'Venue approved and published live!';
         }
 
@@ -45,6 +58,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $pdo->prepare("UPDATE grounds SET is_verified=2 WHERE id=?")->execute([$target_id]);
                 $pdo->prepare("UPDATE onboarding_packages SET approval_status='Rejected', rejection_reason=? WHERE ground_id=?")->execute([$reason, $target_id]);
                 $pdo->commit();
+                // Notify owner
+                $ownerStmt = $pdo->prepare("SELECT g.title, u.id AS owner_id, u.name, u.email FROM grounds g JOIN users u ON u.id=g.owner_id WHERE g.id=?");
+                $ownerStmt->execute([$target_id]);
+                $ownerInfo = $ownerStmt->fetch();
+                if ($ownerInfo) {
+                    createNotification($pdo, $ownerInfo['owner_id'], 'venue_rejected',
+                        'Venue Needs Revision',
+                        "Your venue '{$ownerInfo['title']}' could not be approved. Reason: {$reason}",
+                        'owner_dashboard.php'
+                    );
+                    sendVenueRejectedEmail($ownerInfo['email'], $ownerInfo['name'], $ownerInfo['title'], $reason);
+                }
                 $success_msg = 'Venue rejected. Reason saved and visible to the owner.';
             }
         }
@@ -92,6 +117,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $pdo->prepare("INSERT INTO wallet_transactions (wallet_id, amount, transaction_type, reference_id) VALUES (?,?,'Deposit',?)")
                     ->execute([$wid, $req['amount'], $req['reference_details']]);
                 $pdo->commit();
+                // Notify player
+                $playerStmt = $pdo->prepare("SELECT name, email FROM users WHERE id=?");
+                $playerStmt->execute([$req['player_id']]);
+                $playerInfo = $playerStmt->fetch();
+                if ($playerInfo) {
+                    createNotification($pdo, $req['player_id'], 'deposit_approved',
+                        'Wallet Top-Up Approved 💰',
+                        'PKR ' . number_format($req['amount'], 2) . ' has been added to your wallet balance.',
+                        'wallet.php'
+                    );
+                    sendWalletDepositApprovedEmail($playerInfo['email'], $playerInfo['name'], floatval($req['amount']));
+                }
                 $success_msg = 'Deposit approved and wallet credited!';
             } else {
                 $pdo->rollBack();
@@ -104,7 +141,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $reason = trim($_POST['rejection_reason'] ?? '');
             if ($reason === '') { $error_msg = 'Please provide a rejection reason for the wallet request.'; }
             else {
+                // Fetch player info before update
+                $depStmt = $pdo->prepare("SELECT wdr.amount, wdr.player_id, u.name, u.email FROM wallet_deposit_requests wdr JOIN users u ON u.id=wdr.player_id WHERE wdr.id=?");
+                $depStmt->execute([$target_id]);
+                $depInfo = $depStmt->fetch();
                 $pdo->prepare("UPDATE wallet_deposit_requests SET status='Rejected', rejection_reason=? WHERE id=?")->execute([$reason, $target_id]);
+                if ($depInfo) {
+                    createNotification($pdo, $depInfo['player_id'], 'deposit_rejected',
+                        'Wallet Top-Up Rejected',
+                        'Your top-up request of PKR ' . number_format($depInfo['amount'], 2) . ' was rejected. Reason: ' . $reason,
+                        'wallet.php'
+                    );
+                    sendWalletDepositRejectedEmail($depInfo['email'], $depInfo['name'], floatval($depInfo['amount']), $reason);
+                }
                 $success_msg = 'Wallet request rejected. Reason saved and visible to player.';
             }
         }
@@ -350,6 +399,8 @@ try {
             <span class="ml-2 text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full font-bold uppercase">Admin</span>
         </div>
         <div class="flex items-center gap-3">
+            <!-- Notification Bell -->
+            <?php include __DIR__ . '/assets/notification_bell.php'; ?>
             <div class="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-sm">A</div>
             <span class="text-xs font-semibold text-slate-700 hidden md:block">Super Admin</span>
             <a href="logout.php" class="text-xs text-red-500 hover:text-red-700 font-medium">Logout</a>

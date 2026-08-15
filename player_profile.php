@@ -233,6 +233,8 @@ $name_initials = strtoupper(substr($user['name'], 0, 1));
                            <span class="hidden sm:inline">Owner</span>
                         </a>
                     </div>
+                    <!-- Notification Bell -->
+                    <?php include __DIR__ . '/assets/notification_bell.php'; ?>
                     
                     <!-- Profile Dropdown (Only Profile Settings & Logout) -->
                     <div class="relative">
