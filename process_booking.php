@@ -1,7 +1,7 @@
 <?php
 /**
  * process_booking.php — AJAX endpoint to process a booking payment
- * POST params: ground_id, slot_date, slot_hour, booking_type, challenger_team_name (optional)
+ * POST params: ground_id, slot_date, slot_hour, booking_type, challenger_team_name (optional), ch_message (optional)
  * Returns JSON
  */
 session_start();
@@ -21,6 +21,7 @@ $slot_hour            = intval($_POST['slot_hour'] ?? -1);
 $booking_type         = trim($_POST['booking_type'] ?? '');
 $challenger_team_name = trim($_POST['challenger_team_name'] ?? '');
 $challenged_user_id   = intval($_POST['challenged_user_id'] ?? 0); // specific opponent for team_challenge
+$ch_message           = trim($_POST['ch_message'] ?? ($_POST['challenge_message'] ?? ''));
 
 $valid_types = ['direct', 'open_challenge', 'team_challenge'];
 if (!$ground_id || !$slot_date || $slot_hour < 0 || !in_array($booking_type, $valid_types)) {
@@ -118,17 +119,26 @@ try {
     $ref = 'BK-' . strtoupper($booking_type) . '-' . $ground_id . '-' . $slot_date . '-' . $slot_hour;
     $stmt->execute([$wallet['id'], -$amount_to_charge, $ref]);
 
-    // 9. Insert booking (with challenged_user_id for team_challenge)
+    // Ensure challenge_message column exists in bookings
+    try {
+        $cols = $pdo->query("SHOW COLUMNS FROM bookings LIKE 'challenge_message'")->fetchAll();
+        if (empty($cols)) {
+            $pdo->exec("ALTER TABLE bookings ADD COLUMN challenge_message TEXT DEFAULT NULL");
+        }
+    } catch (Exception $e) {}
+
+    // 9. Insert booking (with challenged_user_id and challenge_message for team_challenge)
     $stmt = $pdo->prepare("
-        INSERT INTO bookings (ground_id, booked_by, slot_date, slot_hour, price, amount_paid, booking_type, status, challenger_team_name, challenged_user_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO bookings (ground_id, booked_by, slot_date, slot_hour, price, amount_paid, booking_type, status, challenger_team_name, challenged_user_id, challenge_message)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ");
     $stmt->execute([
         $ground_id, $user_id, $slot_date, $slot_hour,
         $full_price, $amount_to_charge,
         $booking_type, $booking_status,
         $challenger_team_name ?: null,
-        ($booking_type === 'team_challenge' && $challenged_user_id > 0) ? $challenged_user_id : null
+        ($booking_type === 'team_challenge' && $challenged_user_id > 0) ? $challenged_user_id : null,
+        ($booking_type === 'team_challenge' && !empty($ch_message)) ? $ch_message : null
     ]);
     $booking_id = $pdo->lastInsertId();
 
@@ -184,10 +194,14 @@ try {
         $chalStmt->execute([$challenged_user_id]);
         $chalUser = $chalStmt->fetch();
         if ($chalUser) {
-            // In-app notification to the challenged user
+            // In-app notification to the challenged user (including challenger message)
+            $chalNotifMsg = "{$info['player_name']} challenged your team at {$info['ground_title']} on {$slot_date}. Pay 25% to accept in Match History!";
+            if (!empty($ch_message)) {
+                $chalNotifMsg .= " Message: \"{$ch_message}\"";
+            }
             createNotification($pdo, $challenged_user_id, 'challenge_received',
                 '⚡ Team Challenge Received!',
-                "{$info['player_name']} has challenged your team at {$info['ground_title']} on {$slot_date}. Pay 25% to accept in Match History!",
+                $chalNotifMsg,
                 'match_history.php'
             );
             // Email the challenged user
@@ -197,7 +211,7 @@ try {
                 'slot_hour'       => $slot_hour,
                 'booking_id'      => $booking_id,
                 'challenger_name' => $info['player_name'],
-                'message'         => $_POST['ch_message'] ?? '',
+                'message'         => $ch_message,
             ]);
         }
     }
