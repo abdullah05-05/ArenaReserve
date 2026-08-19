@@ -131,6 +131,8 @@ VALUES
     $pdo->commit();
 
     $success = 'Registration successful! A verification email has been sent to your email address. Please verify your email before logging in.';
+    $showSuccessPopup = true;
+    $_POST = []; // Clear form fields so the form shows blank
 
 } else {
 
@@ -203,14 +205,7 @@ VALUES
                 </div>
             <?php endif; ?>
 
-            <?php if (!empty($success)): ?>
-                <div class="mb-4 bg-green-50 border-l-4 border-green-500 p-4 text-sm text-green-700">
-                    <?php echo htmlspecialchars($success); ?>
-                    <div class="mt-2">
-                        <a href="login.php" class="font-medium underline text-green-800 hover:text-green-900">Proceed to login &rarr;</a>
-                    </div>
-                </div>
-            <?php endif; ?>
+            
 
             <form class="space-y-6" action="signup.php" method="POST" novalidate>
                 <div id="live-validation-summary" class="hidden mb-4 rounded-md bg-red-50 border border-red-200 p-4 text-sm text-red-700"></div>
@@ -319,6 +314,27 @@ VALUES
             </div>
         </div>
     </div>
+
+    <!-- Success Popup Modal -->
+    <?php if (!empty($showSuccessPopup)): ?>
+    <div id="successModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+        <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6 text-center">
+            <!-- Success Icon -->
+            <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-emerald-100 mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+            </div>
+            <h3 class="text-xl font-bold text-slate-900 mb-2">Registration Successful!</h3>
+            <p class="text-sm text-slate-600 mb-6">
+                A verification email has been sent to your email address. Please check your inbox and verify your email before logging in.
+            </p>
+            <button id="closeSuccessModal" class="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-colors">
+                OK
+            </button>
+        </div>
+    </div>
+    <?php endif; ?>
 
     <script>
         const signupForm = document.querySelector('form');
@@ -498,6 +514,16 @@ VALUES
                 event.preventDefault();
             }
         });
+
+        // Success Modal Handler
+        const successModal = document.getElementById('successModal');
+        if (successModal) {
+            const closeBtn = document.getElementById('closeSuccessModal');
+            closeBtn.addEventListener('click', function () {
+                successModal.style.display = 'none';
+                signupForm.reset();
+            });
+        }
     </script>
 </body>
 </html>
