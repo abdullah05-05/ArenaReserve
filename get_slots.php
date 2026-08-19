@@ -92,10 +92,12 @@ try {
         $nextDisp   = $nextH === 0 ? 12 : ($nextH > 12 ? $nextH - 12 : ($nextH === 12 ? 12 : $nextH));
         $nextSuffix = $nextH < 12 ? 'AM' : 'PM';
         $time_label = sprintf('%d:00 %s – %d:00 %s', $displayH, $suffix, $nextDisp, $nextSuffix);
-
         $type           = 'available';
         $label          = '';
         $hold_remaining = 0;
+
+        $slot_start_time = strtotime($slot_date . ' ' . sprintf('%02d:00:00', $h));
+        $is_passed = ($slot_start_time <= time());
 
         if (isset($bookings_map[$h])) {
             $bk = $bookings_map[$h];
@@ -120,6 +122,9 @@ try {
                     default            => 'Booked'
                 };
             }
+        } elseif ($is_passed) {
+            $type  = 'passed';
+            $label = 'Passed';
         } elseif (isset($holds_map[$h])) {
             $hold = $holds_map[$h];
             if (intval($hold['held_by']) === $user_id) {

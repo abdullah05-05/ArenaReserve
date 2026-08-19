@@ -504,7 +504,7 @@ try {
             </div>
             <div>
                 <h2 class="text-xl font-bold text-slate-900">⚡ Open Challenges</h2>
-                <p class="text-sm text-slate-500">Accept a challenge — pay your 50% to confirm the match!</p>
+                <p class="text-sm text-slate-500">Accept a challenge — pay your 25% share to confirm the match! (50% remaining paid at venue)</p>
             </div>
             <span class="ml-auto bg-violet-100 text-violet-700 text-xs font-bold px-3 py-1.5 rounded-full"><?php echo count($open_challenges); ?> open</span>
         </div>
@@ -518,7 +518,7 @@ try {
             $nextDisp = $nextH > 12 ? $nextH - 12 : ($nextH === 0 ? 12 : $nextH);
             $nextSuf  = $nextH < 12 ? 'AM' : 'PM';
             $time_lbl = sprintf('%d:00 %s – %d:00 %s', $displayH, $suffix, $nextDisp, $nextSuf);
-            $opponent_cost = round(floatval($ch['price']) * 0.5, 0);
+            $opponent_cost = round(floatval($ch['price']) * 0.25, 0);
             $sport_badge_colors = [
                 'Football'  =>'bg-green-100 text-green-700',
                 'Cricket'   =>'bg-sky-100 text-sky-700',
@@ -560,9 +560,9 @@ try {
                         <div class="text-sm font-bold text-slate-700"><?php echo htmlspecialchars($ch['challenger_name']); ?></div>
                     </div>
                     <div class="text-right">
-                        <div class="text-[10px] text-slate-400 uppercase font-semibold">You Pay</div>
+                        <div class="text-[10px] text-slate-400 uppercase font-semibold">You Pay (25%)</div>
                         <div class="text-base font-extrabold text-violet-700"><?php echo number_format($opponent_cost); ?> PKR</div>
-                        <div class="text-[10px] text-slate-400">50% of <?php echo number_format($ch['price']); ?></div>
+                        <div class="text-[10px] text-slate-400">25% of <?php echo number_format($ch['price']); ?> (50% at venue)</div>
                     </div>
                 </div>
 
@@ -596,7 +596,7 @@ try {
             <div class="flex justify-between"><span class="text-slate-500">Time Slot</span><span class="font-semibold text-slate-800" id="acc-time">--</span></div>
             <div class="flex justify-between"><span class="text-slate-500">Date</span><span class="font-semibold text-slate-800" id="acc-date">--</span></div>
             <div class="border-t border-violet-200 pt-2 flex justify-between">
-              <span class="font-bold text-slate-700">Your Payment (50%)</span>
+              <span class="font-bold text-slate-700">Your Payment (25% Advance)</span>
               <span class="font-extrabold text-violet-700 text-base" id="acc-cost">-- PKR</span>
             </div>
             <div class="flex justify-between text-xs">
@@ -605,11 +605,11 @@ try {
             </div>
           </div>
           <div class="bg-violet-100 rounded-xl p-3 text-xs text-violet-700 mb-5">
-            By accepting, you confirm your <?php echo '50%'; ?> share. The full match slot will be locked for both teams.
+            By accepting, you confirm your 25% share. Both teams pay their remaining 25% share (50% total) directly at the venue.
           </div>
           <div class="flex gap-3">
             <button onclick="closeAcceptModal()" class="flex-1 py-2.5 border border-slate-300 text-slate-700 text-sm font-semibold rounded-xl hover:bg-slate-50">Cancel</button>
-            <button onclick="confirmAccept()" id="acc-btn" class="flex-1 py-2.5 bg-violet-600 hover:bg-violet-700 text-white text-sm font-bold rounded-xl shadow transition-all">⚡ Pay & Accept</button>
+            <button onclick="confirmAccept()" id="acc-btn" class="flex-1 py-2.5 bg-violet-600 hover:bg-violet-700 text-white text-sm font-bold rounded-xl shadow transition-all">⚡ Pay 25% & Accept</button>
           </div>
         </div>
       </div>

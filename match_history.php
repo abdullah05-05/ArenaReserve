@@ -307,7 +307,7 @@ body { font-family: 'Inter', sans-serif; background: #f8fafc; }
           $tc = $typeConfig[$bk['booking_type']] ?? ['badge'=>'bg-slate-100 text-slate-600','label'=>$bk['booking_type']];
           $timeLabel = formatHourLabel(intval($bk['slot_hour']));
           $slot_start_time = strtotime($bk['slot_date'] . ' ' . sprintf('%02d:00:00', intval($bk['slot_hour'])));
-          $isUpcoming = ($slot_start_time > time());
+          $isUpcoming = ($slot_start_time > time()) && ($bk['status'] !== 'cancelled');
           $isPast     = !$isUpcoming;
           $sportIcon  = ['Football'=>'⚽','Cricket'=>'🏏','Basketball'=>'🏀','Badminton'=>'🏸','Futsal'=>'⚽'][$bk['sport_type']] ?? '🏟️';
         ?>
@@ -508,7 +508,7 @@ function closeCancelModal() {
 
 // ---- Accept a specific team challenge ----
 function acceptChallenge(bookingId, btn) {
-  if (!confirm('Accept this challenge? 50% of the slot price will be deducted from your wallet.')) return;
+  if (!confirm('Accept this challenge? 25% of the slot price will be deducted from your wallet as advance payment (50% remaining paid at venue).')) return;
   btn.disabled = true;
   btn.textContent = 'Processing…';
 
@@ -582,6 +582,9 @@ function confirmCancel() {
           statusBadge.className = 'status-badge text-xs font-bold px-2 py-1 rounded-full bg-red-100 text-red-700';
           statusBadge.textContent = '❌ Cancelled';
         }
+        // Remove Upcoming badge if present
+        const upcomingBadge = row.querySelector('.pulse-dot')?.parentElement;
+        if (upcomingBadge) upcomingBadge.remove();
       }
       // Update wallet balance display
       if (res.new_balance !== undefined) {

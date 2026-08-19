@@ -12,7 +12,7 @@ $user_id     = $_SESSION['user_id'];
 $success_msg = '';
 $error_msg   = '';
 
-// ── Ensure match_scores table & enum exist ────────────────────────────────────
+// ── Ensure match_scores table, cancellation_payout_owner column & enum exist ──
 try {
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS `match_scores` (
@@ -30,6 +30,10 @@ try {
             FOREIGN KEY (`owner_id`)   REFERENCES `users`(`id`)    ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     ");
+    $cols = $pdo->query("SHOW COLUMNS FROM bookings LIKE 'cancellation_payout_owner'")->fetchAll();
+    if (empty($cols)) {
+        $pdo->exec("ALTER TABLE bookings ADD COLUMN cancellation_payout_owner DECIMAL(10,2) NOT NULL DEFAULT 0.00");
+    }
 } catch (Exception $e) {}
 
 // ── Handle score submission ────────────────────────────────────────────────────
@@ -43,12 +47,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
         try {
             $pdo->beginTransaction();
 
-            // Verify this booking belongs to a ground owned by the current user
-            // and slot time has passed, and is not already scored
-            // Fetch booking details for score entry
+            // Fetch booking details for score entry (including slot total price and amount paid)
             $stmt = $pdo->prepare("
                 SELECT b.id, b.ground_id, b.booked_by, b.opponent_id,
-                       b.amount_paid, b.slot_date, b.slot_hour, b.booking_type,
+                       b.price, b.amount_paid, b.slot_date, b.slot_hour, b.booking_type,
                        b.status, b.challenger_team_name,
                        g.owner_id AS ground_owner_id,
                        booker.name AS team_a_name,
@@ -85,13 +87,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
             $score_a = ($winner_side === 'a') ? 1 : 0;
             $score_b = ($winner_side === 'b') ? 1 : 0;
 
+            // 5% platform commission on total slot price deducted from online advance payment
+            $slot_full_price = floatval($bk['price'] > 0 ? $bk['price'] : floatval($bk['amount_paid']) * 2);
+            $online_paid     = floatval($bk['amount_paid']);
+            $platform_fee    = round($slot_full_price * 0.05, 2);
+            $owner_payout    = max(0, round($online_paid - $platform_fee, 2));
+
             // Insert into match_scores
             $stmt3 = $pdo->prepare("
                 INSERT INTO match_scores
                     (booking_id, ground_id, owner_id, team_a_user, team_b_user, score_a, score_b, commission_paid)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ");
-            $commission = round(floatval($bk['amount_paid']) * 0.95, 2);
             $stmt3->execute([
                 $booking_id,
                 $bk['ground_id'],
@@ -100,32 +107,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
                 $bk['opponent_id'],
                 $score_a,
                 $score_b,
-                $commission
+                $owner_payout
             ]);
 
-            // Credit 95% commission to actual ground owner's wallet
+            // Credit payout to actual ground owner's wallet
             $wStmt = $pdo->prepare("SELECT id FROM wallets WHERE user_id = ? FOR UPDATE");
             $wStmt->execute([$ground_owner_id]);
             $ownerWallet = $wStmt->fetch();
 
             if (!$ownerWallet) {
                 $pdo->prepare("INSERT INTO wallets (user_id, available_balance) VALUES (?, ?)")
-                    ->execute([$ground_owner_id, $commission]);
+                    ->execute([$ground_owner_id, $owner_payout]);
                 $ownerWalletId = $pdo->lastInsertId();
             } else {
                 $ownerWalletId = $ownerWallet['id'];
                 $pdo->prepare("UPDATE wallets SET available_balance = available_balance + ? WHERE id = ?")
-                    ->execute([$commission, $ownerWalletId]);
+                    ->execute([$owner_payout, $ownerWalletId]);
             }
 
             // Record transaction
             $pdo->prepare("
                 INSERT INTO wallet_transactions (wallet_id, amount, transaction_type, reference_id)
                 VALUES (?, ?, 'Commission', ?)
-            ")->execute([$ownerWalletId, $commission, 'SCORE-BK-' . $booking_id]);
+            ")->execute([$ownerWalletId, $owner_payout, 'SCORE-BK-' . $booking_id]);
 
             $pdo->commit();
-            $success_msg = '✅ Score recorded! PKR ' . number_format($commission, 2) . ' (95% commission) credited to venue owner.';
+            $success_msg = '✅ Score recorded! PKR ' . number_format($owner_payout, 2) . ' credited to venue owner wallet (5% platform fee of PKR ' . number_format($platform_fee, 2) . ' deducted from online advance payment).';
 
         } catch (Exception $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
@@ -138,22 +145,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
 $bookings = [];
 try {
     // Check if user is Admin or owns specific grounds
-    $user_role = $_SESSION['current_role'] ?? 'Player';
-    $user_mode = $_SESSION['current_active_mode'] ?? 'Player';
-    $is_admin  = ($user_role === 'Admin' || $user_mode === 'Admin');
+    $is_admin = (($_SESSION['current_role'] ?? '') === 'Admin');
 
     $stmt_check = $pdo->prepare("SELECT COUNT(*) FROM grounds WHERE owner_id = ?");
     $stmt_check->execute([$user_id]);
     $my_grounds_count = $stmt_check->fetchColumn();
 
     if ($is_admin || $my_grounds_count == 0) {
-        // Admin or owner without specific registered grounds: fetch all non-cancelled bookings
+        // Admin or owner without specific registered grounds: fetch bookings
         $stmt = $pdo->prepare("
             SELECT
                 b.id            AS booking_id,
                 b.slot_date,
                 b.slot_hour,
+                b.price,
                 b.amount_paid,
+                b.cancellation_payout_owner,
                 b.booking_type,
                 b.status        AS booking_status,
                 b.challenger_team_name,
@@ -172,7 +179,7 @@ try {
             LEFT JOIN users booker ON booker.id = b.booked_by
             LEFT JOIN users opp    ON opp.id    = b.opponent_id
             LEFT JOIN match_scores ms ON ms.booking_id = b.id
-            WHERE b.status NOT IN ('cancelled')
+            WHERE (b.status != 'cancelled' OR b.cancellation_payout_owner > 0)
             ORDER BY b.slot_date DESC, b.slot_hour DESC
         ");
         $stmt->execute();
@@ -183,7 +190,9 @@ try {
                 b.id            AS booking_id,
                 b.slot_date,
                 b.slot_hour,
+                b.price,
                 b.amount_paid,
+                b.cancellation_payout_owner,
                 b.booking_type,
                 b.status        AS booking_status,
                 b.challenger_team_name,
@@ -202,7 +211,7 @@ try {
             LEFT JOIN users booker ON booker.id = b.booked_by
             LEFT JOIN users opp    ON opp.id    = b.opponent_id
             LEFT JOIN match_scores ms ON ms.booking_id = b.id
-            WHERE b.status NOT IN ('cancelled')
+            WHERE (b.status != 'cancelled' OR b.cancellation_payout_owner > 0)
             ORDER BY b.slot_date DESC, b.slot_hour DESC
         ");
         $stmt->execute([':owner' => $user_id]);
@@ -392,6 +401,8 @@ $sport_icons = [
                         $hrs = (int)floor($slot_remaining / 3600);
                         $mins = (int)floor(($slot_remaining % 3600) / 60);
                         $already_scored = !empty($bk['score_id']) || (!empty($bk['score_a']) || $bk['score_a'] === '0' || $bk['score_b'] !== null);
+                        $is_cancelled   = ($bk['booking_status'] === 'cancelled');
+                        $cancellation_earned = floatval($bk['cancellation_payout_owner'] ?? 0);
                         $team_a = trim((string)($bk['team_a_name'] ?? 'Team A')) ?: 'Team A';
                         $team_b = trim((string)($bk['team_b_name'] ?? 'Team B')) ?: 'Team B';
                         $slot_label = date('D, M j', strtotime($slot_date)) . ' · ' . sprintf('%02d:00', $slot_hour) . ':00';
@@ -426,12 +437,23 @@ $sport_icons = [
                             <div class="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
                                 <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
                                 <?php echo $slot_label; ?>
-                                <span class="text-emerald-600 font-semibold">· PKR <?php echo number_format($bk['amount_paid'], 0); ?> paid</span>
+                                <?php if ($is_cancelled): ?>
+                                    <span class="text-rose-600 font-semibold">· Cancelled booking</span>
+                                <?php else: ?>
+                                    <span class="text-emerald-600 font-semibold">· PKR <?php echo number_format($bk['amount_paid'], 0); ?> paid</span>
+                                <?php endif; ?>
                             </div>
 
                             <!-- Teams -->
                             <div class="flex items-center gap-2 flex-wrap">
-                                <?php if ($already_scored): ?>
+                                <?php if ($is_cancelled): ?>
+                                    <span class="font-semibold text-slate-700 text-sm"><?php echo htmlspecialchars($team_a); ?></span>
+                                    <?php if (!empty($bk['team_b_name'])): ?>
+                                        <span class="text-slate-400 text-sm">vs</span>
+                                        <span class="font-semibold text-slate-700 text-sm"><?php echo htmlspecialchars($team_b); ?></span>
+                                    <?php endif; ?>
+                                    <span class="text-xs text-rose-500 font-medium">(Booking Cancelled)</span>
+                                <?php elseif ($already_scored): ?>
                                     <!-- Show final result -->
                                     <span class="font-semibold text-slate-900 text-sm <?php echo $bk['score_a'] == 1 ? 'text-emerald-700' : 'text-slate-500 line-through decoration-1'; ?>">
                                         <?php echo htmlspecialchars($team_a); ?>
@@ -452,7 +474,19 @@ $sport_icons = [
 
                         <!-- Right: action -->
                         <div class="flex-shrink-0 flex flex-col items-end gap-2">
-                            <?php if ($already_scored): ?>
+                            <?php if ($is_cancelled): ?>
+                                <!-- Cancelled state -->
+                                <div class="flex items-center gap-2">
+                                    <span class="inline-flex items-center gap-1.5 bg-rose-50 text-rose-700 px-4 py-2 rounded-xl text-xs font-bold border border-rose-200 shadow-sm">
+                                        ❌ Cancelled
+                                    </span>
+                                </div>
+                                <?php if ($cancellation_earned > 0): ?>
+                                    <span class="text-xs text-emerald-600 font-semibold">+PKR <?php echo number_format($cancellation_earned, 2); ?> earned (Cancellation fee)</span>
+                                <?php else: ?>
+                                    <span class="text-[10px] text-slate-400">Full refund issued to player</span>
+                                <?php endif; ?>
+                            <?php elseif ($already_scored): ?>
                                 <!-- Finalized state -->
                                 <div class="flex items-center gap-2">
                                     <span class="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 px-4 py-2 rounded-xl text-xs font-bold border border-emerald-200 shadow-sm">
@@ -527,8 +561,8 @@ $sport_icons = [
             </div>
 
             <!-- Commission note -->
-            <div class="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 text-xs text-amber-800 font-medium mb-5 text-center">
-                💰 You'll receive <strong>95% commission</strong> of the booking amount upon submission.
+            <div class="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2.5 text-xs text-emerald-800 font-medium mb-5 text-center leading-relaxed">
+                💰 <strong>Payout Details:</strong> 5% platform commission of the slot price is deducted from the online advance payment, and the remaining online balance is credited directly to your wallet.
             </div>
 
             <div class="flex gap-3">

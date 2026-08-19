@@ -17,7 +17,8 @@ $ctx_ground_id = intval($_GET['ground_id'] ?? 0);
 $ctx_date      = trim($_GET['date'] ?? '');
 $ctx_hour      = intval($_GET['hour']  ?? -1);
 $ctx_price     = floatval($_GET['price'] ?? 0);
-$ctx_half      = floatval($_GET['half']  ?? round($ctx_price * 0.5, 2));
+$ctx_quarter   = floatval($_GET['quarter'] ?? ($_GET['half'] ?? round($ctx_price * 0.25, 2)));
+$ctx_half      = $ctx_quarter;
 $has_context   = ($ctx_ground_id > 0 && $ctx_date !== '' && $ctx_hour >= 0 && $ctx_price > 0);
 
 // Fetch ground info if context provided
@@ -270,7 +271,7 @@ body { font-family:'Inter',sans-serif; background:#f8fafc; }
           <div class="flex flex-wrap gap-3 mt-1 text-sm opacity-90">
             <span>📅 <?php echo date('D, d M Y', strtotime($ctx_date)); ?></span>
             <span>⏰ <?php echo $ctx_time_label; ?></span>
-            <span>💰 Your share: <strong><?php echo number_format($ctx_half, 0); ?> PKR</strong> (50%)</span>
+            <span>💰 Your share: <strong><?php echo number_format($ctx_quarter, 0); ?> PKR</strong> (25% advance · 50% paid at venue)</span>
           </div>
         </div>
       </div>
@@ -370,9 +371,14 @@ body { font-family:'Inter',sans-serif; background:#f8fafc; }
         <div class="flex justify-between"><span class="text-slate-500">Venue</span><span class="font-semibold text-slate-800"><?php echo htmlspecialchars($ctx_ground['title']); ?></span></div>
         <div class="flex justify-between"><span class="text-slate-500">Date</span><span class="font-semibold text-slate-800"><?php echo date('D, d M Y', strtotime($ctx_date)); ?></span></div>
         <div class="flex justify-between"><span class="text-slate-500">Time</span><span class="font-semibold text-slate-800"><?php echo $ctx_time_label; ?></span></div>
+        <div class="flex justify-between text-xs text-slate-500"><span>Slot Full Price</span><span><?php echo number_format($ctx_price, 0); ?> PKR</span></div>
         <div class="border-t border-orange-200 pt-2 flex justify-between">
-          <span class="font-bold text-slate-700">Your 50% Share</span>
-          <span class="font-extrabold text-orange-600 text-base"><?php echo number_format($ctx_half, 0); ?> PKR</span>
+          <span class="font-bold text-slate-700">Your 25% Share (Advance)</span>
+          <span class="font-extrabold text-orange-600 text-base"><?php echo number_format($ctx_quarter, 0); ?> PKR</span>
+        </div>
+        <div class="flex justify-between text-xs font-semibold text-amber-700 bg-amber-50 rounded-lg p-2">
+          <span>Remaining 50% paid at venue:</span>
+          <span><?php echo number_format($ctx_price - ($ctx_quarter * 2), 0); ?> PKR</span>
         </div>
         <div class="flex justify-between text-xs">
           <span class="text-slate-400">Wallet Balance</span>
@@ -398,7 +404,7 @@ body { font-family:'Inter',sans-serif; background:#f8fafc; }
         <button onclick="submitChallenge()" id="ch-submit-btn"
                 class="flex-1 py-2.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold rounded-xl shadow transition-all <?php echo (!$has_context) ? 'opacity-50 cursor-not-allowed' : ''; ?>"
                 <?php echo (!$has_context) ? 'disabled' : ''; ?>>
-          ⚡ Pay & Send Challenge
+          ⚡ Pay 25% & Send Challenge
         </button>
       </div>
     </div>

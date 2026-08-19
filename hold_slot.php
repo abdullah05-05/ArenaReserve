@@ -22,14 +22,12 @@ if (!$ground_id || !$slot_date || $slot_hour < 0) {
     exit;
 }
 
-// Basic date sanity check (MySQL date comparison)
-try {
-    $check = $pdo->query("SELECT CURDATE() AS today")->fetch();
-    if ($slot_date < $check['today']) {
-        echo json_encode(['success' => false, 'message' => 'Cannot book a past date.']);
-        exit;
-    }
-} catch (Exception $e) {}
+// Date and time sanity check
+$slot_start_ts = strtotime($slot_date . ' ' . sprintf('%02d:00:00', $slot_hour));
+if ($slot_start_ts <= time()) {
+    echo json_encode(['success' => false, 'message' => 'Cannot hold or book a time slot that has already passed or started.']);
+    exit;
+}
 
 try {
     // 1. Remove all expired holds (using MySQL NOW())

@@ -264,7 +264,7 @@
                         </div>
                         <div>
                             <div class="text-xs font-bold text-slate-900">Live Challenge Accepted!</div>
-                            <div class="text-[11px] text-slate-500 font-medium">50% cost split confirmed</div>
+                            <div class="text-[11px] text-slate-500 font-medium">25% match deposit confirmed</div>
                         </div>
                     </div>
 
@@ -507,9 +507,9 @@
                     <div class="w-14 h-14 rounded-2xl bg-violet-100 text-violet-700 flex items-center justify-center text-2xl mb-6 group-hover:scale-110 transition-transform duration-300">
                         ⚔️
                     </div>
-                    <h3 class="text-xl font-bold text-slate-900 mb-3">50/50 Match Challenges</h3>
+                    <h3 class="text-xl font-bold text-slate-900 mb-3">Team & Open Challenges</h3>
                     <p class="text-sm text-slate-500 leading-relaxed">
-                        Post an open challenge or challenge a specific team. Pay only 50% of the arena cost upfront — the challenger pays their half to confirm.
+                        Post an open match or challenge a specific team. Pay only 25% of the arena cost upfront — the opposing team pays 25% to confirm, and the remaining 50% is paid at the venue.
                     </p>
                 </div>
 
@@ -646,7 +646,7 @@
                     </div>
                     <h3 class="text-xl font-bold text-slate-900 mb-2">Pick Slot or Open Challenge</h3>
                     <p class="text-sm text-slate-500 leading-relaxed">
-                        Select an open time slot for a private game, or create an open challenge and pay just 50% upfront.
+                        Reserve a slot with a 50% online advance for private games, or post an open challenge with just 25% deposit.
                     </p>
                 </div>
 
