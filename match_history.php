@@ -1,5 +1,5 @@
 <?php
-session_start();
+if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'db.php';
 require_once 'logo_helper.php';
 if (!isset($_SESSION['user_id'])) { header("Location: login.php"); exit; }
@@ -18,7 +18,7 @@ try {
     $stmt = $pdo->prepare("
         SELECT b.id, b.slot_date, b.slot_hour, b.price, b.amount_paid,
                b.booking_type, b.status, b.challenger_team_name, b.opponent_id,
-               b.created_at,
+               b.challenge_message, b.created_at,
                g.title AS ground_title, g.sport_type, g.address
         FROM bookings b
         JOIN grounds g ON g.id = b.ground_id
@@ -34,9 +34,9 @@ try {
     $stmt = $pdo->prepare("
         SELECT b.id, b.slot_date, b.slot_hour, b.price, b.amount_paid,
                b.booking_type, b.status, b.challenger_team_name, b.challenged_user_id,
-               b.created_at,
+               b.challenge_message, b.created_at,
                g.title AS ground_title, g.sport_type, g.address,
-               u.name AS challenger_name
+               u.name AS challenger_name, u.city AS challenger_city
         FROM bookings b
         JOIN grounds g ON g.id = b.ground_id
         JOIN users u ON u.id = b.booked_by
@@ -124,20 +124,20 @@ body { font-family: 'Inter', sans-serif; background: #f8fafc; }
 }
 #mh-toast.show { transform:translateX(0); }
 
-/* Cancel modal */
-#cancel-overlay {
+/* Modals (Cancel & Accept) */
+#cancel-overlay, #accept-overlay {
     position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);
     z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px;
     opacity:0;pointer-events:none;transition:opacity .2s ease;
 }
-#cancel-overlay.open { opacity:1;pointer-events:all; }
-#cancel-modal {
+#cancel-overlay.open, #accept-overlay.open { opacity:1;pointer-events:all; }
+#cancel-modal, #accept-modal {
     background:white;border-radius:20px;box-shadow:0 25px 80px rgba(0,0,0,.3);
-    max-width:440px;width:100%;transform:scale(0.92) translateY(20px);
+    max-width:460px;width:100%;transform:scale(0.92) translateY(20px);
     transition:transform .25s cubic-bezier(.34,1.56,.64,1),opacity .2s ease;
     opacity:0;overflow:hidden;
 }
-#cancel-overlay.open #cancel-modal { transform:scale(1) translateY(0);opacity:1; }
+#cancel-overlay.open #cancel-modal, #accept-overlay.open #accept-modal { transform:scale(1) translateY(0);opacity:1; }
 </style>
     <?php
     $page_description = 'View your complete match history on ArenaReserve. Track your wins, bookings, and ground performance over time.';
@@ -343,6 +343,13 @@ body { font-family: 'Inter', sans-serif; background: #f8fafc; }
                 🤝 Challenged: <span class="font-bold"><?php echo htmlspecialchars($bk['challenger_team_name']); ?></span>
               </div>
               <?php endif; ?>
+
+              <?php if (!empty($bk['challenge_message'])): ?>
+              <div class="mt-2 text-xs bg-amber-50 border border-amber-200/80 text-amber-900 px-3 py-1.5 rounded-lg flex items-start gap-1.5 max-w-md">
+                <span class="text-amber-500 flex-shrink-0">💬</span>
+                <span class="italic font-medium">"<?php echo htmlspecialchars($bk['challenge_message']); ?>"</span>
+              </div>
+              <?php endif; ?>
             </div>
           </div>
 
@@ -385,8 +392,21 @@ body { font-family: 'Inter', sans-serif; background: #f8fafc; }
             ?>
             <?php if ($can_accept_team): ?>
             <button
-              onclick="acceptChallenge(<?php echo $bk['id']; ?>, this)"
-              class="text-[11px] font-bold text-white bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 px-3 py-1.5 rounded-lg transition-all shadow-sm"
+              onclick="openAcceptModal(<?php echo htmlspecialchars(json_encode([
+                'bookingId'      => $bk['id'],
+                'groundTitle'    => $bk['ground_title'],
+                'sportType'      => $bk['sport_type'] ?? 'Ground',
+                'address'        => $bk['address'] ?? '',
+                'slotDate'       => date('D, d M Y', strtotime($bk['slot_date'])),
+                'slotTime'       => $timeLabel,
+                'challengerName' => $bk['challenger_name'] ?? 'Challenger',
+                'challengerCity' => $bk['challenger_city'] ?? '',
+                'challengeMsg'   => $bk['challenge_message'] ?? '',
+                'totalPrice'     => floatval($bk['price']),
+                'shareAdvance'   => round(floatval($bk['price']) * 0.25, 2),
+                'shareVenue'     => round(floatval($bk['price']) * 0.50, 2),
+              ]), ENT_QUOTES, 'UTF-8'); ?>, this)"
+              class="text-[11px] font-bold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 active:from-orange-700 active:to-amber-700 px-3 py-1.5 rounded-lg transition-all shadow-sm flex items-center gap-1"
               id="accept-btn-<?php echo $bk['id']; ?>">
               ⚡ Accept Challenge
             </button>
@@ -457,8 +477,92 @@ body { font-family: 'Inter', sans-serif; background: #f8fafc; }
   </div>
 </div>
 
+<!-- ============================================================
+     ACCEPT CHALLENGE CONFIRMATION MODAL
+============================================================ -->
+<div id="accept-overlay">
+  <div id="accept-modal">
+    <!-- Header -->
+    <div class="bg-gradient-to-r from-orange-500 to-red-500 px-6 pt-6 pb-5 text-white">
+      <div class="flex items-center justify-between">
+        <div>
+          <div class="text-xs font-semibold opacity-80 mb-0.5">Challenged by</div>
+          <h2 class="text-2xl font-extrabold leading-tight" id="ac-challenger">Challenger</h2>
+          <p class="text-xs opacity-80 mt-0.5" id="ac-challenger-city">City</p>
+        </div>
+        <button onclick="closeAcceptModal()" class="w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors">
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Body -->
+    <div class="p-6">
+      <!-- Slot Summary Box -->
+      <div class="bg-orange-50/50 border border-orange-200 rounded-2xl p-4 mb-4 space-y-2.5 text-sm">
+        <div class="flex justify-between items-center">
+          <span class="text-slate-500">Venue</span>
+          <span class="font-bold text-slate-800" id="ac-ground">--</span>
+        </div>
+        <div class="flex justify-between items-center">
+          <span class="text-slate-500">Date</span>
+          <span class="font-semibold text-slate-800" id="ac-date">--</span>
+        </div>
+        <div class="flex justify-between items-center">
+          <span class="text-slate-500">Time</span>
+          <span class="font-semibold text-slate-800" id="ac-time">--</span>
+        </div>
+        <div class="flex justify-between items-center text-xs text-slate-500">
+          <span>Slot Full Price</span>
+          <span class="font-medium text-slate-700" id="ac-total-price">-- PKR</span>
+        </div>
+        <div class="border-t border-orange-200/90 pt-2 flex justify-between items-center">
+          <span class="font-bold text-slate-700">Your 25% Share (Advance)</span>
+          <span class="font-extrabold text-orange-600 text-lg" id="ac-advance-share">-- PKR</span>
+        </div>
+        <div class="flex justify-between items-center text-xs font-semibold text-amber-800 bg-amber-50/90 rounded-lg p-2.5 border border-amber-200/60">
+          <span>Remaining 50% paid at venue:</span>
+          <span id="ac-venue-share">-- PKR</span>
+        </div>
+        <div class="flex justify-between items-center text-xs pt-0.5">
+          <span class="text-slate-400">Wallet Balance</span>
+          <span class="font-bold text-slate-600" id="ac-wallet-balance">-- PKR</span>
+        </div>
+      </div>
+
+      <!-- Challenge Message from Challenger (displayed if sent) -->
+      <div id="ac-msg-section" class="mb-4">
+        <label class="block text-xs font-semibold text-slate-700 mb-1">Challenge Message</label>
+        <div class="w-full border border-slate-200 bg-slate-50/70 rounded-xl px-3.5 py-2.5 text-sm text-slate-700 flex items-start gap-2">
+          <span class="text-amber-500 flex-shrink-0">💬</span>
+          <span id="ac-message" class="font-medium text-slate-800"></span>
+        </div>
+      </div>
+
+      <!-- Insufficient Wallet Warning -->
+      <div id="ac-wallet-warning" class="hidden bg-rose-50 border border-rose-200 rounded-xl p-3 text-xs text-rose-700 mb-4">
+        ⚠️ Insufficient wallet balance. <a href="player_wallet.php" class="underline font-bold">Top up your wallet</a> to accept this challenge.
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex gap-3">
+        <button onclick="closeAcceptModal()" class="flex-1 py-3 border border-slate-300 text-slate-700 text-sm font-semibold rounded-xl hover:bg-slate-50 transition-colors">
+          Cancel
+        </button>
+        <button onclick="confirmAcceptChallenge()" id="confirm-accept-btn"
+                class="flex-1 py-3 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 active:from-orange-700 active:to-amber-700 text-white text-sm font-bold rounded-xl shadow transition-all flex items-center justify-center gap-1.5">
+          ⚡ Pay 25% & Accept Challenge
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 let cancelData = {};
+let currentAcceptData = null;
+let currentAcceptBtn = null;
+let userWalletBal = <?php echo floatval($available_balance); ?>;
 
 function openCancelModal(bookingId, ground, date, time, amountPaid, status, slotDate, slotHour) {
   cancelData = { bookingId, amountPaid, status, slotDate, slotHour };
@@ -506,22 +610,72 @@ function closeCancelModal() {
   document.getElementById('cancel-overlay').classList.remove('open');
 }
 
-// ---- Accept a specific team challenge ----
-function acceptChallenge(bookingId, btn) {
-  if (!confirm('Accept this challenge? 25% of the slot price will be deducted from your wallet as advance payment (50% remaining paid at venue).')) return;
+// ---- Accept a specific team challenge modal ----
+function openAcceptModal(data, btn) {
+  currentAcceptData = data;
+  currentAcceptBtn  = btn;
+
+  document.getElementById('ac-challenger').textContent      = data.challengerName || 'Player';
+  document.getElementById('ac-challenger-city').textContent = data.challengerCity || '';
+  document.getElementById('ac-ground').textContent          = data.groundTitle;
+  document.getElementById('ac-date').textContent            = data.slotDate;
+  document.getElementById('ac-time').textContent            = data.slotTime;
+  document.getElementById('ac-total-price').textContent      = formatNum(data.totalPrice) + ' PKR';
+  document.getElementById('ac-advance-share').textContent    = formatNum(data.shareAdvance) + ' PKR';
+  document.getElementById('ac-venue-share').textContent      = formatNum(data.shareVenue) + ' PKR';
+  document.getElementById('ac-wallet-balance').textContent   = formatNum(userWalletBal) + ' PKR';
+
+  const msgSection = document.getElementById('ac-msg-section');
+  const msgEl      = document.getElementById('ac-message');
+  if (data.challengeMsg && data.challengeMsg.trim().length > 0) {
+    msgEl.textContent = data.challengeMsg;
+    msgSection.classList.remove('hidden');
+  } else {
+    msgSection.classList.add('hidden');
+  }
+
+  const confirmBtn = document.getElementById('confirm-accept-btn');
+  const warnBox    = document.getElementById('ac-wallet-warning');
+
+  if (userWalletBal < data.shareAdvance) {
+    warnBox.classList.remove('hidden');
+    confirmBtn.disabled = true;
+    confirmBtn.classList.add('opacity-50', 'cursor-not-allowed');
+  } else {
+    warnBox.classList.add('hidden');
+    confirmBtn.disabled = false;
+    confirmBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+  }
+  confirmBtn.innerHTML = '⚡ Pay 25% & Accept Challenge';
+
+  document.getElementById('accept-overlay').classList.add('open');
+}
+
+function closeAcceptModal() {
+  document.getElementById('accept-overlay').classList.remove('open');
+  currentAcceptData = null;
+}
+
+function confirmAcceptChallenge() {
+  if (!currentAcceptData) return;
+  const bookingId = currentAcceptData.bookingId;
+  const btn = document.getElementById('confirm-accept-btn');
   btn.disabled = true;
-  btn.textContent = 'Processing…';
+  btn.innerHTML = '<span class="inline-block animate-spin mr-1.5">⏳</span> Processing…';
 
   fetch('accept_challenge.php', {
     method: 'POST',
     headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-    body: 'booking_id=' + bookingId
+    body: 'booking_id=' + encodeURIComponent(bookingId)
   })
   .then(r => r.json())
   .then(res => {
+    closeAcceptModal();
     if (res.success) {
       showToast('🎉 Challenge accepted! Match confirmed.', 'success');
-      btn.outerHTML = '<span class="text-[11px] font-bold text-blue-600 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-lg">🏆 Match Set</span>';
+      if (currentAcceptBtn) {
+        currentAcceptBtn.outerHTML = '<span class="text-[11px] font-bold text-blue-600 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-lg">🏆 Match Set</span>';
+      }
       
       // Update status badge in the row
       const row = document.querySelector('[data-booking-id="' + bookingId + '"]');
@@ -535,22 +689,18 @@ function acceptChallenge(bookingId, btn) {
 
       // Update wallet balance in navbar
       if (res.amount_paid !== undefined) {
+        userWalletBal = Math.max(0, userWalletBal - parseFloat(res.amount_paid));
         document.querySelectorAll('.wallet-balance-display').forEach(el => {
-          const current = parseFloat(el.textContent.replace(/[^0-9.]/g, '') || '0');
-          const newBal = Math.max(0, current - parseFloat(res.amount_paid));
-          el.textContent = formatNum(newBal) + ' PKR';
+          el.textContent = formatNum(userWalletBal) + ' PKR';
         });
       }
     } else {
       showToast('❌ ' + (res.message || 'Failed to accept challenge.'), 'error');
-      btn.disabled = false;
-      btn.textContent = '⚡ Accept Challenge';
     }
   })
   .catch(() => {
+    closeAcceptModal();
     showToast('❌ Network error. Please try again.', 'error');
-    btn.disabled = false;
-    btn.textContent = '⚡ Accept Challenge';
   });
 }
 

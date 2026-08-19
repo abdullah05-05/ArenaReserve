@@ -1,5 +1,5 @@
 <?php
-session_start();
+if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'db.php';
 require_once 'logo_helper.php';
 if (!isset($_SESSION['user_id'])) { header("Location: login.php"); exit; }
@@ -40,52 +40,54 @@ if ($has_context) {
     $ctx_time_label = sprintf('%d:00 %s – %d:00 %s', $displayH, $suffix, $nextDisp, $nextSuf);
 }
 
-// Fetch real teams from users (players who have teams)
-// Fallback to mock if table doesn't exist yet
+// Fetch real players & stats from users and match_scores
 $teams = [];
 try {
     $stmt = $pdo->prepare("
-        SELECT id, name, city FROM users
-        WHERE current_role IN ('Player','Owner') AND status = 'Active' AND id != ?
-        ORDER BY name ASC LIMIT 50
+        SELECT 
+            u.id, 
+            u.name, 
+            u.city,
+            u.profile_picture,
+            COUNT(
+                CASE
+                    WHEN (ms.team_a_user = u.id AND ms.score_a = 1)
+                      OR (ms.team_b_user = u.id AND ms.score_b = 1) THEN 1
+                END
+            ) AS won,
+            COUNT(
+                CASE
+                    WHEN (ms.team_a_user = u.id AND ms.score_a = 0)
+                      OR (ms.team_b_user = u.id AND ms.score_b = 0) THEN 1
+                END
+            ) AS lost,
+            COUNT(
+                CASE
+                    WHEN ms.team_a_user = u.id OR ms.team_b_user = u.id THEN 1
+                END
+            ) AS played
+        FROM users u
+        LEFT JOIN match_scores ms ON (ms.team_a_user = u.id OR ms.team_b_user = u.id)
+        WHERE u.current_role IN ('Player','Owner') AND u.status = 'Active' AND u.id != ?
+        GROUP BY u.id, u.name, u.city, u.profile_picture
+        ORDER BY won DESC, played DESC, u.name ASC
+        LIMIT 100
     ");
     $stmt->execute([$user_id]);
     $raw_users = $stmt->fetchAll();
     foreach ($raw_users as $u) {
         $teams[] = [
-            'id'     => $u['id'],
-            'name'   => $u['name'],
-            'city'   => $u['city'],
-            'sport'  => 'Football',   // default
-            'avatar' => strtoupper(substr($u['name'], 0, 2)),
-            'wins'   => rand(2,15),
-            'losses' => rand(1,8),
-            'rating' => number_format(3.5 + (rand(0,15)/10), 1),
+            'id'              => $u['id'],
+            'name'            => $u['name'],
+            'city'            => !empty($u['city']) ? $u['city'] : 'General',
+            'profile_picture' => $u['profile_picture'] ?? null,
+            'avatar'          => strtoupper(substr(trim($u['name']), 0, 2)),
+            'played'          => intval($u['played']),
+            'won'             => intval($u['won']),
+            'lost'            => intval($u['lost']),
         ];
     }
 } catch (Exception $e) { $teams = []; }
-
-// If no real users, use mock teams
-if (empty($teams)) {
-    $teams = [
-        ['id'=>101,'name'=>'City Ballers','sport'=>'Basketball','wins'=>8,'losses'=>3,'rating'=>'4.6','city'=>'Karachi','avatar'=>'CB'],
-        ['id'=>102,'name'=>'Street Kings','sport'=>'Football','wins'=>12,'losses'=>4,'rating'=>'4.8','city'=>'Lahore','avatar'=>'SK'],
-        ['id'=>103,'name'=>'Thunder XI','sport'=>'Cricket','wins'=>6,'losses'=>7,'rating'=>'4.2','city'=>'Karachi','avatar'=>'TX'],
-        ['id'=>104,'name'=>'Smash Bros','sport'=>'Badminton','wins'=>15,'losses'=>2,'rating'=>'4.9','city'=>'Islamabad','avatar'=>'SB'],
-        ['id'=>105,'name'=>'Kick Force','sport'=>'Football','wins'=>9,'losses'=>5,'rating'=>'4.4','city'=>'Karachi','avatar'=>'KF'],
-        ['id'=>106,'name'=>'Hoop Dreams','sport'=>'Basketball','wins'=>4,'losses'=>9,'rating'=>'3.8','city'=>'Lahore','avatar'=>'HD'],
-        ['id'=>107,'name'=>'Falcon FC','sport'=>'Football','wins'=>11,'losses'=>3,'rating'=>'4.7','city'=>'Karachi','avatar'=>'FF'],
-        ['id'=>108,'name'=>'Net Ninjas','sport'=>'Badminton','wins'=>7,'losses'=>6,'rating'=>'4.1','city'=>'Islamabad','avatar'=>'NN'],
-    ];
-}
-
-$sport_colors = [
-    'Basketball'=>'bg-orange-100 text-orange-700',
-    'Football'  =>'bg-green-100 text-green-700',
-    'Cricket'   =>'bg-sky-100 text-sky-700',
-    'Badminton' =>'bg-violet-100 text-violet-700',
-    'Futsal'    =>'bg-rose-100 text-rose-700',
-];
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -183,12 +185,12 @@ body { font-family:'Inter',sans-serif; background:#f8fafc; }
               <?php if (!empty($_SESSION['profile_picture']) && file_exists(__DIR__ . '/' . $_SESSION['profile_picture'])): ?>
                 <img src="<?php echo htmlspecialchars($_SESSION['profile_picture']); ?>" alt="Profile" class="w-full h-full object-cover">
               <?php else: ?>
-                <?php echo strtoupper(substr($_SESSION['name'], 0, 1)); ?>
+                <?php $uName = $_SESSION['name'] ?? $_SESSION['user_name'] ?? 'Player'; echo strtoupper(substr($uName, 0, 1)); ?>
               <?php endif; ?>
             </div>
             <div class="hidden md:block text-left">
               <div class="text-xs font-semibold text-slate-800 flex items-center gap-1">
-                <?php echo htmlspecialchars($_SESSION['name']); ?>
+                <?php echo htmlspecialchars($_SESSION['name'] ?? $_SESSION['user_name'] ?? 'Player'); ?>
                 <svg class="w-3 h-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
               </div>
               <div class="text-[10px] text-slate-400">Player</div>
@@ -298,37 +300,53 @@ body { font-family:'Inter',sans-serif; background:#f8fafc; }
     </div>
     <?php else: ?>
     <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" id="teams-grid">
-      <?php foreach ($teams as $team):
-        $sc = $sport_colors[$team['sport']] ?? 'bg-slate-100 text-slate-600';
-      ?>
-      <div class="team-card"
-           data-name="<?php echo strtolower($team['name']); ?>"
-           data-city="<?php echo strtolower($team['city']); ?>"
-           data-sport="<?php echo $team['sport']; ?>"
-           onclick="openChallengeModal(<?php echo $team['id']; ?>, '<?php echo addslashes($team['name']); ?>', '<?php echo addslashes($team['city']); ?>')">
+      <?php foreach ($teams as $team): ?>
+      <div class="team-card flex flex-col justify-between"
+           data-name="<?php echo htmlspecialchars(strtolower($team['name']), ENT_QUOTES, 'UTF-8'); ?>"
+           data-city="<?php echo htmlspecialchars(strtolower($team['city']), ENT_QUOTES, 'UTF-8'); ?>"
+           onclick="openChallengeModal(<?php echo $team['id']; ?>, '<?php echo htmlspecialchars(addslashes($team['name']), ENT_QUOTES, 'UTF-8'); ?>', '<?php echo htmlspecialchars(addslashes($team['city']), ENT_QUOTES, 'UTF-8'); ?>')">
 
-        <div class="flex items-center gap-3 mb-4">
-          <div class="w-12 h-12 rounded-xl <?php echo $sc; ?> flex items-center justify-center font-extrabold text-sm flex-shrink-0">
-            <?php echo $team['avatar']; ?>
+        <div>
+          <!-- Player Info (Rating removed) -->
+          <div class="flex items-center gap-3.5 mb-4">
+            <div class="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-extrabold text-sm flex-shrink-0 border border-emerald-200 overflow-hidden">
+              <?php if (!empty($team['profile_picture']) && file_exists(__DIR__ . '/' . $team['profile_picture'])): ?>
+                <img src="<?php echo htmlspecialchars($team['profile_picture']); ?>" alt="" class="w-full h-full object-cover">
+              <?php else: ?>
+                <?php echo $team['avatar']; ?>
+              <?php endif; ?>
+            </div>
+            <div class="flex-1 min-w-0">
+              <h3 class="font-bold text-slate-900 text-base truncate team-name"><?php echo htmlspecialchars($team['name']); ?></h3>
+              <p class="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
+                <svg class="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                <span class="truncate"><?php echo htmlspecialchars($team['city']); ?></span>
+              </p>
+            </div>
           </div>
-          <div class="flex-1 min-w-0">
-            <h3 class="font-bold text-slate-900 truncate team-name"><?php echo htmlspecialchars($team['name']); ?></h3>
-            <p class="text-xs text-slate-500"><?php echo $team['city']; ?></p>
+
+          <!-- Real Stats: Played, Won, Lost -->
+          <div class="grid grid-cols-3 gap-2 text-center bg-slate-50 rounded-xl p-3 mb-4 border border-slate-100">
+            <div>
+              <div class="text-lg font-extrabold text-slate-800"><?php echo $team['played']; ?></div>
+              <div class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Played</div>
+            </div>
+            <div>
+              <div class="text-lg font-extrabold text-emerald-600"><?php echo $team['won']; ?></div>
+              <div class="text-[10px] text-emerald-600/80 uppercase font-bold tracking-wider">Won</div>
+            </div>
+            <div>
+              <div class="text-lg font-extrabold text-rose-500"><?php echo $team['lost']; ?></div>
+              <div class="text-[10px] text-rose-500/80 uppercase font-bold tracking-wider">Lost</div>
+            </div>
           </div>
-          <div class="text-xs bg-amber-50 text-amber-600 font-bold px-2 py-1 rounded-full flex-shrink-0">★ <?php echo $team['rating']; ?></div>
         </div>
 
-        <div class="grid grid-cols-3 gap-2 text-center bg-slate-50 rounded-xl p-3 mb-4">
-          <div><div class="text-lg font-extrabold text-slate-800"><?php echo $team['wins'] + $team['losses']; ?></div><div class="text-[10px] text-slate-400 uppercase font-semibold">Played</div></div>
-          <div><div class="text-lg font-extrabold text-green-600"><?php echo $team['wins']; ?></div><div class="text-[10px] text-slate-400 uppercase font-semibold">Won</div></div>
-          <div><div class="text-lg font-extrabold text-red-500"><?php echo $team['losses']; ?></div><div class="text-[10px] text-slate-400 uppercase font-semibold">Lost</div></div>
-        </div>
-
-        <div class="flex items-center justify-between">
-          <span class="text-xs font-semibold px-2.5 py-1 rounded-full <?php echo $sc; ?>"><?php echo $team['sport']; ?></span>
-          <button class="bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors shadow-sm"
-                  onclick="event.stopPropagation();openChallengeModal(<?php echo $team['id']; ?>,'<?php echo addslashes($team['name']); ?>','<?php echo addslashes($team['city']); ?>')">
-            ⚡ Challenge
+        <!-- Action: Challenge Button (Football badge removed) -->
+        <div>
+          <button class="w-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 active:from-orange-700 active:to-amber-700 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5"
+                  onclick="event.stopPropagation();openChallengeModal(<?php echo $team['id']; ?>,'<?php echo htmlspecialchars(addslashes($team['name']), ENT_QUOTES, 'UTF-8'); ?>','<?php echo htmlspecialchars(addslashes($team['city']), ENT_QUOTES, 'UTF-8'); ?>')">
+            ⚡ Challenge Player
           </button>
         </div>
       </div>
