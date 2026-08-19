@@ -29,6 +29,13 @@ if (!$ground_id || !$slot_date || $slot_hour < 0 || !in_array($booking_type, $va
 }
 
 try {
+    // 0. Prevent booking past slots
+    $slot_start_ts = strtotime($slot_date . ' ' . sprintf('%02d:00:00', $slot_hour));
+    if ($slot_start_ts <= time()) {
+        echo json_encode(['success' => false, 'message' => 'Cannot book a time slot that has already passed or started.']);
+        exit;
+    }
+
     $pdo->beginTransaction();
 
     // 1. Verify active hold belongs to this user
@@ -68,8 +75,13 @@ try {
     }
     $full_price = floatval($slot_row['price']);
 
-    // 4. Calculate amount to charge
-    $amount_to_charge = ($booking_type === 'direct') ? $full_price : round($full_price * 0.5, 2);
+    // 4. Calculate amount to charge (50% for direct booking advance, 25% each for challenges)
+    if ($booking_type === 'direct') {
+        $amount_to_charge = round($full_price * 0.50, 2);
+    } else {
+        // open_challenge and team_challenge: 25% from creator
+        $amount_to_charge = round($full_price * 0.25, 2);
+    }
 
     // 5. Check wallet balance
     $stmt = $pdo->prepare("SELECT id, available_balance FROM wallets WHERE user_id = ? FOR UPDATE");
@@ -146,9 +158,9 @@ try {
         'team_challenge'  => 'Team Challenge Sent!',
     ];
     $playerNotifMsgs = [
-        'direct'          => "Your slot at {$info['ground_title']} on {$slot_date} " . sprintf('%02d:00', $slot_hour) . " is confirmed.",
-        'open_challenge'  => "Your open challenge at {$info['ground_title']} on {$slot_date} is live. Waiting for an opponent!",
-        'team_challenge'  => "Your team challenge at {$info['ground_title']} on {$slot_date} is sent. Awaiting acceptance.",
+        'direct'          => "Your slot at {$info['ground_title']} on {$slot_date} " . sprintf('%02d:00', $slot_hour) . " is confirmed (50% advance paid, remaining 50% at venue).",
+        'open_challenge'  => "Your open challenge at {$info['ground_title']} on {$slot_date} is live (25% advance held). Waiting for opponent!",
+        'team_challenge'  => "Your team challenge at {$info['ground_title']} on {$slot_date} is sent (25% advance held). Awaiting acceptance.",
     ];
     createNotification($pdo, $user_id, 'booking_confirmed',
         $playerNotifTitles[$booking_type],
@@ -175,7 +187,7 @@ try {
             // In-app notification to the challenged user
             createNotification($pdo, $challenged_user_id, 'challenge_received',
                 '⚡ Team Challenge Received!',
-                "{$info['player_name']} has challenged your team at {$info['ground_title']} on {$slot_date}. Check Match History to accept!",
+                "{$info['player_name']} has challenged your team at {$info['ground_title']} on {$slot_date}. Pay 25% to accept in Match History!",
                 'match_history.php'
             );
             // Email the challenged user
@@ -190,7 +202,7 @@ try {
         }
     }
 
-    // \u2500\u2500 Email notification for player + owner (async-safe: after commit) \u2500\u2500
+    // ── Email notification for player + owner (async-safe: after commit) ──
     if ($info) {
         sendBookingConfirmedEmail($info['player_email'], $info['player_name'], [
             'ground_title'  => $info['ground_title'],
@@ -214,9 +226,9 @@ try {
     }
 
     $messages = [
-        'direct'         => '✅ Booking confirmed! Full payment deducted from wallet.',
-        'open_challenge' => '⚡ Open challenge posted! 50% payment held. Others can now accept.',
-        'team_challenge' => '🤝 Challenge sent! 50% payment held pending opponent acceptance.',
+        'direct'         => '✅ Booking confirmed! 50% advance deducted from wallet. Please pay remaining 50% at the venue.',
+        'open_challenge' => '⚡ Open challenge posted! 25% payment held. Opponent pays 25% to confirm. Remaining 50% paid at venue.',
+        'team_challenge' => '🤝 Challenge sent! 25% payment held. Opponent pays 25% to accept. Remaining 50% paid at venue.',
     ];
 
     echo json_encode([

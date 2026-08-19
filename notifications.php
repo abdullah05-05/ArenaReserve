@@ -80,7 +80,7 @@ function sendTeamChallengeSentEmail(string $toEmail, string $toName, array $deta
                 '🕐 Time'         => $slotTime,
                 '⚡ Challenger'   => htmlspecialchars($details['challenger_name']),
             ]) . "
-            <p style='color:#475569;font-size:14px;'>Accept the challenge from your Match History page. You'll need to pay 50% of the slot price to confirm.</p>
+            <p style='color:#475569;font-size:14px;'>Accept the challenge from your Match History page. You'll need to pay 25% of the slot price as an advance to confirm (remaining 50% paid at venue).</p>
             " . _btn('View & Accept Challenge', $acceptLink, '#ea580c') . "
         " . _emailFooter();
 

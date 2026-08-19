@@ -52,8 +52,8 @@ try {
         exit;
     }
 
-    // 2. Calculate opponent's 50% payment
-    $amount_to_charge = round(floatval($booking['price']) * 0.5, 2);
+    // 2. Calculate opponent's 25% payment (remaining 50% paid at venue)
+    $amount_to_charge = round(floatval($booking['price']) * 0.25, 2);
 
     // 3. Check opponent wallet
     $stmt = $pdo->prepare("SELECT id, available_balance FROM wallets WHERE user_id = ? FOR UPDATE");
@@ -64,7 +64,7 @@ try {
         $pdo->rollBack();
         echo json_encode([
             'success'  => false,
-            'message'  => 'Insufficient wallet balance to accept this challenge.',
+            'message'  => 'Insufficient wallet balance to accept this challenge (25% share required).',
             'required' => $amount_to_charge,
             'balance'  => floatval($wallet['available_balance'] ?? 0)
         ]);
@@ -107,13 +107,13 @@ try {
         // In-app: challenger
         createNotification($pdo, $booking['booked_by'], 'challenge_accepted',
             'Challenge Accepted! ⚡',
-            "{$info['opponent_name']} accepted your challenge at {$booking['ground_title']} on {$booking['slot_date']}. Game on!",
+            "{$info['opponent_name']} accepted your challenge at {$booking['ground_title']} on {$booking['slot_date']}. Both teams have paid 25% advance; pay remaining at venue.",
             'match_history.php'
         );
         // In-app: opponent
         createNotification($pdo, $user_id, 'challenge_accepted',
             'Challenge Confirmed!',
-            "You accepted a challenge at {$booking['ground_title']} on {$booking['slot_date']}. Good luck!",
+            "You accepted a challenge at {$booking['ground_title']} on {$booking['slot_date']}. 25% advance paid; pay remaining at venue. Good luck!",
             'match_history.php'
         );
 
@@ -133,7 +133,7 @@ try {
 
     echo json_encode([
         'success'     => true,
-        'message'     => '🎉 Challenge accepted! The slot is now confirmed for both teams.',
+        'message'     => '🎉 Challenge accepted! 25% advance deducted from your wallet. Match confirmed. Pay remaining at venue.',
         'amount_paid' => $amount_to_charge,
         'booking_id'  => $booking_id
     ]);

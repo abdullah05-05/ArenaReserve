@@ -1,5 +1,5 @@
 <?php
-session_start();
+if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'db.php';
 require_once 'logo_helper.php';
 if (!isset($_SESSION['user_id'])) { header("Location: login.php"); exit; }
@@ -75,10 +75,12 @@ if ($selected_ground) {
             $nextDisp  = $nextH === 0 ? 12 : ($nextH > 12 ? $nextH - 12 : ($nextH === 12 ? 12 : $nextH));
             $nextSuffix = $nextH < 12 ? 'AM' : 'PM';
             $time_label = sprintf('%d:00 %s – %d:00 %s', $displayH, $suffix, $nextDisp, $nextSuffix);
-
-            $type  = 'available';
-            $label = '';
+            $type           = 'available';
+            $label          = '';
             $hold_remaining = 0;
+
+            $slot_start_time = strtotime($selected_date . ' ' . sprintf('%02d:00:00', $h));
+            $is_passed = ($slot_start_time <= time());
 
             if (isset($bookings_map[$h])) {
                 $bk = $bookings_map[$h];
@@ -103,6 +105,9 @@ if ($selected_ground) {
                         default            => 'Booked'
                     };
                 }
+            } elseif ($is_passed) {
+                $type  = 'passed';
+                $label = 'Passed';
             } elseif (isset($holds_map[$h])) {
                 $hold = $holds_map[$h];
                 if ($hold['held_by'] == $user_id) {
@@ -148,6 +153,7 @@ body { background: #f5f6fa; }
 .slot-challenge  { background: #ede9fe; border: 1.5px solid #c4b5fd; cursor: default; }
 .slot-held       { background: #dbeafe; border: 2px solid #3b82f6; cursor: pointer; }
 .slot-on_hold    { background: #f1f5f9; border: 1.5px solid #cbd5e1; cursor: not-allowed; opacity: 0.7; }
+.slot-passed     { background: #f1f5f9; border: 1.5px solid #e2e8f0; cursor: not-allowed; opacity: 0.6; }
 .slot-selected   { background: #d1fae5; border: 2.5px solid #059669; transform: translateY(-1px); box-shadow: 0 4px 14px rgba(5,150,105,0.2); }
 
 .slot-card { border-radius: 10px; padding: 12px; transition: all 0.18s ease; }
@@ -252,12 +258,12 @@ body { background: #f5f6fa; }
               <?php if (!empty($_SESSION['profile_picture']) && file_exists(__DIR__ . '/' . $_SESSION['profile_picture'])): ?>
                 <img src="<?php echo htmlspecialchars($_SESSION['profile_picture']); ?>" alt="Profile" class="w-full h-full object-cover">
               <?php else: ?>
-                <?php echo strtoupper(substr($_SESSION['name'], 0, 1)); ?>
+                <?php $uName = $_SESSION['name'] ?? $_SESSION['user_name'] ?? 'Player'; echo strtoupper(substr($uName, 0, 1)); ?>
               <?php endif; ?>
             </div>
             <div class="hidden md:block text-left">
               <div class="text-xs font-semibold text-slate-800 flex items-center gap-1">
-                <?php echo htmlspecialchars($_SESSION['name']); ?>
+                <?php echo htmlspecialchars($_SESSION['name'] ?? $_SESSION['user_name'] ?? 'Player'); ?>
                 <svg class="w-3 h-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
               </div>
               <div class="text-[10px] text-slate-400">Player</div>
@@ -422,6 +428,7 @@ body { background: #f5f6fa; }
                 'challenge'  => ['text' => 'text-violet-700',  'price' => 'text-violet-600'],
                 'held'       => ['text' => 'text-blue-700',    'price' => 'text-blue-600'],
                 'on_hold'    => ['text' => 'text-slate-600',   'price' => 'text-slate-500'],
+                'passed'     => ['text' => 'text-slate-400',   'price' => 'text-slate-400'],
               ];
               $tc = $colorClasses[$slot['type']] ?? $colorClasses['available'];
             ?>
@@ -524,8 +531,8 @@ body { background: #f5f6fa; }
             </div>
             <div class="flex-1">
               <div class="font-bold text-slate-800 text-sm">Direct Booking</div>
-              <div class="text-xs text-slate-500 mt-0.5">Reserve the slot exclusively for yourself. Full payment required.</div>
-              <div class="mt-1.5 text-xs font-bold text-emerald-600" id="direct-price-label">Full price: -- PKR</div>
+              <div class="text-xs text-slate-500 mt-0.5">Reserve exclusively. Pay 50% advance now, remaining 50% at the venue.</div>
+              <div class="mt-1.5 text-xs font-bold text-emerald-600" id="direct-price-label">Advance: -- PKR (50%)</div>
             </div>
           </div>
         </div>
@@ -538,8 +545,8 @@ body { background: #f5f6fa; }
             </div>
             <div class="flex-1">
               <div class="font-bold text-slate-800 text-sm">Open Challenge</div>
-              <div class="text-xs text-slate-500 mt-0.5">Post an open match. Pay 50% now, opponent pays the other 50%.</div>
-              <div class="mt-1.5 text-xs font-bold text-violet-600" id="open-price-label">Pay now: -- PKR (50%)</div>
+              <div class="text-xs text-slate-500 mt-0.5">Post an open match. Pay 25% now, opponent pays 25%, remaining 50% at venue.</div>
+              <div class="mt-1.5 text-xs font-bold text-violet-600" id="open-price-label">Pay now: -- PKR (25%)</div>
             </div>
           </div>
         </div>
@@ -552,8 +559,8 @@ body { background: #f5f6fa; }
             </div>
             <div class="flex-1">
               <div class="font-bold text-slate-800 text-sm">Challenge a Specific Team</div>
-              <div class="text-xs text-slate-500 mt-0.5">Search and invite a specific team. You each pay 50% to confirm.</div>
-              <div class="mt-1.5 text-xs font-bold text-orange-600" id="team-price-label">Your share: -- PKR (50%)</div>
+              <div class="text-xs text-slate-500 mt-0.5">Search and invite a team. You each pay 25% advance now, remaining 50% at venue.</div>
+              <div class="mt-1.5 text-xs font-bold text-orange-600" id="team-price-label">Your share: -- PKR (25%)</div>
             </div>
           </div>
         </div>
@@ -572,27 +579,32 @@ body { background: #f5f6fa; }
         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
         Back
       </button>
-      <h3 class="text-base font-bold text-slate-800 mb-4">Confirm Direct Booking</h3>
+      <h3 class="text-base font-bold text-slate-800 mb-4">Confirm Direct Booking (50% Advance)</h3>
       <div class="bg-slate-50 rounded-xl p-4 mb-4 space-y-3 text-sm border border-slate-200">
         <div class="flex justify-between"><span class="text-slate-500">Venue</span><span class="font-semibold text-slate-800" id="d-venue">--</span></div>
         <div class="flex justify-between"><span class="text-slate-500">Date</span><span class="font-semibold text-slate-800" id="d-date">--</span></div>
         <div class="flex justify-between"><span class="text-slate-500">Time</span><span class="font-semibold text-slate-800" id="d-time">--</span></div>
+        <div class="flex justify-between text-xs text-slate-500"><span>Slot Full Price</span><span id="d-full-price">-- PKR</span></div>
         <div class="border-t border-slate-200 pt-3 flex justify-between">
-          <span class="font-bold text-slate-700">Total Payment</span>
+          <span class="font-bold text-slate-700">Advance Payment (50%)</span>
           <span class="font-extrabold text-emerald-600 text-base" id="d-price">-- PKR</span>
+        </div>
+        <div class="flex justify-between text-xs font-semibold text-amber-700 bg-amber-50 rounded-lg p-2">
+          <span>Pay at Venue (50% remaining):</span>
+          <span id="d-venue-due">-- PKR</span>
         </div>
         <div class="flex justify-between text-xs">
           <span class="text-slate-400">Wallet Balance</span>
           <span class="font-semibold text-slate-600" id="d-balance">-- PKR</span>
         </div>
         <div class="flex justify-between text-xs">
-          <span class="text-slate-400">After Payment</span>
+          <span class="text-slate-400">Balance After Advance</span>
           <span class="font-semibold" id="d-after">-- PKR</span>
         </div>
       </div>
       <button onclick="submitBooking('direct')"
               class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl text-sm transition-all shadow-md" id="direct-pay-btn">
-        ✅ Confirm & Pay from Wallet
+        ✅ Pay 50% Advance from Wallet
       </button>
     </div>
 
@@ -602,25 +614,33 @@ body { background: #f5f6fa; }
         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
         Back
       </button>
-      <h3 class="text-base font-bold text-slate-800 mb-1">Post Open Challenge</h3>
-      <p class="text-xs text-slate-500 mb-4">Your challenge will be visible to all players on the Explore page. When someone accepts, their 50% confirms the booking.</p>
+      <h3 class="text-base font-bold text-slate-800 mb-1">Post Open Challenge (25% Advance)</h3>
+      <p class="text-xs text-slate-500 mb-4">Your challenge will be visible to all players. When someone accepts with their 25% share, the match is confirmed.</p>
       <div class="bg-violet-50 rounded-xl p-4 mb-4 space-y-3 text-sm border border-violet-200">
         <div class="flex justify-between"><span class="text-slate-500">Venue</span><span class="font-semibold text-slate-800" id="oc-venue">--</span></div>
         <div class="flex justify-between"><span class="text-slate-500">Date</span><span class="font-semibold text-slate-800" id="oc-date">--</span></div>
         <div class="flex justify-between"><span class="text-slate-500">Time</span><span class="font-semibold text-slate-800" id="oc-time">--</span></div>
+        <div class="flex justify-between text-xs text-slate-500"><span>Slot Full Price</span><span id="oc-full-price">-- PKR</span></div>
         <div class="border-t border-violet-200 pt-3 flex justify-between">
-          <span class="font-bold text-slate-700">You Pay Now (50%)</span>
+          <span class="font-bold text-slate-700">You Pay Now (25% Advance)</span>
           <span class="font-extrabold text-violet-700 text-base" id="oc-price">-- PKR</span>
+        </div>
+        <div class="flex justify-between text-xs">
+          <span class="text-slate-500">Opponent Pays (25%):</span>
+          <span class="font-semibold text-violet-700" id="oc-opp-price">-- PKR</span>
+        </div>
+        <div class="flex justify-between text-xs font-semibold text-amber-700 bg-amber-50 rounded-lg p-2">
+          <span>Remaining 50% paid at venue:</span>
+          <span id="oc-venue-due">-- PKR</span>
         </div>
         <div class="flex justify-between text-xs">
           <span class="text-slate-400">Wallet Balance</span>
           <span class="font-semibold text-slate-600" id="oc-balance">-- PKR</span>
         </div>
-        <div class="text-xs text-violet-600 bg-violet-100 rounded-lg p-2 mt-1">⚡ Opponent pays the remaining 50% to confirm the match.</div>
       </div>
       <button id="oc-pay-btn" onclick="submitBooking('open_challenge')"
               class="w-full bg-violet-600 hover:bg-violet-700 text-white font-bold py-3 rounded-xl text-sm transition-all shadow-md">
-        ⚡ Pay 50% & Post Challenge
+        ⚡ Pay 25% & Post Challenge
       </button>
     </div>
 
@@ -630,23 +650,28 @@ body { background: #f5f6fa; }
         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
         Back
       </button>
-      <h3 class="text-base font-bold text-slate-800 mb-1">Challenge a Specific Team</h3>
-      <p class="text-xs text-slate-500 mb-4">You'll be taken to the teams page with your slot pre-filled. Search a team, pay your 50%, and the invite will be sent.</p>
+      <h3 class="text-base font-bold text-slate-800 mb-1">Challenge a Specific Team (25% Advance)</h3>
+      <p class="text-xs text-slate-500 mb-4">You'll be taken to the teams page with your slot pre-filled. Search a team, pay your 25% share, and the invite will be sent.</p>
       <div class="bg-orange-50 rounded-xl p-4 mb-4 space-y-3 text-sm border border-orange-200">
         <div class="flex justify-between"><span class="text-slate-500">Venue</span><span class="font-semibold text-slate-800" id="tc-venue">--</span></div>
         <div class="flex justify-between"><span class="text-slate-500">Date</span><span class="font-semibold text-slate-800" id="tc-date">--</span></div>
         <div class="flex justify-between"><span class="text-slate-500">Time</span><span class="font-semibold text-slate-800" id="tc-time">--</span></div>
+        <div class="flex justify-between text-xs text-slate-500"><span>Slot Full Price</span><span id="tc-full-price">-- PKR</span></div>
         <div class="border-t border-orange-200 pt-3 flex justify-between">
-          <span class="font-bold text-slate-700">Your Share (50%)</span>
+          <span class="font-bold text-slate-700">Your Share (25% Advance)</span>
           <span class="font-extrabold text-orange-600 text-base" id="tc-price">-- PKR</span>
+        </div>
+        <div class="flex justify-between text-xs font-semibold text-amber-700 bg-amber-50 rounded-lg p-2">
+          <span>Remaining 50% paid at venue:</span>
+          <span id="tc-venue-due">-- PKR</span>
         </div>
       </div>
       <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700 mb-4">
-        ⚠️ Your 5-min slot hold will be released when you navigate away. The slot reservation will be locked once you pay your 50% on the next page.
+        ⚠️ Your 5-min slot hold will be released when you navigate away. The slot reservation will be locked once you pay your 25% advance on the next page.
       </div>
       <button onclick="goToChallengeTeam()"
               class="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 rounded-xl text-sm transition-all shadow-md">
-        🏆 Select Team & Pay 50% →
+        🏆 Select Team & Pay 25% →
       </button>
     </div>
 
@@ -675,6 +700,7 @@ function getSlotColorClasses(type) {
     challenge:  { text: 'text-violet-700',  price: 'text-violet-600' },
     held:       { text: 'text-blue-700',    price: 'text-blue-600' },
     on_hold:    { text: 'text-slate-600',   price: 'text-slate-500' },
+    passed:     { text: 'text-slate-400',   price: 'text-slate-400' },
   };
   return map[type] || map.available;
 }
@@ -890,10 +916,11 @@ function openModal() {
   document.getElementById('modal-date').textContent        = modalData.date;
   document.getElementById('modal-price').textContent       = formatNum(modalData.price);
 
-  const half = Math.round(modalData.price * 0.5);
-  document.getElementById('direct-price-label').textContent = 'Full price: ' + formatNum(modalData.price) + ' PKR';
-  document.getElementById('open-price-label').textContent   = 'Pay now: ' + formatNum(half) + ' PKR (50%)';
-  document.getElementById('team-price-label').textContent   = 'Your share: ' + formatNum(half) + ' PKR (50%)';
+  const directHalf = Math.round(modalData.price * 0.5);
+  const quarter    = Math.round(modalData.price * 0.25);
+  document.getElementById('direct-price-label').textContent = 'Advance: ' + formatNum(directHalf) + ' PKR (50%)';
+  document.getElementById('open-price-label').textContent   = 'Pay now: ' + formatNum(quarter) + ' PKR (25%)';
+  document.getElementById('team-price-label').textContent   = 'Your share: ' + formatNum(quarter) + ' PKR (25%)';
 
   showStep(1);
   document.getElementById('booking-modal-overlay').classList.add('open');
@@ -1031,55 +1058,63 @@ function showStep(n) {
   document.getElementById('dot-2').classList.add('active');
 
   const balance    = currentWalletBalance;
-  const half       = Math.round(modalData.price * 0.5);
+  const directHalf = Math.round(modalData.price * 0.5);
+  const quarter    = Math.round(modalData.price * 0.25);
   const groundEl   = document.getElementById('ground-select');
   const opt        = groundEl ? groundEl.options[groundEl.selectedIndex] : null;
   const groundName = opt ? (opt.dataset.title || opt.text.split('—')[0].trim()) : 'Venue';
 
   if (selectedType === 'direct') {
     document.getElementById('step-2-direct').classList.remove('hidden');
-    document.getElementById('d-venue').textContent   = groundName;
-    document.getElementById('d-date').textContent    = modalData.date;
-    document.getElementById('d-time').textContent    = modalData.time;
-    document.getElementById('d-price').textContent   = formatNum(modalData.price) + ' PKR';
-    document.getElementById('d-balance').textContent = formatNum(balance) + ' PKR';
-    const after   = balance - modalData.price;
+    document.getElementById('d-venue').textContent      = groundName;
+    document.getElementById('d-date').textContent       = modalData.date;
+    document.getElementById('d-time').textContent       = modalData.time;
+    document.getElementById('d-full-price').textContent = formatNum(modalData.price) + ' PKR';
+    document.getElementById('d-price').textContent      = formatNum(directHalf) + ' PKR';
+    document.getElementById('d-venue-due').textContent  = formatNum(modalData.price - directHalf) + ' PKR';
+    document.getElementById('d-balance').textContent    = formatNum(balance) + ' PKR';
+    const after   = balance - directHalf;
     const afterEl = document.getElementById('d-after');
     afterEl.textContent = formatNum(after) + ' PKR';
     afterEl.className   = 'font-semibold ' + (after >= 0 ? 'text-emerald-600' : 'text-red-600');
     const payBtn = document.getElementById('direct-pay-btn');
-    if (balance < modalData.price) {
+    if (balance < directHalf) {
       payBtn.disabled    = true;
       payBtn.textContent = '❌ Insufficient Balance – Top Up Wallet';
       payBtn.className  += ' opacity-50 cursor-not-allowed';
     } else {
       payBtn.disabled    = false;
-      payBtn.textContent = '✅ Confirm & Pay from Wallet';
+      payBtn.textContent = '✅ Pay 50% Advance from Wallet';
       payBtn.className   = payBtn.className.replace('opacity-50 cursor-not-allowed','');
     }
   } else if (selectedType === 'open_challenge') {
     document.getElementById('step-2-open').classList.remove('hidden');
-    document.getElementById('oc-venue').textContent   = groundName;
-    document.getElementById('oc-date').textContent    = modalData.date;
-    document.getElementById('oc-time').textContent    = modalData.time;
-    document.getElementById('oc-price').textContent   = formatNum(half) + ' PKR';
-    document.getElementById('oc-balance').textContent = formatNum(balance) + ' PKR';
+    document.getElementById('oc-venue').textContent      = groundName;
+    document.getElementById('oc-date').textContent       = modalData.date;
+    document.getElementById('oc-time').textContent       = modalData.time;
+    document.getElementById('oc-full-price').textContent = formatNum(modalData.price) + ' PKR';
+    document.getElementById('oc-price').textContent      = formatNum(quarter) + ' PKR';
+    document.getElementById('oc-opp-price').textContent  = formatNum(quarter) + ' PKR';
+    document.getElementById('oc-venue-due').textContent   = formatNum(modalData.price - (quarter * 2)) + ' PKR';
+    document.getElementById('oc-balance').textContent    = formatNum(balance) + ' PKR';
     const ocBtn = document.getElementById('oc-pay-btn');
-    if (balance < half) {
+    if (balance < quarter) {
       ocBtn.disabled    = true;
       ocBtn.textContent = '❌ Insufficient Balance – Top Up Wallet';
       ocBtn.className  += ' opacity-50 cursor-not-allowed';
     } else {
       ocBtn.disabled    = false;
-      ocBtn.textContent = '⚡ Pay 50% & Post Challenge';
+      ocBtn.textContent = '⚡ Pay 25% & Post Challenge';
       ocBtn.className   = ocBtn.className.replace('opacity-50 cursor-not-allowed','');
     }
   } else {
     document.getElementById('step-2-team').classList.remove('hidden');
-    document.getElementById('tc-venue').textContent = groundName;
-    document.getElementById('tc-date').textContent  = modalData.date;
-    document.getElementById('tc-time').textContent  = modalData.time;
-    document.getElementById('tc-price').textContent = formatNum(half) + ' PKR';
+    document.getElementById('tc-venue').textContent      = groundName;
+    document.getElementById('tc-date').textContent       = modalData.date;
+    document.getElementById('tc-time').textContent       = modalData.time;
+    document.getElementById('tc-full-price').textContent = formatNum(modalData.price) + ' PKR';
+    document.getElementById('tc-price').textContent      = formatNum(quarter) + ' PKR';
+    document.getElementById('tc-venue-due').textContent  = formatNum(modalData.price - (quarter * 2)) + ' PKR';
   }
 }
 
@@ -1126,7 +1161,7 @@ function submitBooking(type) {
       showToast('❌ ' + res.message, 'error');
       if (btn) {
         btn.disabled    = false;
-        btn.textContent = type === 'direct' ? '✅ Confirm & Pay from Wallet' : '⚡ Pay 50% & Post Challenge';
+        btn.textContent = type === 'direct' ? '✅ Pay 50% Advance from Wallet' : '⚡ Pay 25% & Post Challenge';
       }
     }
   })
@@ -1138,8 +1173,8 @@ function submitBooking(type) {
 
 // ---- Go to Challenge Team Page ----
 function goToChallengeTeam() {
-  const half = Math.round(modalData.price * 0.5);
-  window.location.href = 'challenge_team.php?ground_id=' + modalData.ground + '&date=' + modalData.date + '&hour=' + modalData.hour + '&price=' + modalData.price + '&half=' + half;
+  const quarter = Math.round(modalData.price * 0.25);
+  window.location.href = 'challenge_team.php?ground_id=' + modalData.ground + '&date=' + modalData.date + '&hour=' + modalData.hour + '&price=' + modalData.price + '&quarter=' + quarter + '&half=' + quarter;
 }
 
 // ---- Toast Notification ----
