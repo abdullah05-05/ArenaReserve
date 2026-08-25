@@ -473,6 +473,10 @@ body { font-family: 'Inter', sans-serif; background: #f8fafc; }
           Yes, Cancel
         </button>
       </div>
+
+      <div class="text-[11px] text-center text-slate-400 mt-3">
+        Subject to our <a href="cancellation-policy.php" target="_blank" class="text-emerald-600 font-medium hover:underline">Cancellation Policy</a> & <a href="refund-policy.php" target="_blank" class="text-emerald-600 font-medium hover:underline">Refund Policy</a>.
+      </div>
     </div>
   </div>
 </div>

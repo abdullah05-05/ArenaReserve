@@ -300,6 +300,14 @@ VALUES
                     <p id="confirm_password-error" class="mt-2 text-sm text-red-600"><?php echo htmlspecialchars($fieldErrors['confirm_password'] ?? ''); ?></p>
                 </div>
 
+                <!-- Terms & Privacy disclaimer -->
+                <p class="text-xs text-slate-500 text-center leading-relaxed">
+                    By clicking Create Account, you agree to our 
+                    <a href="terms.php" target="_blank" class="text-emerald-600 font-semibold hover:underline">Terms & Conditions</a>, 
+                    <a href="privacy.php" target="_blank" class="text-emerald-600 font-semibold hover:underline">Privacy Policy</a>, 
+                    and <a href="refund-policy.php" target="_blank" class="text-emerald-600 font-semibold hover:underline">Refund Policy</a>.
+                </p>
+
                 <!-- Submit Button -->
                 <div>
                     <button type="submit"
@@ -312,6 +320,18 @@ VALUES
             <div class="mt-6 text-center">
                 <span class="text-sm text-slate-600">Already have an account?</span>
                 <a href="login.php" class="font-medium text-emerald-600 hover:text-emerald-500 text-sm ml-1">Sign in</a>
+            </div>
+
+            <div class="mt-6 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-center gap-3 text-xs text-slate-400">
+                <a href="terms.php" class="hover:text-emerald-600 transition-colors">Terms</a>
+                <span>•</span>
+                <a href="privacy.php" class="hover:text-emerald-600 transition-colors">Privacy</a>
+                <span>•</span>
+                <a href="refund-policy.php" class="hover:text-emerald-600 transition-colors">Refunds</a>
+                <span>•</span>
+                <a href="cancellation-policy.php" class="hover:text-emerald-600 transition-colors">Cancellation</a>
+                <span>•</span>
+                <a href="contact.php" class="hover:text-emerald-600 transition-colors">Support (03137970801)</a>
             </div>
         </div>
     </div>
