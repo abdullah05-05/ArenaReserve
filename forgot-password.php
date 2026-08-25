@@ -142,6 +142,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     Back to login
                 </a>
             </div>
+
+            <div class="mt-6 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-center gap-3 text-xs text-slate-400">
+                <a href="terms.php" class="hover:text-emerald-600 transition-colors">Terms</a>
+                <span>•</span>
+                <a href="privacy.php" class="hover:text-emerald-600 transition-colors">Privacy</a>
+                <span>•</span>
+                <a href="refund-policy.php" class="hover:text-emerald-600 transition-colors">Refunds</a>
+                <span>•</span>
+                <a href="cancellation-policy.php" class="hover:text-emerald-600 transition-colors">Cancellation</a>
+                <span>•</span>
+                <a href="contact.php" class="hover:text-emerald-600 transition-colors">Support (03137970801)</a>
+            </div>
         </div>
     </div>
 

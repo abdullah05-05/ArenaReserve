@@ -689,8 +689,8 @@
                         </div>
                         <div>
                             <div class="text-xs font-bold uppercase tracking-wider text-slate-400">Phone & WhatsApp Support</div>
-                            <a href="tel:+923001234567" class="text-base font-extrabold text-slate-900 hover:text-emerald-600 transition-colors block mt-1">
-                                +92 (300) 123-4567
+                            <a href="tel:03137970801" class="text-base font-extrabold text-slate-900 hover:text-emerald-600 transition-colors block mt-1">
+                                03137970801
                             </a>
                             <div class="text-xs text-slate-500 mt-0.5 font-medium">Mon – Sun: 9:00 AM – 11:00 PM PKT</div>
                         </div>
@@ -703,10 +703,10 @@
                         </div>
                         <div>
                             <div class="text-xs font-bold uppercase tracking-wider text-slate-400">Email Inquiries</div>
-                            <a href="mailto:support@arenareserve.pk" class="text-base font-extrabold text-slate-900 hover:text-emerald-600 transition-colors block mt-1">
-                                support@arenareserve.pk
+                            <a href="mailto:abdullahtariq0505@gmail.com" class="text-base font-extrabold text-slate-900 hover:text-emerald-600 transition-colors block mt-1">
+                                abdullahtariq0505@gmail.com
                             </a>
-                            <div class="text-xs text-slate-500 mt-0.5 font-medium">For partner onboarding: <a href="mailto:partners@arenareserve.pk" class="text-emerald-600 hover:underline">partners@arenareserve.pk</a></div>
+                            <div class="text-xs text-slate-500 mt-0.5 font-medium">Operations & Support: <a href="mailto:abdullahtariq0505@gmail.com" class="text-emerald-600 hover:underline">abdullahtariq0505@gmail.com</a></div>
                         </div>
                     </div>
 
@@ -829,7 +829,7 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="grid grid-cols-1 md:grid-cols-12 gap-10">
                 <!-- Col 1: Brand & Bio -->
-                <div class="md:col-span-5">
+                <div class="md:col-span-4">
                     <a href="landing.php" class="flex items-center gap-2.5">
                         <div class="w-9 h-9 rounded-xl bg-emerald-600 flex items-center justify-center text-white">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -843,13 +843,17 @@
                     <p class="mt-4 text-sm text-slate-400 leading-relaxed max-w-sm">
                         Pakistan's modern arena management & ground reservation network. Empowering athletes and arena owners through instant digital bookings.
                     </p>
+                    <div class="mt-4 text-xs text-slate-400 space-y-1">
+                        <div>📞 Phone / WhatsApp: <a href="tel:03137970801" class="text-emerald-400 font-bold hover:underline">03137970801</a></div>
+                        <div>✉️ Support Email: <a href="mailto:abdullahtariq0505@gmail.com" class="text-emerald-400 font-bold hover:underline">abdullahtariq0505@gmail.com</a></div>
+                    </div>
                     <div class="mt-6 text-xs text-slate-500">
                         &copy; 2026 ArenaReserve. All rights reserved.
                     </div>
                 </div>
 
-                <!-- Col 2: Navigation Links -->
-                <div class="md:col-span-3">
+                <!-- Col 2: Quick Links -->
+                <div class="md:col-span-2">
                     <h4 class="text-xs font-bold text-slate-200 uppercase tracking-wider mb-4">Quick Links</h4>
                     <ul class="space-y-2.5 text-sm">
                         <li><a href="#about" class="hover:text-emerald-400 transition-colors">About Us</a></li>
@@ -860,8 +864,20 @@
                     </ul>
                 </div>
 
-                <!-- Col 3: Authentication -->
-                <div class="md:col-span-4">
+                <!-- Col 3: Compliance Policies -->
+                <div class="md:col-span-3">
+                    <h4 class="text-xs font-bold text-slate-200 uppercase tracking-wider mb-4">Compliance Policies</h4>
+                    <ul class="space-y-2.5 text-sm">
+                        <li><a href="terms.php" class="hover:text-emerald-400 transition-colors">Terms & Conditions</a></li>
+                        <li><a href="privacy.php" class="hover:text-emerald-400 transition-colors">Privacy Policy</a></li>
+                        <li><a href="refund-policy.php" class="hover:text-emerald-400 transition-colors">Refund Policy</a></li>
+                        <li><a href="cancellation-policy.php" class="hover:text-emerald-400 transition-colors">Cancellation Policy</a></li>
+                        <li><a href="contact.php" class="hover:text-emerald-400 transition-colors">Contact & Support</a></li>
+                    </ul>
+                </div>
+
+                <!-- Col 4: Authentication -->
+                <div class="md:col-span-3">
                     <h4 class="text-xs font-bold text-slate-200 uppercase tracking-wider mb-4">Account & Access</h4>
                     <div class="flex flex-col gap-2.5">
                         <a href="login.php" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-semibold text-center transition-colors">
