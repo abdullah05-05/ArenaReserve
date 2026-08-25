@@ -721,7 +721,7 @@
                                 ArenaReserve Sports Tech HQ
                             </div>
                             <div class="text-xs text-slate-500 mt-0.5 leading-relaxed">
-                                Phase 5 DHA & Gulberg III, Lahore, Pakistan
+                                17-km Sheikhupura Road, Shah Zaman Park near Mughal Steel, Lahore, Pakistan
                             </div>
                         </div>
                     </div>
@@ -844,6 +844,7 @@
                         Pakistan's modern arena management & ground reservation network. Empowering athletes and arena owners through instant digital bookings.
                     </p>
                     <div class="mt-4 text-xs text-slate-400 space-y-1">
+                        <div>📍 Address: 17-km Sheikhupura Road, Shah Zaman Park near Mughal Steel, Lahore</div>
                         <div>📞 Phone / WhatsApp: <a href="tel:03137970801" class="text-emerald-400 font-bold hover:underline">03137970801</a></div>
                         <div>✉️ Support Email: <a href="mailto:abdullahtariq0505@gmail.com" class="text-emerald-400 font-bold hover:underline">abdullahtariq0505@gmail.com</a></div>
                     </div>

@@ -345,6 +345,7 @@ $active_policy = 'refund';
                         Pakistan's premier sports ground booking network. Empowering players, teams, and venue owners with instantaneous digital reservations.
                     </p>
                     <div class="mt-4 text-xs text-slate-400 space-y-1">
+                        <div>📍 Address: 17-km Sheikhupura Road, Shah Zaman Park near Mughal Steel, Lahore</div>
                         <div>📞 Phone / WhatsApp: <a href="tel:03137970801" class="text-emerald-400 font-bold hover:underline">03137970801</a></div>
                         <div>✉️ Support Email: <a href="mailto:abdullahtariq0505@gmail.com" class="text-emerald-400 font-bold hover:underline">abdullahtariq0505@gmail.com</a></div>
                     </div>
