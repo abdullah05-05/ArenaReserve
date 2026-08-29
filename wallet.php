@@ -85,11 +85,28 @@ try {
     $stmt->execute([$user_id]);
     $transactions = $stmt->fetchAll();
 
+    // Fetch user details for instant checkout prefill
+    $uStmt = $pdo->prepare("SELECT name, email, phone FROM users WHERE id = ?");
+    $uStmt->execute([$user_id]);
+    $currentUser = $uStmt->fetch() ?: ['name' => $_SESSION['name'] ?? '', 'email' => '', 'phone' => ''];
+
+    // Fetch online payments (AssanPay)
+    $stmt = $pdo->prepare("SELECT * FROM payment_transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT 15");
+    $stmt->execute([$user_id]);
+    $online_payments = $stmt->fetchAll();
+
 } catch (Exception $e) {
     $available_balance = 0.00;
     $frozen_balance = 0.00;
     $requests = [];
     $transactions = [];
+    $online_payments = [];
+    $currentUser = ['name' => $_SESSION['name'] ?? '', 'email' => '', 'phone' => ''];
+}
+
+if (isset($_SESSION['payment_error'])) {
+    $error = $_SESSION['payment_error'];
+    unset($_SESSION['payment_error']);
 }
 ?>
 <!DOCTYPE html>
@@ -274,89 +291,220 @@ try {
                     </div>
                 </div>
 
-                <!-- Top up Form -->
-                <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-                    <h3 class="text-base font-bold text-slate-900 mb-4">Manual Wallet Top-up</h3>
-                    
-                    <div class="mb-5 bg-slate-50 border border-slate-200 rounded-lg p-4 text-xs text-slate-600">
-                        <h4 class="font-bold text-slate-800 mb-2 uppercase tracking-wide">Deposit Payment Details</h4>
-                        <p class="mb-1"><span class="font-semibold text-slate-700">Bank Account:</span> Allied Bank (ABL) - 001004958273012</p>
-                        <p class="mb-1"><span class="font-semibold text-slate-700">EasyPaisa/JazzCash:</span> 0300-1234567</p>
-                        <p class="mt-2 text-slate-500">Transfer funds to one of these accounts, take a receipt snapshot, fill in the form, and submit.</p>
+                <!-- Tabs for Top-up Method -->
+                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div class="border-b border-slate-200 bg-slate-50/70 p-1 flex">
+                        <button type="button" id="tabBtnInstant" onclick="switchTopupTab('instant')"
+                                class="flex-1 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all bg-white text-emerald-600 shadow-sm">
+                            <svg class="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                            <span>Instant Online Top-up</span>
+                            <span class="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full hidden sm:inline">AssanPay</span>
+                        </button>
+                        <button type="button" id="tabBtnManual" onclick="switchTopupTab('manual')"
+                                class="flex-1 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-all text-slate-500 hover:text-slate-700">
+                            <svg class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                            <span>Manual Bank Transfer</span>
+                        </button>
                     </div>
 
-                    <?php if (!empty($error)): ?>
-                        <div class="mb-4 bg-red-50 border-l-4 border-red-500 p-3 text-xs text-red-700">
-                            <?php echo htmlspecialchars($error); ?>
-                        </div>
-                    <?php endif; ?>
-
-                    <?php if (!empty($success)): ?>
-                        <div class="mb-4 bg-green-50 border-l-4 border-green-500 p-3 text-xs text-green-700">
-                            <?php echo htmlspecialchars($success); ?>
-                        </div>
-                    <?php endif; ?>
-
-                    <form class="space-y-4" action="wallet.php" method="POST" enctype="multipart/form-data">
-                        <!-- Deposit Amount -->
-                        <div>
-                            <label for="amount" class="block text-xs font-semibold text-slate-700">Amount (PKR)</label>
-                            <div class="mt-1 relative rounded-md shadow-sm">
-                                <input id="amount" name="amount" type="number" step="0.01" required placeholder="5000"
-                                       value="<?php echo htmlspecialchars($_POST['amount'] ?? ''); ?>"
-                                       class="appearance-none block w-full px-3 py-2 border border-slate-300 rounded-lg placeholder-slate-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 text-sm">
+                    <div class="p-6">
+                        <?php if (!empty($error)): ?>
+                            <div class="mb-4 bg-red-50 border-l-4 border-red-500 p-3 text-xs text-red-700 rounded-r">
+                                <?php echo htmlspecialchars($error); ?>
                             </div>
-                        </div>
+                        <?php endif; ?>
 
-                        <!-- Reference Details -->
-                        <div>
-                            <label for="reference_details" class="block text-xs font-semibold text-slate-700">Transaction ID / Reference Details</label>
-                            <div class="mt-1">
-                                <input id="reference_details" name="reference_details" type="text" required placeholder="TID-98274192"
-                                       value="<?php echo htmlspecialchars($_POST['reference_details'] ?? ''); ?>"
-                                       class="appearance-none block w-full px-3 py-2 border border-slate-300 rounded-lg placeholder-slate-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 text-sm">
+                        <?php if (!empty($success)): ?>
+                            <div class="mb-4 bg-green-50 border-l-4 border-green-500 p-3 text-xs text-green-700 rounded-r">
+                                <?php echo htmlspecialchars($success); ?>
                             </div>
-                        </div>
+                        <?php endif; ?>
 
-                        <!-- Payment Receipt File -->
-                        <div>
-                            <label class="block text-xs font-semibold text-slate-700">Upload Receipt Slip (JPG, PNG, PDF)</label>
-                            <div class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-slate-300 border-dashed rounded-lg">
-                                <div class="space-y-1 text-center">
-                                    <svg class="mx-auto h-12 w-12 text-slate-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
-                                        <path d="M28 8H12a4 4 0 00-4 4v20a4 4 0 004 4h20a4 4 0 004-4V20m-6-6V8m0 6h6m-6 0a6 6 0 01-6-6V8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                                    </svg>
-                                    <div class="flex text-sm text-slate-600 justify-center">
-                                        <label for="receipt" class="relative cursor-pointer bg-white rounded-md font-semibold text-emerald-600 hover:text-emerald-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-emerald-500">
-                                            <span>Upload a file</span>
-                                            <input id="receipt" name="receipt" type="file" required class="sr-only">
-                                        </label>
-                                    </div>
-                                    <p class="text-xs text-slate-500" id="file-name-display">PNG, JPG, PDF up to 5MB</p>
+                        <!-- 1. INSTANT TOP-UP TAB (AssanPay Hosted Checkout) -->
+                        <div id="tabContentInstant" class="space-y-5">
+                            <div class="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200/80 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                                <div>
+                                    <h4 class="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+                                        <span>⚡ Instant Wallet Credit</span>
+                                    </h4>
+                                    <p class="text-xs text-slate-600 mt-0.5">Pay via JazzCash, EasyPaisa, Debit/Credit Card, or QR. Your wallet updates instantly upon completion.</p>
+                                </div>
+                                <div class="flex items-center gap-1.5 flex-wrap">
+                                    <span class="px-2 py-1 bg-white border border-emerald-200 text-[10px] font-bold text-emerald-700 rounded-md shadow-2xs">JazzCash</span>
+                                    <span class="px-2 py-1 bg-white border border-emerald-200 text-[10px] font-bold text-emerald-700 rounded-md shadow-2xs">EasyPaisa</span>
+                                    <span class="px-2 py-1 bg-white border border-emerald-200 text-[10px] font-bold text-emerald-700 rounded-md shadow-2xs">Cards</span>
+                                    <span class="px-2 py-1 bg-white border border-emerald-200 text-[10px] font-bold text-emerald-700 rounded-md shadow-2xs">QR Pay</span>
                                 </div>
                             </div>
+
+                            <form id="assanpayTopupForm" action="initiate_checkout.php" method="POST" class="space-y-4" onsubmit="handleAssanPaySubmit(event)">
+                                <input type="hidden" name="purpose" value="wallet_topup">
+                                <input type="hidden" name="format" value="json">
+
+                                <!-- Quick Amount Chips -->
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-700 mb-1.5">Select Quick Amount (PKR)</label>
+                                    <div class="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                                        <button type="button" onclick="setQuickAmount(10)" class="quick-chip py-2 px-3 border border-slate-200 hover:border-emerald-500 rounded-lg text-xs font-bold text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 transition-colors text-center">10 PKR</button>
+                                        <button type="button" onclick="setQuickAmount(50)" class="quick-chip py-2 px-3 border border-slate-200 hover:border-emerald-500 rounded-lg text-xs font-bold text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 transition-colors text-center">50 PKR</button>
+                                        <button type="button" onclick="setQuickAmount(100)" class="quick-chip py-2 px-3 border border-slate-200 hover:border-emerald-500 rounded-lg text-xs font-bold text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 transition-colors text-center">100 PKR</button>
+                                        <button type="button" onclick="setQuickAmount(500)" class="quick-chip py-2 px-3 border border-slate-200 hover:border-emerald-500 rounded-lg text-xs font-bold text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 transition-colors text-center">500 PKR</button>
+                                        <button type="button" onclick="setQuickAmount(1000)" class="quick-chip py-2 px-3 border border-slate-200 hover:border-emerald-500 rounded-lg text-xs font-bold text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 transition-colors text-center">1,000 PKR</button>
+                                        <button type="button" onclick="setQuickAmount(2500)" class="quick-chip py-2 px-3 border border-slate-200 hover:border-emerald-500 rounded-lg text-xs font-bold text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 transition-colors text-center">2,500 PKR</button>
+                                    </div>
+                                </div>
+
+                                <!-- Amount Input -->
+                                <div>
+                                    <label for="ap_amount" class="block text-xs font-semibold text-slate-700">Or Enter Custom Amount (PKR)</label>
+                                    <div class="mt-1 relative rounded-md shadow-sm">
+                                        <input id="ap_amount" name="amount" type="number" step="1" min="1" required placeholder="e.g. 100"
+                                               class="appearance-none block w-full px-3 py-2 border border-slate-300 rounded-lg placeholder-slate-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 text-sm font-semibold text-slate-900">
+                                    </div>
+                                    <p class="text-[11px] text-slate-500 mt-1">Minimum deposit: 1 PKR &bull; Testing limit: 1 – 100 PKR per transaction.</p>
+                                </div>
+
+                                <!-- Payment Channel Selection -->
+                                <div>
+                                    <label for="ap_method" class="block text-xs font-semibold text-slate-700">Preferred Payment Channel (Optional)</label>
+                                    <select id="ap_method" name="payment_method" class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 text-xs text-slate-700">
+                                        <option value="">Choose on AssanPay Hosted Checkout (Recommended)</option>
+                                        <option value="JazzCash">JazzCash Mobile Account</option>
+                                        <option value="Easypaisa">Easypaisa Mobile Account</option>
+                                        <option value="Card">Debit / Credit Card</option>
+                                        <option value="QR">Raast / QR Code</option>
+                                    </select>
+                                </div>
+
+                                <!-- Payer Details (Pre-filled) -->
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label for="ap_phone" class="block text-xs font-semibold text-slate-700">Account / Mobile Number</label>
+                                        <input id="ap_phone" name="phone" type="text" required
+                                               value="<?php echo htmlspecialchars($currentUser['phone'] ?? ''); ?>"
+                                               placeholder="03001234567"
+                                               class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 text-xs text-slate-800">
+                                    </div>
+                                    <div>
+                                        <label for="ap_email" class="block text-xs font-semibold text-slate-700">Email Address</label>
+                                        <input id="ap_email" name="email" type="email" required
+                                               value="<?php echo htmlspecialchars($currentUser['email'] ?? ''); ?>"
+                                               placeholder="player@example.com"
+                                               class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 text-xs text-slate-800">
+                                    </div>
+                                </div>
+
+                                <div id="ap_error_box" class="hidden bg-red-50 border border-red-200 text-red-700 p-3 rounded-lg text-xs"></div>
+
+                                <!-- Submit Button -->
+                                <button type="submit" id="ap_submit_btn"
+                                        class="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl shadow-md text-sm font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-all cursor-pointer">
+                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                                    <span id="ap_btn_text">Proceed to AssanPay Hosted Checkout</span>
+                                </button>
+                            </form>
                         </div>
 
-                        <!-- Submit Button -->
-                        <div>
-                            <button type="submit"
-                                    class="w-full flex justify-center py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-colors">
-                                Submit Deposit Request
-                            </button>
+                        <!-- 2. MANUAL TOP-UP TAB -->
+                        <div id="tabContentManual" class="hidden space-y-4">
+                            <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 text-xs text-slate-600">
+                                <h4 class="font-bold text-slate-800 mb-2 uppercase tracking-wide">Manual Deposit Bank Details</h4>
+                                <p class="mb-1"><span class="font-semibold text-slate-700">Bank Account:</span> Allied Bank (ABL) - 001004958273012</p>
+                                <p class="mb-1"><span class="font-semibold text-slate-700">EasyPaisa/JazzCash:</span> 0300-1234567</p>
+                                <p class="mt-2 text-slate-500">Transfer funds manually, upload your receipt slip below, and an admin will verify it within 1-2 hours.</p>
+                            </div>
+
+                            <form class="space-y-4" action="wallet.php" method="POST" enctype="multipart/form-data">
+                                <div>
+                                    <label for="amount" class="block text-xs font-semibold text-slate-700">Amount (PKR)</label>
+                                    <div class="mt-1 relative rounded-md shadow-sm">
+                                        <input id="amount" name="amount" type="number" step="0.01" required placeholder="5000"
+                                               value="<?php echo htmlspecialchars($_POST['amount'] ?? ''); ?>"
+                                               class="appearance-none block w-full px-3 py-2 border border-slate-300 rounded-lg placeholder-slate-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 text-sm">
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label for="reference_details" class="block text-xs font-semibold text-slate-700">Transaction ID / Reference Details</label>
+                                    <div class="mt-1">
+                                        <input id="reference_details" name="reference_details" type="text" required placeholder="TID-98274192"
+                                               value="<?php echo htmlspecialchars($_POST['reference_details'] ?? ''); ?>"
+                                               class="appearance-none block w-full px-3 py-2 border border-slate-300 rounded-lg placeholder-slate-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 text-sm">
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-700">Upload Receipt Slip (JPG, PNG, PDF)</label>
+                                    <div class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-slate-300 border-dashed rounded-lg">
+                                        <div class="space-y-1 text-center">
+                                            <svg class="mx-auto h-12 w-12 text-slate-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
+                                                <path d="M28 8H12a4 4 0 00-4 4v20a4 4 0 004 4h20a4 4 0 004-4V20m-6-6V8m0 6h6m-6 0a6 6 0 01-6-6V8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                                            </svg>
+                                            <div class="flex text-sm text-slate-600 justify-center">
+                                                <label for="receipt" class="relative cursor-pointer bg-white rounded-md font-semibold text-emerald-600 hover:text-emerald-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-emerald-500">
+                                                    <span>Upload a file</span>
+                                                    <input id="receipt" name="receipt" type="file" required class="sr-only">
+                                                </label>
+                                            </div>
+                                            <p class="text-xs text-slate-500" id="file-name-display">PNG, JPG, PDF up to 5MB</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <button type="submit"
+                                            class="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-semibold text-white bg-slate-800 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-500 transition-colors">
+                                        Submit Manual Deposit Request
+                                    </button>
+                                </div>
+                            </form>
                         </div>
-                    </form>
+                    </div>
                 </div>
             </div>
 
-            <!-- Right 1 Col: Recent Audit / Topup status logs -->
+            <!-- Right 1 Col: Transaction Logs & Payment History -->
             <div class="space-y-6">
-                <!-- Audit Requests Log -->
+                <!-- Online Transactions (AssanPay) -->
                 <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-                    <h3 class="text-sm font-bold text-slate-800 mb-3 border-b border-slate-100 pb-2">Recent Deposits Status</h3>
-                    <?php if (empty($requests)): ?>
-                        <p class="text-xs text-slate-500 py-4 text-center">No deposit logs found.</p>
+                    <h3 class="text-sm font-bold text-slate-800 mb-3 border-b border-slate-100 pb-2 flex items-center justify-between">
+                        <span>Online Payments</span>
+                        <span class="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">AssanPay</span>
+                    </h3>
+                    <?php if (empty($online_payments)): ?>
+                        <p class="text-xs text-slate-500 py-3 text-center">No online transactions yet.</p>
                     <?php else: ?>
-                        <div class="space-y-3">
+                        <div class="space-y-2.5 max-h-64 overflow-y-auto pr-1">
+                            <?php foreach ($online_payments as $op): ?>
+                                <div class="text-xs border-b border-slate-50 pb-2 last:border-0 last:pb-0">
+                                    <div class="flex justify-between font-semibold text-slate-700">
+                                        <span><?php echo number_format($op['amount'], 2); ?> PKR</span>
+                                        <?php
+                                            $st_class = 'text-amber-600 bg-amber-50';
+                                            if ($op['status'] === 'success') $st_class = 'text-emerald-600 bg-emerald-50';
+                                            if ($op['status'] === 'failed') $st_class = 'text-red-500 bg-red-50';
+                                        ?>
+                                        <span class="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase <?php echo $st_class; ?>">
+                                            <?php echo htmlspecialchars($op['status']); ?>
+                                        </span>
+                                    </div>
+                                    <div class="text-slate-400 mt-1 flex justify-between text-[11px]">
+                                        <span class="font-mono"><?php echo htmlspecialchars($op['order_id']); ?></span>
+                                        <span><?php echo date('M d, H:i', strtotime($op['created_at'])); ?></span>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
+                </div>
+
+                <!-- Manual Deposit Requests Log -->
+                <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+                    <h3 class="text-sm font-bold text-slate-800 mb-3 border-b border-slate-100 pb-2">Manual Slips Status</h3>
+                    <?php if (empty($requests)): ?>
+                        <p class="text-xs text-slate-500 py-3 text-center">No manual deposit logs.</p>
+                    <?php else: ?>
+                        <div class="space-y-3 max-h-56 overflow-y-auto pr-1">
                             <?php foreach ($requests as $req): ?>
                                 <div class="text-xs border-b border-slate-50 pb-2 last:border-0 last:pb-0">
                                     <div class="flex justify-between font-semibold text-slate-700">
@@ -388,9 +536,9 @@ try {
                 <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
                     <h3 class="text-sm font-bold text-slate-800 mb-3 border-b border-slate-100 pb-2">Wallet Transactions</h3>
                     <?php if (empty($transactions)): ?>
-                        <p class="text-xs text-slate-500 py-4 text-center">No transactions recorded.</p>
+                        <p class="text-xs text-slate-500 py-3 text-center">No transactions recorded.</p>
                     <?php else: ?>
-                        <div class="space-y-3">
+                        <div class="space-y-3 max-h-56 overflow-y-auto pr-1">
                             <?php foreach ($transactions as $tx): ?>
                                 <div class="text-xs border-b border-slate-50 pb-2 last:border-0 last:pb-0">
                                     <div class="flex justify-between font-semibold text-slate-700">
@@ -413,15 +561,98 @@ try {
     </div>
 
     <script>
+        // ---- Top-up Tabs ----
+        function switchTopupTab(tab) {
+            const instantTab = document.getElementById('tabContentInstant');
+            const manualTab = document.getElementById('tabContentManual');
+            const btnInstant = document.getElementById('tabBtnInstant');
+            const btnManual = document.getElementById('tabBtnManual');
+
+            if (tab === 'instant') {
+                instantTab.classList.remove('hidden');
+                manualTab.classList.add('hidden');
+                btnInstant.className = 'flex-1 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all bg-white text-emerald-600 shadow-sm';
+                btnManual.className = 'flex-1 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-all text-slate-500 hover:text-slate-700';
+            } else {
+                instantTab.classList.add('hidden');
+                manualTab.classList.remove('hidden');
+                btnManual.className = 'flex-1 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all bg-white text-emerald-600 shadow-sm';
+                btnInstant.className = 'flex-1 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-all text-slate-500 hover:text-slate-700';
+            }
+        }
+
+        // ---- Quick Amount Setter ----
+        function setQuickAmount(val) {
+            const input = document.getElementById('ap_amount');
+            input.value = val;
+            input.focus();
+        }
+
+        // ---- Handle AssanPay Checkout Submit ----
+        function handleAssanPaySubmit(e) {
+            e.preventDefault();
+            const form = document.getElementById('assanpayTopupForm');
+            const btn = document.getElementById('ap_submit_btn');
+            const btnText = document.getElementById('ap_btn_text');
+            const errBox = document.getElementById('ap_error_box');
+
+            errBox.classList.add('hidden');
+            errBox.textContent = '';
+
+            const amount = parseFloat(document.getElementById('ap_amount').value || 0);
+            if (amount < 1) {
+                errBox.textContent = 'Please enter a valid amount (minimum 1 PKR).';
+                errBox.classList.remove('hidden');
+                return;
+            }
+
+            btn.disabled = true;
+            btnText.textContent = 'Generating Secure Checkout...';
+            btn.classList.add('opacity-75', 'cursor-not-allowed');
+
+            const formData = new FormData(form);
+
+            fetch('initiate_checkout.php', {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success && data.checkoutUrl) {
+                    btnText.textContent = 'Redirecting to AssanPay...';
+                    window.location.href = data.checkoutUrl;
+                } else {
+                    btn.disabled = false;
+                    btn.classList.remove('opacity-75', 'cursor-not-allowed');
+                    btnText.textContent = 'Proceed to AssanPay Hosted Checkout';
+                    errBox.textContent = data.message || 'Unable to connect to AssanPay gateway. Please check your credentials or try again.';
+                    errBox.classList.remove('hidden');
+                }
+            })
+            .catch(err => {
+                btn.disabled = false;
+                btn.classList.remove('opacity-75', 'cursor-not-allowed');
+                btnText.textContent = 'Proceed to AssanPay Hosted Checkout';
+                errBox.textContent = 'Network or server error. Please try again.';
+                errBox.classList.remove('hidden');
+            });
+        }
+
         const fileInput = document.getElementById('receipt');
         const fileDisplay = document.getElementById('file-name-display');
 
-        fileInput.addEventListener('change', function(e) {
-            if (e.target.files.length > 0) {
-                fileDisplay.textContent = 'Selected: ' + e.target.files[0].name;
-                fileDisplay.classList.add('text-emerald-600', 'font-semibold');
-            }
-        });
+        if (fileInput) {
+            fileInput.addEventListener('change', function(e) {
+                if (e.target.files.length > 0) {
+                    fileDisplay.textContent = 'Selected: ' + e.target.files[0].name;
+                    fileDisplay.classList.add('text-emerald-600', 'font-semibold');
+                }
+            });
+        }
 
         // ---- Profile Dropdown ----
         function toggleProfileDropdown() {
