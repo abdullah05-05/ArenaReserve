@@ -345,12 +345,12 @@ if (isset($_SESSION['payment_error'])) {
                                 <div>
                                     <label class="block text-xs font-semibold text-slate-700 mb-1.5">Select Quick Amount (PKR)</label>
                                     <div class="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                                        <button type="button" onclick="setQuickAmount(10)" class="quick-chip py-2 px-3 border border-slate-200 hover:border-emerald-500 rounded-lg text-xs font-bold text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 transition-colors text-center">10 PKR</button>
-                                        <button type="button" onclick="setQuickAmount(50)" class="quick-chip py-2 px-3 border border-slate-200 hover:border-emerald-500 rounded-lg text-xs font-bold text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 transition-colors text-center">50 PKR</button>
-                                        <button type="button" onclick="setQuickAmount(100)" class="quick-chip py-2 px-3 border border-slate-200 hover:border-emerald-500 rounded-lg text-xs font-bold text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 transition-colors text-center">100 PKR</button>
                                         <button type="button" onclick="setQuickAmount(500)" class="quick-chip py-2 px-3 border border-slate-200 hover:border-emerald-500 rounded-lg text-xs font-bold text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 transition-colors text-center">500 PKR</button>
                                         <button type="button" onclick="setQuickAmount(1000)" class="quick-chip py-2 px-3 border border-slate-200 hover:border-emerald-500 rounded-lg text-xs font-bold text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 transition-colors text-center">1,000 PKR</button>
-                                        <button type="button" onclick="setQuickAmount(2500)" class="quick-chip py-2 px-3 border border-slate-200 hover:border-emerald-500 rounded-lg text-xs font-bold text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 transition-colors text-center">2,500 PKR</button>
+                                        <button type="button" onclick="setQuickAmount(2000)" class="quick-chip py-2 px-3 border border-slate-200 hover:border-emerald-500 rounded-lg text-xs font-bold text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 transition-colors text-center">2,000 PKR</button>
+                                        <button type="button" onclick="setQuickAmount(3000)" class="quick-chip py-2 px-3 border border-slate-200 hover:border-emerald-500 rounded-lg text-xs font-bold text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 transition-colors text-center">3,000 PKR</button>
+                                        <button type="button" onclick="setQuickAmount(5000)" class="quick-chip py-2 px-3 border border-slate-200 hover:border-emerald-500 rounded-lg text-xs font-bold text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 transition-colors text-center">5,000 PKR</button>
+                                        <button type="button" onclick="setQuickAmount(10000)" class="quick-chip py-2 px-3 border border-slate-200 hover:border-emerald-500 rounded-lg text-xs font-bold text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 transition-colors text-center">10,000 PKR</button>
                                     </div>
                                 </div>
 
@@ -358,10 +358,10 @@ if (isset($_SESSION['payment_error'])) {
                                 <div>
                                     <label for="ap_amount" class="block text-xs font-semibold text-slate-700">Or Enter Custom Amount (PKR)</label>
                                     <div class="mt-1 relative rounded-md shadow-sm">
-                                        <input id="ap_amount" name="amount" type="number" step="1" min="1" required placeholder="e.g. 100"
+                                        <input id="ap_amount" name="amount" type="number" step="1" min="1" required placeholder="e.g. 1000"
                                                class="appearance-none block w-full px-3 py-2 border border-slate-300 rounded-lg placeholder-slate-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 text-sm font-semibold text-slate-900">
                                     </div>
-                                    <p class="text-[11px] text-slate-500 mt-1">Minimum deposit: 1 PKR &bull; Testing limit: 1 – 100 PKR per transaction.</p>
+                                    <p class="text-[11px] text-slate-500 mt-1">Instant online deposit &bull; No per-transaction limit.</p>
                                 </div>
 
                                 <!-- Payment Channel Selection -->
@@ -453,7 +453,7 @@ if (isset($_SESSION['payment_error'])) {
 
                                 <div>
                                     <button type="submit"
-                                            class="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-semibold text-white bg-slate-800 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-500 transition-colors">
+                                            class="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-xl shadow-md text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-colors cursor-pointer">
                                         Submit Manual Deposit Request
                                     </button>
                                 </div>

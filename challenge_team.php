@@ -12,6 +12,15 @@ try {
     $available_balance = floatval($wallet['available_balance'] ?? 0);
 } catch (Exception $e) { $available_balance = 0.00; }
 
+// Fetch user profile for online checkout
+try {
+    $uStmt = $pdo->prepare("SELECT name, email, phone FROM users WHERE id = ?");
+    $uStmt->execute([$user_id]);
+    $currentUser = $uStmt->fetch() ?: ['name' => $_SESSION['name'] ?? '', 'email' => '', 'phone' => ''];
+} catch (Exception $e) {
+    $currentUser = ['name' => $_SESSION['name'] ?? '', 'email' => '', 'phone' => ''];
+}
+
 // Slot context passed from book_slot.php
 $ctx_ground_id = intval($_GET['ground_id'] ?? 0);
 $ctx_date      = trim($_GET['date'] ?? '');
@@ -101,6 +110,14 @@ body { font-family:'Inter',sans-serif; background:#f8fafc; }
 
 .team-card { border:1.5px solid #e2e8f0; border-radius:14px; background:white; padding:20px; transition:all 0.18s ease; cursor:pointer; }
 .team-card:hover { border-color:#059669; box-shadow:0 6px 24px rgba(5,150,105,0.12); transform:translateY(-2px); }
+
+/* Payment method selector cards */
+.pay-method-card {
+    border: 2px solid #e2e8f0; border-radius: 14px; padding: 12px 14px; cursor: pointer;
+    transition: all 0.18s ease;
+}
+.pay-method-card:hover { border-color: #f97316; background: #fff7ed; }
+.pay-method-card.selected { border-color: #f97316; background: #fff7ed; box-shadow: 0 0 0 2px rgba(249,115,22,0.2); }
 
 /* Modal */
 #challenge-overlay {
@@ -417,12 +434,74 @@ body { font-family:'Inter',sans-serif; background:#f8fafc; }
         <textarea id="ch-message" rows="2" placeholder="Game on! See you on the field 🏆" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 resize-none"></textarea>
       </div>
 
+      <!-- Payment Method Switcher -->
+      <div class="mb-4">
+        <label class="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-2">Select Payment Method</label>
+        <div class="grid grid-cols-2 gap-2.5">
+          <!-- Wallet Card Option -->
+          <div id="ct-payopt-wallet" onclick="selectCTPaymentMethod('wallet')" class="pay-method-card selected">
+            <div class="flex items-center gap-1.5 mb-1">
+              <span class="text-base">💳</span>
+              <span class="font-bold text-xs text-slate-800">My Wallet</span>
+            </div>
+            <div class="text-[10px] text-slate-500">Balance: <span class="font-bold text-slate-700"><?php echo number_format($available_balance, 0); ?> PKR</span></div>
+          </div>
+
+          <!-- AssanPay Card Option -->
+          <div id="ct-payopt-assanpay" onclick="selectCTPaymentMethod('assanpay')" class="pay-method-card">
+            <div class="flex items-center gap-1.5 mb-1">
+              <span class="text-base">⚡</span>
+              <span class="font-bold text-xs text-slate-800">AssanPay</span>
+            </div>
+            <div class="text-[10px] text-orange-600 font-semibold truncate">Cards · JazzCash · QR</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Panel: AssanPay details -->
+      <div id="ct-panel-assanpay" class="hidden space-y-3 mb-4">
+        <div class="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-xl p-3 text-xs space-y-1.5">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-slate-800">⚡ Instant Hosted Checkout</span>
+            <div class="flex items-center gap-1">
+              <span class="px-1.5 py-0.5 bg-white border border-orange-200 text-[10px] font-bold text-orange-700 rounded shadow-2xs">JazzCash</span>
+              <span class="px-1.5 py-0.5 bg-white border border-orange-200 text-[10px] font-bold text-orange-700 rounded shadow-2xs">EasyPaisa</span>
+              <span class="px-1.5 py-0.5 bg-white border border-orange-200 text-[10px] font-bold text-orange-700 rounded shadow-2xs">Cards</span>
+            </div>
+          </div>
+          <p class="text-[11px] text-slate-600">Pay your 25% challenge share directly via AssanPay online checkout.</p>
+        </div>
+
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-700 mb-1">Payment Channel (Optional)</label>
+          <select id="ct-ap-method" class="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 focus:ring-1 focus:ring-orange-400 focus:outline-none">
+            <option value="">Choose on Hosted Checkout (Recommended)</option>
+            <option value="JazzCash">JazzCash Mobile Account</option>
+            <option value="Easypaisa">Easypaisa Mobile Account</option>
+            <option value="Card">Debit / Credit Card</option>
+            <option value="QR">Raast / QR Pay</option>
+          </select>
+        </div>
+        <div class="grid grid-cols-2 gap-2 text-xs">
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-700 mb-1">Mobile Number</label>
+            <input type="text" id="ct-ap-phone" value="<?php echo htmlspecialchars($currentUser['phone'] ?? ''); ?>" placeholder="03001234567"
+                   class="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:ring-1 focus:ring-orange-400 focus:outline-none">
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-700 mb-1">Email Address</label>
+            <input type="email" id="ct-ap-email" value="<?php echo htmlspecialchars($currentUser['email'] ?? ''); ?>" placeholder="player@example.com"
+                   class="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:ring-1 focus:ring-orange-400 focus:outline-none">
+          </div>
+        </div>
+      </div>
+
       <div class="flex gap-3">
         <button onclick="closeChModal()" class="flex-1 py-2.5 border border-slate-300 text-slate-700 text-sm font-semibold rounded-xl hover:bg-slate-50 transition-colors">Cancel</button>
         <button onclick="submitChallenge()" id="ch-submit-btn"
                 class="flex-1 py-2.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold rounded-xl shadow transition-all <?php echo (!$has_context) ? 'opacity-50 cursor-not-allowed' : ''; ?>"
                 <?php echo (!$has_context) ? 'disabled' : ''; ?>>
-          ⚡ Pay 25% & Send Challenge
+          ⚡ Pay 25% from Wallet & Send
         </button>
       </div>
     </div>
@@ -441,12 +520,34 @@ const CTX = {
 
 let selectedTeamId   = null;
 let selectedTeamName = '';
+let ctSelectedMethod = 'wallet';
+
+function selectCTPaymentMethod(method) {
+  ctSelectedMethod = method;
+  const wCard = document.getElementById('ct-payopt-wallet');
+  const aCard = document.getElementById('ct-payopt-assanpay');
+  const aPanel = document.getElementById('ct-panel-assanpay');
+  const submitBtn = document.getElementById('ch-submit-btn');
+
+  if (method === 'wallet') {
+    if (wCard) wCard.className = 'pay-method-card selected';
+    if (aCard) aCard.className = 'pay-method-card';
+    if (aPanel) aPanel.classList.add('hidden');
+    if (submitBtn) submitBtn.textContent = '⚡ Pay 25% from Wallet & Send';
+  } else {
+    if (wCard) wCard.className = 'pay-method-card';
+    if (aCard) aCard.className = 'pay-method-card selected';
+    if (aPanel) aPanel.classList.remove('hidden');
+    if (submitBtn) submitBtn.textContent = '⚡ Pay 25% via AssanPay & Send';
+  }
+}
 
 function openChallengeModal(id, name, city) {
   selectedTeamId   = id;
   selectedTeamName = name;
   document.getElementById('m-team-name').textContent = name;
   document.getElementById('m-team-city').textContent  = city;
+  selectCTPaymentMethod('wallet');
   document.getElementById('challenge-overlay').classList.add('open');
 }
 function closeChModal() {
@@ -460,7 +561,54 @@ function submitChallenge() {
   btn.disabled    = true;
   btn.textContent = 'Securing slot…';
 
-  // 1. Ensure/refresh the hold on the slot first
+  // 1. If AssanPay chosen, initiate hosted checkout directly
+  if (ctSelectedMethod === 'assanpay') {
+    btn.textContent = 'Initiating Checkout…';
+    const channel = document.getElementById('ct-ap-method')?.value || '';
+    const phone   = document.getElementById('ct-ap-phone')?.value || '';
+    const email   = document.getElementById('ct-ap-email')?.value || '';
+
+    fetch('initiate_checkout.php', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json'
+      },
+      body: new URLSearchParams({
+        purpose:              'slot_booking',
+        format:               'json',
+        ground_id:            CTX.ground_id,
+        slot_date:            CTX.date,
+        slot_hour:            CTX.hour,
+        booking_type:         'team_challenge',
+        challenger_team_name: selectedTeamName,
+        challenged_user_id:   selectedTeamId,
+        ch_message:           (document.getElementById('ch-message')?.value || ''),
+        payment_method:       channel,
+        phone:                phone,
+        email:                email
+      })
+    })
+    .then(r => r.json())
+    .then(res => {
+      if (res.success && res.checkoutUrl) {
+        btn.textContent = 'Redirecting to AssanPay…';
+        window.location.href = res.checkoutUrl;
+      } else {
+        showCTToast('❌ ' + (res.message || 'Payment initiation failed.'), 'error');
+        btn.disabled = false;
+        btn.textContent = '⚡ Pay 25% via AssanPay & Send';
+      }
+    })
+    .catch(() => {
+      showCTToast('❌ Network error while initiating checkout.', 'error');
+      btn.disabled = false;
+      btn.textContent = '⚡ Pay 25% via AssanPay & Send';
+    });
+    return;
+  }
+
+  // 2. Otherwise pay from Wallet
   fetch('hold_slot.php', {
     method: 'POST',
     headers: {'Content-Type':'application/x-www-form-urlencoded'},
@@ -475,7 +623,7 @@ function submitChallenge() {
     if (!holdRes.success) {
       showCTToast('❌ ' + (holdRes.message || 'Slot is no longer available.'), 'error');
       btn.disabled    = false;
-      btn.textContent = '⚡ Pay & Send Challenge';
+      btn.textContent = '⚡ Pay 25% from Wallet & Send';
       return;
     }
 
@@ -505,14 +653,14 @@ function submitChallenge() {
       } else {
         showCTToast('❌ ' + res.message, 'error');
         btn.disabled    = false;
-        btn.textContent = '⚡ Pay & Send Challenge';
+        btn.textContent = '⚡ Pay 25% from Wallet & Send';
       }
     });
   })
   .catch(() => {
     showCTToast('❌ Network error.', 'error');
     btn.disabled    = false;
-    btn.textContent = '⚡ Pay & Send Challenge';
+    btn.textContent = '⚡ Pay 25% from Wallet & Send';
   });
 }
 
