@@ -13,6 +13,15 @@ try {
     $available_balance = floatval($wallet['available_balance'] ?? 0);
 } catch (Exception $e) { $available_balance = 0.00; }
 
+// Fetch user profile for online checkout
+try {
+    $uStmt = $pdo->prepare("SELECT name, email, phone FROM users WHERE id = ?");
+    $uStmt->execute([$user_id]);
+    $currentUser = $uStmt->fetch() ?: ['name' => $_SESSION['name'] ?? '', 'email' => '', 'phone' => ''];
+} catch (Exception $e) {
+    $currentUser = ['name' => $_SESSION['name'] ?? '', 'email' => '', 'phone' => ''];
+}
+
 // Fetch verified active grounds
 try {
     $stmt = $pdo->prepare("SELECT * FROM grounds WHERE is_verified = 1 AND COALESCE(ground_status, 'Active') = 'Active' ORDER BY title ASC");
@@ -154,7 +163,25 @@ body { background: #f5f6fa; }
 .slot-held       { background: #dbeafe; border: 2px solid #3b82f6; cursor: pointer; }
 .slot-on_hold    { background: #f1f5f9; border: 1.5px solid #cbd5e1; cursor: not-allowed; opacity: 0.7; }
 .slot-passed     { background: #f1f5f9; border: 1.5px solid #e2e8f0; cursor: not-allowed; opacity: 0.6; }
-.slot-selected   { background: #d1fae5; border: 2.5px solid #059669; transform: translateY(-1px); box-shadow: 0 4px 14px rgba(5,150,105,0.2); }
+.slot-selected   { background: #ecfdf5 !important; border: 2.5px solid #059669 !important; transform: translateY(-2px); box-shadow: 0 0 0 3px rgba(5,150,105,0.25), 0 8px 18px rgba(5,150,105,0.18) !important; position: relative; }
+.slot-selected::after {
+    content: '✓';
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    width: 20px;
+    height: 20px;
+    background: #059669;
+    color: white;
+    font-size: 11px;
+    font-weight: 800;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid white;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+}
 
 .slot-card { border-radius: 10px; padding: 12px; transition: all 0.18s ease; }
 
@@ -167,9 +194,13 @@ body { background: #f5f6fa; }
 #booking-modal-overlay.open { opacity: 1; pointer-events: all; }
 #booking-modal {
     background: white; border-radius: 20px; box-shadow: 0 25px 80px rgba(0,0,0,0.3);
-    max-width: 500px; width: 100%; transform: scale(0.92) translateY(20px);
+    max-width: 520px; width: 100%; max-height: 90vh; display: flex; flex-direction: column;
+    transform: scale(0.92) translateY(20px);
     transition: transform 0.25s cubic-bezier(.34,1.56,.64,1), opacity 0.2s ease;
     opacity: 0; overflow: hidden;
+}
+#booking-modal > div:not(:first-child) {
+    overflow-y: auto;
 }
 #booking-modal-overlay.open #booking-modal { transform: scale(1) translateY(0); opacity: 1; }
 
@@ -189,6 +220,14 @@ body { background: #f5f6fa; }
 }
 .choice-card:hover { border-color: #059669; background: #f0fdf4; transform: translateY(-2px); box-shadow: 0 6px 20px rgba(5,150,105,0.12); }
 .choice-card.selected { border-color: #059669; background: #f0fdf4; box-shadow: 0 0 0 3px rgba(5,150,105,0.15); }
+
+/* Payment method selector cards */
+.pay-method-card {
+    border: 2px solid #e2e8f0; border-radius: 14px; padding: 12px 14px; cursor: pointer;
+    transition: all 0.18s ease;
+}
+.pay-method-card:hover { border-color: #059669; background: #f0fdf4; }
+.pay-method-card.selected { border-color: #059669; background: #ecfdf5; box-shadow: 0 0 0 2px rgba(5,150,105,0.2); }
 
 /* Step indicator */
 .step-dot { width: 8px; height: 8px; border-radius: 50%; background: #e2e8f0; transition: background 0.2s; }
@@ -339,7 +378,7 @@ body { background: #f5f6fa; }
       <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-red-200 border border-red-400 inline-block"></span>Booked</span>
       <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-amber-200 border border-amber-400 inline-block"></span>My Booking</span>
       <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-violet-200 border border-violet-400 inline-block"></span>Challenge</span>
-      <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-blue-200 border border-blue-400 inline-block"></span>On Hold (5 min)</span>
+      <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-blue-200 border border-blue-400 inline-block"></span>On Hold (10 min)</span>
     </div>
 
     <!-- Select Ground -->
@@ -479,6 +518,33 @@ body { background: #f5f6fa; }
 </div>
 
 <!-- ============================================================
+     FLOATING MULTI-SLOT BOOKING BAR
+============================================================ -->
+<div id="multi-slot-bar" class="hidden fixed bottom-5 left-1/2 -translate-x-1/2 w-[94%] max-w-2xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-2xl shadow-2xl p-4 flex items-center justify-between z-40 border border-emerald-500/40 backdrop-blur-md transition-all duration-300">
+  <div class="flex items-center gap-3 min-w-0">
+    <div class="w-10 h-10 rounded-xl bg-white text-emerald-700 font-extrabold flex items-center justify-center text-sm shadow-sm flex-shrink-0" id="ms-bar-count">
+      1
+    </div>
+    <div class="min-w-0">
+      <div class="text-xs font-bold text-white flex items-center gap-2">
+        <span id="ms-bar-title">1 Slot Selected</span>
+        <span class="text-[11px] text-white font-mono font-bold bg-white/20 px-2.5 py-0.5 rounded-full border border-white/30 backdrop-blur-xs" id="ms-bar-price">2,000 PKR</span>
+      </div>
+      <div class="text-[11px] text-emerald-100 truncate max-w-[200px] sm:max-w-md mt-0.5" id="ms-bar-times">10:00 AM – 11:00 AM</div>
+    </div>
+  </div>
+  <div class="flex items-center gap-2 flex-shrink-0">
+    <button onclick="clearAllSelections()" class="text-xs text-white/80 hover:text-white px-3 py-2 rounded-xl transition-colors font-medium bg-white/10 hover:bg-white/20 cursor-pointer">
+      Clear
+    </button>
+    <button onclick="goToCheckoutPage()" class="bg-white hover:bg-slate-50 text-emerald-700 text-xs font-extrabold px-4 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer">
+      <span>Proceed to Checkout</span>
+      <svg class="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+    </button>
+  </div>
+</div>
+
+<!-- ============================================================
      BOOKING MODAL
 ============================================================ -->
 <div id="booking-modal-overlay">
@@ -495,6 +561,10 @@ body { background: #f5f6fa; }
           <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
         </button>
       </div>
+
+      <!-- Selected slot tags list -->
+      <div id="modal-slots-pills" class="flex flex-wrap gap-1.5 mt-2.5"></div>
+
       <div class="flex items-center gap-4 mt-3 text-xs opacity-90">
         <span>📅 <span id="modal-date">--</span></span>
         <span>💰 <span id="modal-price" class="font-bold">--</span> PKR full price</span>
@@ -504,7 +574,7 @@ body { background: #f5f6fa; }
       <div class="mt-3">
         <div class="flex items-center justify-between text-xs mb-1">
           <span class="opacity-80">Slot hold expires in</span>
-          <span class="font-bold" id="modal-countdown">5:00</span>
+          <span class="font-bold" id="modal-countdown">10:00</span>
         </div>
         <div class="h-1.5 bg-white/30 rounded-full overflow-hidden">
           <div class="h-full bg-white rounded-full transition-all duration-1000" id="modal-progress" style="width:100%"></div>
@@ -520,9 +590,9 @@ body { background: #f5f6fa; }
 
     <!-- Step 1: Choose booking type -->
     <div id="step-1" class="p-6">
-      <p class="text-sm font-semibold text-slate-700 mb-4">How would you like to book this slot?</p>
+      <p class="text-sm font-semibold text-slate-700 mb-3">How would you like to book the selected slot(s)?</p>
+      
       <div class="space-y-3">
-
         <!-- Direct Booking -->
         <div class="choice-card" onclick="selectBookingType('direct', this)">
           <div class="flex items-start gap-3">
@@ -567,97 +637,162 @@ body { background: #f5f6fa; }
       </div>
 
       <button onclick="proceedToStep2()"
-              class="mt-5 w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl text-sm transition-all shadow-md hover:shadow-lg disabled:opacity-40 disabled:cursor-not-allowed"
+              class="mt-5 w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl text-sm transition-all shadow-md hover:shadow-lg disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
               id="step1-next-btn" disabled>
         Continue →
       </button>
     </div>
 
-    <!-- Step 2a: Direct Booking Confirm -->
-    <div id="step-2-direct" class="p-6 hidden">
-      <button onclick="backToStep1()" class="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 mb-4 font-medium">
+    <!-- Step 2: Confirmation & Payment Selection -->
+    <div id="step-2-checkout" class="p-6 hidden">
+      <button onclick="backToStep1()" class="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 mb-3 font-medium cursor-pointer">
         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
-        Back
+        Back to options
       </button>
-      <h3 class="text-base font-bold text-slate-800 mb-4">Confirm Direct Booking (50% Advance)</h3>
-      <div class="bg-slate-50 rounded-xl p-4 mb-4 space-y-3 text-sm border border-slate-200">
-        <div class="flex justify-between"><span class="text-slate-500">Venue</span><span class="font-semibold text-slate-800" id="d-venue">--</span></div>
-        <div class="flex justify-between"><span class="text-slate-500">Date</span><span class="font-semibold text-slate-800" id="d-date">--</span></div>
-        <div class="flex justify-between"><span class="text-slate-500">Time</span><span class="font-semibold text-slate-800" id="d-time">--</span></div>
-        <div class="flex justify-between text-xs text-slate-500"><span>Slot Full Price</span><span id="d-full-price">-- PKR</span></div>
-        <div class="border-t border-slate-200 pt-3 flex justify-between">
-          <span class="font-bold text-slate-700">Advance Payment (50%)</span>
-          <span class="font-extrabold text-emerald-600 text-base" id="d-price">-- PKR</span>
-        </div>
-        <div class="flex justify-between text-xs font-semibold text-amber-700 bg-amber-50 rounded-lg p-2">
-          <span>Pay at Venue (50% remaining):</span>
-          <span id="d-venue-due">-- PKR</span>
-        </div>
-        <div class="flex justify-between text-xs">
-          <span class="text-slate-400">Wallet Balance</span>
-          <span class="font-semibold text-slate-600" id="d-balance">-- PKR</span>
-        </div>
-        <div class="flex justify-between text-xs">
-          <span class="text-slate-400">Balance After Advance</span>
-          <span class="font-semibold" id="d-after">-- PKR</span>
-        </div>
-      </div>
-      <button onclick="submitBooking('direct')"
-              class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl text-sm transition-all shadow-md" id="direct-pay-btn">
-        ✅ Pay 50% Advance from Wallet
-      </button>
-    </div>
 
-    <!-- Step 2b: Open Challenge Confirm -->
-    <div id="step-2-open" class="p-6 hidden">
-      <button onclick="backToStep1()" class="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 mb-4 font-medium">
-        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
-        Back
-      </button>
-      <h3 class="text-base font-bold text-slate-800 mb-1">Post Open Challenge (25% Advance)</h3>
-      <p class="text-xs text-slate-500 mb-4">Your challenge will be visible to all players. When someone accepts with their 25% share, the match is confirmed.</p>
-      <div class="bg-violet-50 rounded-xl p-4 mb-4 space-y-3 text-sm border border-violet-200">
-        <div class="flex justify-between"><span class="text-slate-500">Venue</span><span class="font-semibold text-slate-800" id="oc-venue">--</span></div>
-        <div class="flex justify-between"><span class="text-slate-500">Date</span><span class="font-semibold text-slate-800" id="oc-date">--</span></div>
-        <div class="flex justify-between"><span class="text-slate-500">Time</span><span class="font-semibold text-slate-800" id="oc-time">--</span></div>
-        <div class="flex justify-between text-xs text-slate-500"><span>Slot Full Price</span><span id="oc-full-price">-- PKR</span></div>
-        <div class="border-t border-violet-200 pt-3 flex justify-between">
-          <span class="font-bold text-slate-700">You Pay Now (25% Advance)</span>
-          <span class="font-extrabold text-violet-700 text-base" id="oc-price">-- PKR</span>
+      <h3 class="text-base font-bold text-slate-800" id="s2-title">Confirm Booking</h3>
+      <p class="text-xs text-slate-500 mb-3" id="s2-subtitle">Review booking summary and choose your payment method.</p>
+
+      <!-- Slot Details Summary -->
+      <div class="bg-slate-50 rounded-xl p-4 mb-4 space-y-2 text-xs border border-slate-200">
+        <div class="flex justify-between"><span class="text-slate-500">Venue:</span><span class="font-semibold text-slate-800" id="s2-venue">--</span></div>
+        <div class="flex justify-between"><span class="text-slate-500">Date:</span><span class="font-semibold text-slate-800" id="s2-date">--</span></div>
+        
+        <!-- Itemized slots list container -->
+        <div class="border-t border-b border-slate-200/80 py-2 my-1 space-y-1" id="s2-slots-list">
+          <!-- Filled dynamically by showStep() -->
         </div>
-        <div class="flex justify-between text-xs">
-          <span class="text-slate-500">Opponent Pays (25%):</span>
-          <span class="font-semibold text-violet-700" id="oc-opp-price">-- PKR</span>
+
+        <div class="flex justify-between text-slate-500"><span>Full Total Price:</span><span id="s2-full-price" class="font-medium text-slate-700">-- PKR</span></div>
+        <div class="border-t border-slate-200 pt-2 flex justify-between">
+          <span class="font-bold text-slate-700" id="s2-advance-label">Advance Payment (50%):</span>
+          <span class="font-extrabold text-emerald-600 text-sm" id="s2-advance-price">-- PKR</span>
         </div>
-        <div class="flex justify-between text-xs font-semibold text-amber-700 bg-amber-50 rounded-lg p-2">
-          <span>Remaining 50% paid at venue:</span>
-          <span id="oc-venue-due">-- PKR</span>
+        <div id="s2-opp-row" class="hidden flex justify-between text-slate-600">
+          <span>Opponent Share (25%):</span>
+          <span class="font-semibold text-violet-700" id="s2-opp-price">-- PKR</span>
         </div>
-        <div class="flex justify-between text-xs">
-          <span class="text-slate-400">Wallet Balance</span>
-          <span class="font-semibold text-slate-600" id="oc-balance">-- PKR</span>
+        <div class="flex justify-between font-semibold text-amber-700 bg-amber-50 rounded-lg p-2 text-[11px]">
+          <span>Pay at Venue (Remaining 50%):</span>
+          <span id="s2-venue-due">-- PKR</span>
         </div>
       </div>
-      <button id="oc-pay-btn" onclick="submitBooking('open_challenge')"
-              class="w-full bg-violet-600 hover:bg-violet-700 text-white font-bold py-3 rounded-xl text-sm transition-all shadow-md">
-        ⚡ Pay 25% & Post Challenge
-      </button>
+
+      <!-- Payment Method Switcher -->
+      <div class="mb-4">
+        <label class="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-2">Choose How to Pay Advance</label>
+        <div class="grid grid-cols-2 gap-2.5">
+          <!-- Wallet Card Option -->
+          <div id="payopt-wallet" onclick="selectPaymentMethod('wallet')" class="pay-method-card selected">
+            <div class="flex items-center gap-1.5 mb-1">
+              <span class="text-base">💳</span>
+              <span class="font-bold text-xs text-slate-800">Pay with Wallet</span>
+            </div>
+            <div class="text-[10px] text-slate-500">Balance: <span class="font-bold text-slate-700" id="s2-wallet-bal">-- PKR</span></div>
+          </div>
+
+          <!-- AssanPay Card Option -->
+          <div id="payopt-assanpay" onclick="selectPaymentMethod('assanpay')" class="pay-method-card">
+            <div class="flex items-center gap-1.5 mb-1">
+              <span class="text-base">⚡</span>
+              <span class="font-bold text-xs text-slate-800">AssanPay Online</span>
+            </div>
+            <div class="text-[10px] text-emerald-600 font-semibold truncate">JazzCash · Cards · QR</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Panel 1: Wallet Payment -->
+      <div id="panel-wallet" class="space-y-3">
+        <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs space-y-1.5">
+          <div class="flex justify-between text-slate-500">
+            <span>Available Balance:</span>
+            <span class="font-semibold text-slate-700" id="pw-balance">-- PKR</span>
+          </div>
+          <div class="flex justify-between text-slate-500">
+            <span>Balance After Advance:</span>
+            <span class="font-bold" id="pw-after">-- PKR</span>
+          </div>
+        </div>
+
+        <div id="pw-insufficient-alert" class="hidden bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800">
+          <div class="font-bold mb-1 flex items-center gap-1">
+            <span>⚠️ Insufficient Wallet Balance</span>
+          </div>
+          <p class="text-[11px]">Your wallet balance is less than the advance fee. You can pay instantly online via AssanPay!</p>
+          <button type="button" onclick="selectPaymentMethod('assanpay')" class="mt-2 text-xs font-bold text-emerald-700 bg-emerald-100 hover:bg-emerald-200 px-3 py-1.5 rounded-lg transition-colors inline-flex items-center gap-1 cursor-pointer">
+            ⚡ Switch to AssanPay Online Checkout →
+          </button>
+        </div>
+
+        <button type="button" id="wallet-pay-btn" onclick="submitWalletBooking()"
+                class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl text-sm transition-all shadow-md cursor-pointer">
+          ✅ Pay Advance from Wallet
+        </button>
+      </div>
+
+      <!-- Panel 2: AssanPay Online Checkout -->
+      <div id="panel-assanpay" class="hidden space-y-3">
+        <div class="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-3 text-xs space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-slate-800">⚡ Instant Hosted Checkout</span>
+            <div class="flex items-center gap-1">
+              <span class="px-1.5 py-0.5 bg-white border border-emerald-200 text-[10px] font-bold text-emerald-700 rounded shadow-2xs">JazzCash</span>
+              <span class="px-1.5 py-0.5 bg-white border border-emerald-200 text-[10px] font-bold text-emerald-700 rounded shadow-2xs">EasyPaisa</span>
+              <span class="px-1.5 py-0.5 bg-white border border-emerald-200 text-[10px] font-bold text-emerald-700 rounded shadow-2xs">Cards</span>
+            </div>
+          </div>
+          <p class="text-[11px] text-slate-600">Pay your advance fee securely via AssanPay. You will be redirected to the secure checkout page.</p>
+        </div>
+
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-700 mb-1">Preferred Channel (Optional)</label>
+          <select id="ap-booking-method" class="w-full border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-700 focus:ring-1 focus:ring-emerald-400 focus:outline-none">
+            <option value="">Choose on AssanPay Checkout (Recommended)</option>
+            <option value="JazzCash">JazzCash Mobile Account</option>
+            <option value="Easypaisa">Easypaisa Mobile Account</option>
+            <option value="Card">Debit / Credit Card (Visa/Mastercard)</option>
+            <option value="QR">Raast / QR Pay</option>
+          </select>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 text-xs">
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-700 mb-1">Mobile Number</label>
+            <input type="text" id="ap-booking-phone" value="<?php echo htmlspecialchars($currentUser['phone'] ?? ''); ?>" placeholder="03001234567"
+                   class="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:ring-1 focus:ring-emerald-400 focus:outline-none">
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-700 mb-1">Email Address</label>
+            <input type="email" id="ap-booking-email" value="<?php echo htmlspecialchars($currentUser['email'] ?? ''); ?>" placeholder="player@example.com"
+                   class="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:ring-1 focus:ring-emerald-400 focus:outline-none">
+          </div>
+        </div>
+
+        <button type="button" id="assanpay-pay-btn" onclick="submitAssanPayBooking()"
+                class="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold py-3 rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+          <span id="ap-booking-btn-text">⚡ Proceed to AssanPay Checkout</span>
+        </button>
+      </div>
     </div>
 
     <!-- Step 2c: Challenge Team – redirect info -->
     <div id="step-2-team" class="p-6 hidden">
-      <button onclick="backToStep1()" class="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 mb-4 font-medium">
+      <button onclick="backToStep1()" class="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 mb-4 font-medium cursor-pointer">
         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
         Back
       </button>
       <h3 class="text-base font-bold text-slate-800 mb-1">Challenge a Specific Team (25% Advance)</h3>
-      <p class="text-xs text-slate-500 mb-4">You'll be taken to the teams page with your slot pre-filled. Search a team, pay your 25% share, and the invite will be sent.</p>
-      <div class="bg-orange-50 rounded-xl p-4 mb-4 space-y-3 text-sm border border-orange-200">
-        <div class="flex justify-between"><span class="text-slate-500">Venue</span><span class="font-semibold text-slate-800" id="tc-venue">--</span></div>
-        <div class="flex justify-between"><span class="text-slate-500">Date</span><span class="font-semibold text-slate-800" id="tc-date">--</span></div>
-        <div class="flex justify-between"><span class="text-slate-500">Time</span><span class="font-semibold text-slate-800" id="tc-time">--</span></div>
-        <div class="flex justify-between text-xs text-slate-500"><span>Slot Full Price</span><span id="tc-full-price">-- PKR</span></div>
-        <div class="border-t border-orange-200 pt-3 flex justify-between">
+      <p class="text-xs text-slate-500 mb-4">You'll be taken to the teams page with your selected slot(s) pre-filled. Search a team, pay your 25% share, and the invite will be sent.</p>
+      <div class="bg-orange-50 rounded-xl p-4 mb-4 space-y-2 text-sm border border-orange-200">
+        <div class="flex justify-between text-xs"><span class="text-slate-500">Venue</span><span class="font-semibold text-slate-800" id="tc-venue">--</span></div>
+        <div class="flex justify-between text-xs"><span class="text-slate-500">Date</span><span class="font-semibold text-slate-800" id="tc-date">--</span></div>
+        
+        <div class="border-t border-b border-orange-200/70 py-2 my-1 space-y-1" id="tc-slots-list"></div>
+
+        <div class="flex justify-between text-xs text-slate-500"><span>Combined Full Price</span><span id="tc-full-price">-- PKR</span></div>
+        <div class="border-t border-orange-200 pt-2 flex justify-between">
           <span class="font-bold text-slate-700">Your Share (25% Advance)</span>
           <span class="font-extrabold text-orange-600 text-base" id="tc-price">-- PKR</span>
         </div>
@@ -667,10 +802,10 @@ body { background: #f5f6fa; }
         </div>
       </div>
       <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700 mb-4">
-        ⚠️ Your 5-min slot hold will be released when you navigate away. The slot reservation will be locked once you pay your 25% advance on the next page.
+        ⚠️ Your 10-min slot hold will be released when you navigate away. The slot reservation will be locked once you pay your 25% advance on the next page.
       </div>
       <button onclick="goToChallengeTeam()"
-              class="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 rounded-xl text-sm transition-all shadow-md">
+              class="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 rounded-xl text-sm transition-all shadow-md cursor-pointer">
         🏆 Select Team & Pay 25% →
       </button>
     </div>
@@ -683,13 +818,14 @@ body { background: #f5f6fa; }
 let currentGroundId     = <?php echo $selected_ground_id; ?>;
 let currentDate         = '<?php echo $selected_date; ?>';
 let currentWalletBalance = <?php echo $available_balance; ?>;
-let modalData           = {};
+let selectedSlots       = new Map(); // hour (int) -> { hour, time, price, ground, date }
 let countdownInterval   = null;
 let cardTickInterval    = null;
 let livePollInterval    = null;
-let holdSeconds         = 300;
+let holdSeconds         = 600;
 let selectedType        = null;
 let isModalOpen         = false;
+let currentPaymentMethod = 'wallet';
 
 // ---- Slot Color Theme Mapping ----
 function getSlotColorClasses(type) {
@@ -711,6 +847,7 @@ function renderSlotCardHtml(slot, groundId, date) {
   const isClickable = (slot.type === 'available' || slot.type === 'held');
   const tc = getSlotColorClasses(slot.type);
   const isHeldOrOnHold = (slot.type === 'held' || slot.type === 'on_hold');
+  const isSelected = selectedSlots.has(parseInt(slot.hour));
 
   let holdHtml = '';
   if (isHeldOrOnHold) {
@@ -719,7 +856,7 @@ function renderSlotCardHtml(slot, groundId, date) {
     const rem    = Math.max(0, parseInt(slot.hold_remaining || 0));
     const m      = Math.floor(rem / 60);
     const s      = String(rem % 60).padStart(2, '0');
-    const widthPct = Math.min(100, Math.max(0, Math.round((rem / 300) * 100)));
+    const widthPct = Math.min(100, Math.max(0, Math.round((rem / 600) * 100)));
     holdHtml = `
       <div class="hold-timer-bar mt-2">
         <div class="hold-timer-fill" id="fill-${slot.hour}" style="width:${widthPct}%"></div>
@@ -730,8 +867,13 @@ function renderSlotCardHtml(slot, groundId, date) {
     `;
   }
 
+  let extraClasses = '';
+  if (isSelected) {
+    extraClasses += ' slot-selected';
+  }
+
   return `
-    <div class="slot-card slot-${slot.type}"
+    <div class="slot-card slot-${slot.type}${extraClasses}"
          id="slot-card-${slot.hour}"
          data-hour="${slot.hour}"
          data-time="${escHtml(slot.time)}"
@@ -776,18 +918,28 @@ function renderSlotsGrid(slots, groundId, date) {
     return;
   }
 
+  // Pre-seed any slots held by current user into selectedSlots if empty
+  if (selectedSlots.size === 0) {
+    slots.forEach(s => {
+      if (s.type === 'held') {
+        selectedSlots.set(parseInt(s.hour), {
+          hour: parseInt(s.hour),
+          time: s.time,
+          price: parseFloat(s.price),
+          ground: groundId,
+          date: date
+        });
+      }
+    });
+    updateMultiSlotBar();
+  }
+
   // Build grid HTML
   const gridHtml = '<div class="grid grid-cols-2 gap-3" id="slots-grid">' +
     slots.map(s => renderSlotCardHtml(s, groundId, date)).join('') +
     '</div>';
 
   container.innerHTML = gridHtml;
-
-  // Restore selected state if modal is open
-  if (isModalOpen && modalData && modalData.hour !== undefined) {
-    const card = document.getElementById('slot-card-' + modalData.hour);
-    if (card) card.classList.add('slot-selected');
-  }
 }
 
 // ---- Real-time Fetch Slots (Background & Triggered) ----
@@ -818,51 +970,108 @@ function fetchSlotsLive(groundId, date, showLoading = false) {
     });
 }
 
-// ---- Update Wallet Balance in Navbar & Modal Real-Time ----
+// ---- Update Wallet Balance in Navbar Real-Time ----
 function updateWalletNavbar(bal) {
   const el = document.getElementById('navbar-wallet-amount');
   if (el) el.textContent = formatNum(bal);
 }
 
-// ---- Slot Click: Optimistic Local State & AJAX Hold ----
+// ---- Multi-Slot Click: Toggle Selection & Place/Release Hold ----
 function clickSlot(el) {
-  document.querySelectorAll('.slot-card').forEach(s => { if (s !== el) s.classList.remove('slot-selected'); });
-  el.classList.add('slot-selected');
-
   const hour   = parseInt(el.dataset.hour);
   const time   = el.dataset.time;
   const price  = parseFloat(el.dataset.price);
   const ground = parseInt(el.dataset.ground);
   const date   = el.dataset.date;
-  modalData    = { hour, time, price, ground, date };
 
-  // Place / refresh hold via AJAX
+  if (selectedSlots.has(hour)) {
+    // Deselect
+    selectedSlots.delete(hour);
+    el.classList.remove('slot-selected');
+
+    // Call release hold via AJAX
+    fetch('hold_slot.php', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: `action=release&ground_id=${ground}&slot_date=${date}&slot_hours=${JSON.stringify([hour])}`
+    }).catch(() => {});
+
+    updateMultiSlotBar();
+  } else {
+    // Select & Place Hold
+    fetch('hold_slot.php', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: `action=hold&ground_id=${ground}&slot_date=${date}&slot_hours=${JSON.stringify([hour])}`
+    })
+    .then(r => r.json())
+    .then(res => {
+      if (!res.success) {
+        showToast('❌ ' + (res.message || 'Slot is currently on hold.'), 'error');
+        fetchSlotsLive(ground, date, false);
+        return;
+      }
+
+      selectedSlots.set(hour, { hour, time, price, ground, date });
+      el.classList.add('slot-selected');
+      holdSeconds = res.remaining || 600;
+      updateSlotCardHoldState(hour, holdSeconds, true);
+      updateMultiSlotBar();
+    })
+    .catch(() => {
+      showToast('❌ Network error. Please try again.', 'error');
+    });
+  }
+}
+
+// ---- Update Floating Multi-Slot Action Bar ----
+function updateMultiSlotBar() {
+  const bar = document.getElementById('multi-slot-bar');
+  if (!bar) return;
+
+  const count = selectedSlots.size;
+  if (count === 0) {
+    bar.classList.add('hidden');
+    return;
+  }
+
+  bar.classList.remove('hidden');
+
+  let totalPrice = 0;
+  const times = [];
+  // Sort by hour
+  const sorted = Array.from(selectedSlots.values()).sort((a,b) => a.hour - b.hour);
+  sorted.forEach(s => {
+    totalPrice += s.price;
+    times.push(s.time);
+  });
+
+  const countEl = document.getElementById('ms-bar-count');
+  const titleEl = document.getElementById('ms-bar-title');
+  const priceEl = document.getElementById('ms-bar-price');
+  const timesEl = document.getElementById('ms-bar-times');
+
+  if (countEl) countEl.textContent = count;
+  if (titleEl) titleEl.textContent = count === 1 ? '1 Slot Selected' : `${count} Slots Selected`;
+  if (priceEl) priceEl.textContent = `${formatNum(totalPrice)} PKR`;
+  if (timesEl) timesEl.textContent = times.join(', ');
+}
+
+// ---- Clear All Selected Slots ----
+function clearAllSelections() {
+  if (selectedSlots.size === 0) return;
+
+  const hours = Array.from(selectedSlots.keys());
   fetch('hold_slot.php', {
     method: 'POST',
     headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-    body: `ground_id=${ground}&slot_date=${date}&slot_hour=${hour}`
-  })
-  .then(r => r.json())
-  .then(res => {
-    if (!res.success) {
-      showToast('❌ ' + (res.message || 'Slot is currently on hold.'), 'error');
-      el.classList.remove('slot-selected');
-      // Instantly sync grid in real time without refreshing!
-      fetchSlotsLive(ground, date, false);
-      return;
-    }
+    body: `action=release&ground_id=${currentGroundId}&slot_date=${currentDate}&slot_hours=${JSON.stringify(hours)}`
+  }).catch(() => {});
 
-    holdSeconds = res.remaining || 300;
-
-    // Instantly update card DOM to held state
-    updateSlotCardHoldState(hour, holdSeconds, true);
-
-    openModal();
-  })
-  .catch(() => {
-    showToast('❌ Network error. Please try again.', 'error');
-    el.classList.remove('slot-selected');
-  });
+  selectedSlots.clear();
+  document.querySelectorAll('.slot-card.slot-selected').forEach(c => c.classList.remove('slot-selected'));
+  updateMultiSlotBar();
+  fetchSlotsLive(currentGroundId, currentDate, false);
 }
 
 // ---- Update Single Slot Card Hold Visuals Directly ----
@@ -879,7 +1088,7 @@ function updateSlotCardHoldState(hour, seconds, isOwn) {
   const prefix = isOwn ? '🔵 Your hold – ' : '⏳ On hold – ';
   const m = Math.floor(seconds / 60);
   const s = String(seconds % 60).padStart(2, '0');
-  const widthPct = Math.min(100, Math.max(0, Math.round((seconds / 300) * 100)));
+  const widthPct = Math.min(100, Math.max(0, Math.round((seconds / 600) * 100)));
 
   if (!timerBar) {
     const barWrap = document.createElement('div');
@@ -902,6 +1111,11 @@ function updateSlotCardHoldState(hour, seconds, isOwn) {
 
 // ---- Modal Open / Close ----
 function openModal() {
+  if (selectedSlots.size === 0) {
+    showToast('Please select at least one time slot to book.', 'info');
+    return;
+  }
+
   isModalOpen = true;
   selectedType = null;
   document.querySelectorAll('.choice-card').forEach(c => c.classList.remove('selected'));
@@ -911,13 +1125,28 @@ function openModal() {
   const selectedOpt = groundEl ? groundEl.options[groundEl.selectedIndex] : null;
   const groundName = selectedOpt ? (selectedOpt.dataset.title || selectedOpt.text.split('—')[0].trim()) : 'Venue';
 
-  document.getElementById('modal-ground-name').textContent = groundName;
-  document.getElementById('modal-slot-time').textContent   = modalData.time;
-  document.getElementById('modal-date').textContent        = modalData.date;
-  document.getElementById('modal-price').textContent       = formatNum(modalData.price);
+  const count = selectedSlots.size;
+  const sorted = Array.from(selectedSlots.values()).sort((a,b) => a.hour - b.hour);
+  let totalPrice = 0;
+  sorted.forEach(s => totalPrice += s.price);
 
-  const directHalf = Math.round(modalData.price * 0.5);
-  const quarter    = Math.round(modalData.price * 0.25);
+  document.getElementById('modal-ground-name').textContent = groundName;
+  document.getElementById('modal-slot-time').textContent   = count === 1 ? sorted[0].time : `${count} Slots Selected`;
+  document.getElementById('modal-date').textContent        = currentDate;
+  document.getElementById('modal-price').textContent       = formatNum(totalPrice);
+
+  // Render pills in header
+  const pillsWrap = document.getElementById('modal-slots-pills');
+  if (pillsWrap) {
+    pillsWrap.innerHTML = sorted.map(s => `
+      <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/20 text-white backdrop-blur-xs border border-white/30">
+        🕒 ${escHtml(s.time)} (${formatNum(s.price)} PKR)
+      </span>
+    `).join('');
+  }
+
+  const directHalf = Math.round(totalPrice * 0.5);
+  const quarter    = Math.round(totalPrice * 0.25);
   document.getElementById('direct-price-label').textContent = 'Advance: ' + formatNum(directHalf) + ' PKR (50%)';
   document.getElementById('open-price-label').textContent   = 'Pay now: ' + formatNum(quarter) + ' PKR (25%)';
   document.getElementById('team-price-label').textContent   = 'Your share: ' + formatNum(quarter) + ' PKR (25%)';
@@ -931,9 +1160,8 @@ function closeModal() {
   isModalOpen = false;
   document.getElementById('booking-modal-overlay').classList.remove('open');
   if (countdownInterval) clearInterval(countdownInterval);
-  document.querySelectorAll('.slot-card.slot-selected').forEach(s => s.classList.remove('slot-selected'));
 
-  // Sync slots without page reload
+  // Sync slots without full reload
   fetchSlotsLive(currentGroundId, currentDate, false);
 }
 
@@ -948,7 +1176,8 @@ function startCountdown(seconds) {
     remaining--;
     if (remaining <= 0) {
       clearInterval(countdownInterval);
-      showToast('⏰ Hold expired. Slot released.', 'info');
+      showToast('⏰ Hold expired. Slots released.', 'info');
+      clearAllSelections();
       closeModal();
       return;
     }
@@ -986,13 +1215,13 @@ function initCardCountdowns() {
       const hour = card.dataset.hour;
       const fill = document.getElementById('fill-' + hour);
       const text = document.getElementById('hold-text-' + hour);
-      if (fill) fill.style.width = Math.max(0, Math.min(100, Math.round((rem / 300) * 100))) + '%';
+      if (fill) fill.style.width = Math.max(0, Math.min(100, Math.round((rem / 600) * 100))) + '%';
       if (text) {
         if (rem <= 0) {
           text.textContent = 'Hold expired';
           hasExpired = true;
         } else {
-          const isOwn  = card.classList.contains('slot-held');
+          const isOwn  = card.classList.contains('slot-held') || card.classList.contains('slot-selected');
           const prefix = isOwn ? '🔵 Your hold – ' : '⏳ On hold – ';
           const m      = Math.floor(rem / 60);
           const s      = String(rem % 60).padStart(2, '0');
@@ -1002,7 +1231,6 @@ function initCardCountdowns() {
     });
 
     if (hasExpired && !isModalOpen) {
-      // Revert card state in real time via live fetch — no full reload!
       fetchSlotsLive(currentGroundId, currentDate, false);
     }
   }, 1000);
@@ -1010,6 +1238,7 @@ function initCardCountdowns() {
 
 // ---- Smooth Venue Change without Page Reload ----
 function onGroundChanged(newGroundId) {
+  clearAllSelections();
   currentGroundId = parseInt(newGroundId);
   const groundEl   = document.getElementById('ground-select');
   const opt        = groundEl ? groundEl.options[groundEl.selectedIndex] : null;
@@ -1021,13 +1250,12 @@ function onGroundChanged(newGroundId) {
 
   // Update URL seamlessly
   history.pushState(null, '', `book_slot.php?ground=${currentGroundId}&date=${currentDate}`);
-
-  // Fetch slots live
   fetchSlotsLive(currentGroundId, currentDate, true);
 }
 
 // ---- Smooth Date Change without Page Reload ----
 function onDateChanged(newDate) {
+  clearAllSelections();
   currentDate = newDate;
 
   const dateLabel = document.getElementById('slots-date-label');
@@ -1038,14 +1266,36 @@ function onDateChanged(newDate) {
 
   // Update URL seamlessly
   history.pushState(null, '', `book_slot.php?ground=${currentGroundId}&date=${currentDate}`);
-
-  // Fetch slots live
   fetchSlotsLive(currentGroundId, currentDate, true);
+}
+
+// ---- Payment Method State in Modal ----
+function selectPaymentMethod(method) {
+  currentPaymentMethod = method;
+  const wCard = document.getElementById('payopt-wallet');
+  const aCard = document.getElementById('payopt-assanpay');
+  const wPanel = document.getElementById('panel-wallet');
+  const aPanel = document.getElementById('panel-assanpay');
+
+  if (method === 'wallet') {
+    if (wCard) { wCard.className = 'pay-method-card selected'; }
+    if (aCard) { aCard.className = 'pay-method-card'; }
+    if (wPanel) { wPanel.classList.remove('hidden'); }
+    if (aPanel) { aPanel.classList.add('hidden'); }
+  } else {
+    if (wCard) { wCard.className = 'pay-method-card'; }
+    if (aCard) { aCard.className = 'pay-method-card selected'; }
+    if (wPanel) { wPanel.classList.add('hidden'); }
+    if (aPanel) { aPanel.classList.remove('hidden'); }
+  }
 }
 
 // ---- Step Navigation in Booking Modal ----
 function showStep(n) {
-  ['step-1','step-2-direct','step-2-open','step-2-team'].forEach(id => document.getElementById(id).classList.add('hidden'));
+  ['step-1','step-2-checkout','step-2-team'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.add('hidden');
+  });
   ['dot-1','dot-2'].forEach(id => document.getElementById(id).classList.remove('active'));
 
   if (n === 1) {
@@ -1057,64 +1307,120 @@ function showStep(n) {
   document.getElementById('dot-1').classList.add('active');
   document.getElementById('dot-2').classList.add('active');
 
+  const count = selectedSlots.size;
+  const sorted = Array.from(selectedSlots.values()).sort((a,b) => a.hour - b.hour);
+  let totalPrice = 0;
+  sorted.forEach(s => totalPrice += s.price);
+
   const balance    = currentWalletBalance;
-  const directHalf = Math.round(modalData.price * 0.5);
-  const quarter    = Math.round(modalData.price * 0.25);
+  const directHalf = Math.round(totalPrice * 0.5);
+  const quarter    = Math.round(totalPrice * 0.25);
   const groundEl   = document.getElementById('ground-select');
   const opt        = groundEl ? groundEl.options[groundEl.selectedIndex] : null;
   const groundName = opt ? (opt.dataset.title || opt.text.split('—')[0].trim()) : 'Venue';
 
-  if (selectedType === 'direct') {
-    document.getElementById('step-2-direct').classList.remove('hidden');
-    document.getElementById('d-venue').textContent      = groundName;
-    document.getElementById('d-date').textContent       = modalData.date;
-    document.getElementById('d-time').textContent       = modalData.time;
-    document.getElementById('d-full-price').textContent = formatNum(modalData.price) + ' PKR';
-    document.getElementById('d-price').textContent      = formatNum(directHalf) + ' PKR';
-    document.getElementById('d-venue-due').textContent  = formatNum(modalData.price - directHalf) + ' PKR';
-    document.getElementById('d-balance').textContent    = formatNum(balance) + ' PKR';
-    const after   = balance - directHalf;
-    const afterEl = document.getElementById('d-after');
-    afterEl.textContent = formatNum(after) + ' PKR';
-    afterEl.className   = 'font-semibold ' + (after >= 0 ? 'text-emerald-600' : 'text-red-600');
-    const payBtn = document.getElementById('direct-pay-btn');
-    if (balance < directHalf) {
-      payBtn.disabled    = true;
-      payBtn.textContent = '❌ Insufficient Balance – Top Up Wallet';
-      payBtn.className  += ' opacity-50 cursor-not-allowed';
-    } else {
-      payBtn.disabled    = false;
-      payBtn.textContent = '✅ Pay 50% Advance from Wallet';
-      payBtn.className   = payBtn.className.replace('opacity-50 cursor-not-allowed','');
-    }
-  } else if (selectedType === 'open_challenge') {
-    document.getElementById('step-2-open').classList.remove('hidden');
-    document.getElementById('oc-venue').textContent      = groundName;
-    document.getElementById('oc-date').textContent       = modalData.date;
-    document.getElementById('oc-time').textContent       = modalData.time;
-    document.getElementById('oc-full-price').textContent = formatNum(modalData.price) + ' PKR';
-    document.getElementById('oc-price').textContent      = formatNum(quarter) + ' PKR';
-    document.getElementById('oc-opp-price').textContent  = formatNum(quarter) + ' PKR';
-    document.getElementById('oc-venue-due').textContent   = formatNum(modalData.price - (quarter * 2)) + ' PKR';
-    document.getElementById('oc-balance').textContent    = formatNum(balance) + ' PKR';
-    const ocBtn = document.getElementById('oc-pay-btn');
-    if (balance < quarter) {
-      ocBtn.disabled    = true;
-      ocBtn.textContent = '❌ Insufficient Balance – Top Up Wallet';
-      ocBtn.className  += ' opacity-50 cursor-not-allowed';
-    } else {
-      ocBtn.disabled    = false;
-      ocBtn.textContent = '⚡ Pay 25% & Post Challenge';
-      ocBtn.className   = ocBtn.className.replace('opacity-50 cursor-not-allowed','');
-    }
-  } else {
+  if (selectedType === 'team_challenge') {
     document.getElementById('step-2-team').classList.remove('hidden');
     document.getElementById('tc-venue').textContent      = groundName;
-    document.getElementById('tc-date').textContent       = modalData.date;
-    document.getElementById('tc-time').textContent       = modalData.time;
-    document.getElementById('tc-full-price').textContent = formatNum(modalData.price) + ' PKR';
+    document.getElementById('tc-date').textContent       = currentDate;
+    
+    const tcSlotsList = document.getElementById('tc-slots-list');
+    if (tcSlotsList) {
+      tcSlotsList.innerHTML = sorted.map(s => `
+        <div class="flex justify-between items-center text-[11px] text-slate-700 bg-white/70 px-2 py-1 rounded border border-orange-200/60">
+          <span class="font-semibold">${escHtml(s.time)}</span>
+          <span class="font-bold text-slate-800">${formatNum(s.price)} PKR</span>
+        </div>
+      `).join('');
+    }
+
+    document.getElementById('tc-full-price').textContent = formatNum(totalPrice) + ' PKR';
     document.getElementById('tc-price').textContent      = formatNum(quarter) + ' PKR';
-    document.getElementById('tc-venue-due').textContent  = formatNum(modalData.price - (quarter * 2)) + ' PKR';
+    document.getElementById('tc-venue-due').textContent  = formatNum(totalPrice - (quarter * 2)) + ' PKR';
+    return;
+  }
+
+  // Direct Booking or Open Challenge
+  document.getElementById('step-2-checkout').classList.remove('hidden');
+  document.getElementById('s2-venue').textContent      = groundName;
+  document.getElementById('s2-date').textContent       = currentDate;
+
+  const s2SlotsList = document.getElementById('s2-slots-list');
+  if (s2SlotsList) {
+    s2SlotsList.innerHTML = sorted.map(s => `
+      <div class="flex justify-between items-center text-[11px] text-slate-700 bg-white px-2.5 py-1.5 rounded-lg border border-slate-200 shadow-2xs">
+        <div class="flex items-center gap-1.5">
+          <span class="text-emerald-600 font-bold">●</span>
+          <span class="font-semibold">${escHtml(s.time)}</span>
+        </div>
+        <span class="font-bold text-slate-800">${formatNum(s.price)} PKR</span>
+      </div>
+    `).join('');
+  }
+
+  document.getElementById('s2-full-price').textContent = formatNum(totalPrice) + ' PKR';
+  document.getElementById('s2-wallet-bal').textContent  = formatNum(balance) + ' PKR';
+  document.getElementById('pw-balance').textContent     = formatNum(balance) + ' PKR';
+
+  const isDirect = (selectedType === 'direct');
+  const advanceAmount = isDirect ? directHalf : quarter;
+
+  document.getElementById('s2-title').textContent = isDirect 
+    ? (count > 1 ? `Confirm Direct Booking (${count} Slots)` : 'Confirm Direct Booking')
+    : (count > 1 ? `Post Open Challenge (${count} Slots)` : 'Post Open Challenge');
+
+  document.getElementById('s2-subtitle').textContent = isDirect 
+    ? `Pay 50% advance now (${formatNum(advanceAmount)} PKR), remaining 50% at venue.`
+    : `Pay 25% share now (${formatNum(advanceAmount)} PKR), opponent pays 25%, remaining 50% at venue.`;
+
+  document.getElementById('s2-advance-label').textContent = isDirect ? 'Advance Payment (50%):' : 'You Pay Now (25% Advance):';
+  document.getElementById('s2-advance-price').textContent = formatNum(advanceAmount) + ' PKR';
+
+  const oppRow = document.getElementById('s2-opp-row');
+  if (oppRow) {
+    if (!isDirect) {
+      oppRow.classList.remove('hidden');
+      document.getElementById('s2-opp-price').textContent = formatNum(quarter) + ' PKR';
+    } else {
+      oppRow.classList.add('hidden');
+    }
+  }
+
+  const venueDue = isDirect ? (totalPrice - directHalf) : (totalPrice - (quarter * 2));
+  document.getElementById('s2-venue-due').textContent = formatNum(venueDue) + ' PKR';
+
+  // Balance calculation
+  const after = balance - advanceAmount;
+  const afterEl = document.getElementById('pw-after');
+  if (afterEl) {
+    afterEl.textContent = formatNum(after) + ' PKR';
+    afterEl.className = 'font-bold ' + (after >= 0 ? 'text-emerald-600' : 'text-red-600');
+  }
+
+  const walletBtn = document.getElementById('wallet-pay-btn');
+  const alertBox  = document.getElementById('pw-insufficient-alert');
+  const apBtnText = document.getElementById('ap-booking-btn-text');
+
+  if (apBtnText) {
+    apBtnText.textContent = `⚡ Pay ${formatNum(advanceAmount)} PKR via AssanPay`;
+  }
+
+  if (balance < advanceAmount) {
+    if (walletBtn) {
+      walletBtn.disabled = true;
+      walletBtn.textContent = '❌ Insufficient Wallet Balance';
+      walletBtn.className = 'w-full bg-slate-300 text-slate-500 font-bold py-3 rounded-xl text-sm cursor-not-allowed';
+    }
+    if (alertBox) alertBox.classList.remove('hidden');
+    selectPaymentMethod('assanpay');
+  } else {
+    if (walletBtn) {
+      walletBtn.disabled = false;
+      walletBtn.textContent = `✅ Pay ${formatNum(advanceAmount)} PKR from Wallet`;
+      walletBtn.className = 'w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl text-sm transition-all shadow-md cursor-pointer';
+    }
+    if (alertBox) alertBox.classList.add('hidden');
+    selectPaymentMethod('wallet');
   }
 }
 
@@ -1127,25 +1433,88 @@ function selectBookingType(type, el) {
 function proceedToStep2() { if (!selectedType) return; showStep(2); }
 function backToStep1()    { showStep(1); }
 
-// ---- Submit Booking: Real-Time Instant State Update without Page Reload ----
+// ---- Submit Wallet Booking ----
+function submitWalletBooking() {
+  submitBooking(selectedType);
+}
+
+// ---- Submit AssanPay Hosted Checkout Booking ----
+function submitAssanPayBooking() {
+  if (selectedSlots.size === 0) return;
+
+  const btn = document.getElementById('assanpay-pay-btn');
+  const btnText = document.getElementById('ap-booking-btn-text');
+  if (btn) btn.disabled = true;
+  if (btnText) btnText.textContent = 'Initiating Checkout…';
+
+  const channel = document.getElementById('ap-booking-method')?.value || '';
+  const phone   = document.getElementById('ap-booking-phone')?.value || '';
+  const email   = document.getElementById('ap-booking-email')?.value || '';
+  const hours   = Array.from(selectedSlots.keys());
+
+  fetch('initiate_checkout.php', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Accept': 'application/json'
+    },
+    body: new URLSearchParams({
+      purpose:        'slot_booking',
+      format:         'json',
+      ground_id:      currentGroundId,
+      slot_date:      currentDate,
+      slot_hours:     JSON.stringify(hours),
+      booking_type:   selectedType,
+      payment_method: channel,
+      phone:          phone,
+      email:          email
+    })
+  })
+  .then(r => r.json())
+  .then(res => {
+    if (res.success && res.checkoutUrl) {
+      if (btnText) btnText.textContent = 'Redirecting to AssanPay Hosted Checkout…';
+      window.location.href = res.checkoutUrl;
+    } else {
+      showToast('❌ ' + (res.message || 'Payment initiation failed.'), 'error');
+      if (btn) btn.disabled = false;
+      let totalP = 0;
+      selectedSlots.forEach(s => totalP += s.price);
+      const advAmt = (selectedType === 'direct') ? Math.round(totalP * 0.5) : Math.round(totalP * 0.25);
+      if (btnText) btnText.textContent = `⚡ Pay ${formatNum(advAmt)} PKR via AssanPay`;
+    }
+  })
+  .catch(() => {
+    showToast('❌ Network error while initiating checkout.', 'error');
+    if (btn) btn.disabled = false;
+    if (btnText) btnText.textContent = '⚡ Proceed to AssanPay Checkout';
+  });
+}
+
+// ---- Submit Booking via Wallet ----
 function submitBooking(type) {
-  const btnId = type === 'direct' ? 'direct-pay-btn' : 'oc-pay-btn';
-  const btn   = document.getElementById(btnId);
+  if (selectedSlots.size === 0) return;
+
+  const btn = document.getElementById('wallet-pay-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Processing payment…'; }
+
+  const hours = Array.from(selectedSlots.keys());
 
   fetch('process_booking.php', {
     method: 'POST',
     headers: {'Content-Type': 'application/x-www-form-urlencoded'},
     body: new URLSearchParams({
-      ground_id:    modalData.ground,
-      slot_date:    modalData.date,
-      slot_hour:    modalData.hour,
+      ground_id:    currentGroundId,
+      slot_date:    currentDate,
+      slot_hours:   JSON.stringify(hours),
       booking_type: type
     })
   })
   .then(r => r.json())
   .then(res => {
     if (res.success) {
+      selectedSlots.clear();
+      updateMultiSlotBar();
       closeModal();
       showToast(res.message, 'success');
 
@@ -1155,13 +1524,16 @@ function submitBooking(type) {
         updateWalletNavbar(currentWalletBalance);
       }
 
-      // Fetch fresh slots live to immediately show confirmed / challenge state
-      fetchSlotsLive(modalData.ground, modalData.date, false);
+      // Fetch fresh slots live
+      fetchSlotsLive(currentGroundId, currentDate, false);
     } else {
       showToast('❌ ' + res.message, 'error');
       if (btn) {
         btn.disabled    = false;
-        btn.textContent = type === 'direct' ? '✅ Pay 50% Advance from Wallet' : '⚡ Pay 25% & Post Challenge';
+        let totalP = 0;
+        selectedSlots.forEach(s => totalP += s.price);
+        const advAmt = (type === 'direct') ? Math.round(totalP * 0.5) : Math.round(totalP * 0.25);
+        btn.textContent = `✅ Pay ${formatNum(advAmt)} PKR from Wallet`;
       }
     }
   })
@@ -1171,10 +1543,25 @@ function submitBooking(type) {
   });
 }
 
+// ---- Go to Dedicated Checkout Page ----
+function goToCheckoutPage() {
+  if (selectedSlots.size === 0) {
+    showToast('Please select at least one time slot to book.', 'info');
+    return;
+  }
+  const hours = Array.from(selectedSlots.keys());
+  window.location.href = `checkout.php?ground_id=${currentGroundId}&date=${currentDate}&hours=${hours.join(',')}`;
+}
+
 // ---- Go to Challenge Team Page ----
 function goToChallengeTeam() {
-  const quarter = Math.round(modalData.price * 0.25);
-  window.location.href = 'challenge_team.php?ground_id=' + modalData.ground + '&date=' + modalData.date + '&hour=' + modalData.hour + '&price=' + modalData.price + '&quarter=' + quarter + '&half=' + quarter;
+  const sorted = Array.from(selectedSlots.values()).sort((a,b) => a.hour - b.hour);
+  const primary = sorted[0];
+  let totalPrice = 0;
+  sorted.forEach(s => totalPrice += s.price);
+  const quarter = Math.round(totalPrice * 0.25);
+
+  window.location.href = 'challenge_team.php?ground_id=' + currentGroundId + '&date=' + currentDate + '&hour=' + primary.hour + '&price=' + totalPrice + '&quarter=' + quarter + '&half=' + quarter;
 }
 
 // ---- Toast Notification ----
@@ -1230,8 +1617,8 @@ function toggleMobileMenu() {
   initCardCountdowns();
   if (livePollInterval) clearInterval(livePollInterval);
   livePollInterval = setInterval(() => {
-    // Only poll when user is viewing the page and not typing
-    if (!document.hidden && !isModalOpen) {
+    // Only poll when user is viewing the page, not inside modal, and not actively holding custom selection
+    if (!document.hidden && !isModalOpen && selectedSlots.size === 0) {
       fetchSlotsLive(currentGroundId, currentDate, false);
     }
   }, 4000);

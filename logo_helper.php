@@ -97,4 +97,11 @@ function get_logo_absolute_url() {
     
     return $protocol . '://' . $host . $dir . $logo_path;
 }
+
+/**
+ * Compatibility alias for get_logo_svg
+ */
+function get_logo_svg($class_attr = '', $secondary_class = '') {
+    return get_logo_markup($class_attr);
+}
 ?>

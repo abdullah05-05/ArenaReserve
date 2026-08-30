@@ -222,7 +222,7 @@ $active_policy = 'terms';
                                 When a Player books an available slot through ArenaReserve, the reservation is locked and confirmed instantly upon deduction of payment from the user's available wallet balance.
                             </p>
                             <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 my-3 text-sm text-slate-700">
-                                <span class="font-bold text-emerald-700">📌 Time Slot Lock:</span> Once a slot is selected, a 5-minute temporary hold is enforced to prevent double-booking while the player completes payment.
+                                <span class="font-bold text-emerald-700">📌 Time Slot Lock:</span> Once a slot is selected, a 10-minute temporary hold is enforced to prevent double-booking while the player completes payment.
                             </div>
                             <p>
                                 Confirmed bookings guarantee exclusive access to the designated pitch, court, or turf for the booked 1-hour interval, subject to venue facility rules.

@@ -63,38 +63,119 @@ try {
     } elseif ($purpose === 'slot_booking') {
         $ground_id = intval($_POST['ground_id'] ?? 0);
         $slot_date = trim($_POST['slot_date'] ?? '');
-        $slot_hour = intval($_POST['slot_hour'] ?? -1);
         $booking_type = trim($_POST['booking_type'] ?? 'direct');
         $challenger_team_name = trim($_POST['challenger_team_name'] ?? '');
         $challenged_user_id = intval($_POST['challenged_user_id'] ?? 0);
         $ch_message = trim($_POST['ch_message'] ?? ($_POST['challenge_message'] ?? ''));
 
-        if (!$ground_id || !$slot_date || $slot_hour < 0) {
+        // Parse slot hours (can be array e.g. [14, 15] or comma-separated "14,15" or single "slot_hour")
+        $slot_hours = [];
+        if (isset($_POST['slot_hours'])) {
+            if (is_array($_POST['slot_hours'])) {
+                $slot_hours = array_map('intval', $_POST['slot_hours']);
+            } else {
+                $raw = trim($_POST['slot_hours']);
+                if (str_starts_with($raw, '[') && str_ends_with($raw, ']')) {
+                    $decoded = json_decode($raw, true);
+                    if (is_array($decoded)) {
+                        $slot_hours = array_map('intval', $decoded);
+                    }
+                } else {
+                    $slot_hours = array_map('intval', explode(',', $raw));
+                }
+            }
+        } elseif (isset($_POST['slot_hour']) && intval($_POST['slot_hour']) >= 0) {
+            $slot_hours = [intval($_POST['slot_hour'])];
+        }
+
+        $slot_hours = array_values(array_unique(array_filter($slot_hours, fn($h) => $h >= 0 && $h <= 23)));
+        sort($slot_hours);
+
+        if (!$ground_id || !$slot_date || empty($slot_hours)) {
             throw new Exception('Invalid booking parameters.');
         }
 
-        // Get ground slot price
-        $stmt = $pdo->prepare("SELECT price FROM ground_slots WHERE ground_id = ? AND hour = ? AND is_available = 1");
-        $stmt->execute([$ground_id, $slot_hour]);
-        $slot = $stmt->fetch();
-        if (!$slot) {
-            throw new Exception('Slot configuration not found.');
+        // Prevent booking past slots
+        $currentTime = time();
+        foreach ($slot_hours as $h) {
+            $slot_start_ts = strtotime($slot_date . ' ' . sprintf('%02d:00:00', $h));
+            if ($slot_start_ts <= $currentTime) {
+                $displayH = $h === 0 ? 12 : ($h > 12 ? $h - 12 : $h);
+                $suf = $h < 12 ? 'AM' : 'PM';
+                throw new Exception("The {$displayH}:00 {$suf} slot has already passed or started.");
+            }
         }
 
-        $full_price = floatval($slot['price']);
-        if ($booking_type === 'direct') {
-            $amount = round($full_price * 0.50, 2); // 50% advance
-        } else {
-            $amount = round($full_price * 0.25, 2); // 25% challenge hold
+        $inClause = implode(',', array_fill(0, count($slot_hours), '?'));
+
+        // Check if any slot is already booked
+        $stmt = $pdo->prepare("
+            SELECT slot_hour FROM bookings
+            WHERE ground_id = ? AND slot_date = ? AND slot_hour IN ($inClause)
+            AND status NOT IN ('cancelled')
+        ");
+        $stmt->execute(array_merge([$ground_id, $slot_date], $slot_hours));
+        if ($stmt->fetch()) {
+            throw new Exception('One or more selected slots were just booked by someone else.');
         }
+
+        // Check if any slot is held by another user
+        $stmt = $pdo->prepare("
+            SELECT slot_hour FROM slot_holds
+            WHERE ground_id = ? AND slot_date = ? AND slot_hour IN ($inClause)
+            AND held_by != ? AND expires_at >= NOW()
+        ");
+        $stmt->execute(array_merge([$ground_id, $slot_date], $slot_hours, [$user_id]));
+        if ($stmt->fetch()) {
+            throw new Exception('One or more selected slots are currently on hold by another player.');
+        }
+
+        // Place / extend hold to 10 minutes for all slot hours
+        $holdStmt = $pdo->prepare("
+            INSERT INTO slot_holds (ground_id, slot_date, slot_hour, held_by, expires_at)
+            VALUES (?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 10 MINUTE))
+            ON DUPLICATE KEY UPDATE held_by = VALUES(held_by), expires_at = VALUES(expires_at)
+        ");
+        foreach ($slot_hours as $h) {
+            $holdStmt->execute([$ground_id, $slot_date, $h, $user_id]);
+        }
+
+        // Get ground slot prices
+        $stmt = $pdo->prepare("SELECT hour, price FROM ground_slots WHERE ground_id = ? AND hour IN ($inClause) AND is_available = 1");
+        $stmt->execute(array_merge([$ground_id], $slot_hours));
+        $slotRows = $stmt->fetchAll();
+        $slotPrices = [];
+        foreach ($slotRows as $sr) {
+            $slotPrices[intval($sr['hour'])] = floatval($sr['price']);
+        }
+
+        $total_full_price = 0.0;
+        $total_advance = 0.0;
+        $items = [];
+
+        foreach ($slot_hours as $h) {
+            if (!isset($slotPrices[$h])) {
+                throw new Exception("Slot configuration for hour {$h}:00 not found.");
+            }
+            $fp = $slotPrices[$h];
+            $adv = ($booking_type === 'direct') ? round($fp * 0.50, 2) : round($fp * 0.25, 2);
+            $total_full_price += $fp;
+            $total_advance += $adv;
+            $items[$h] = ['full_price' => $fp, 'advance' => $adv];
+        }
+
+        $amount = $total_advance;
 
         $metaData = [
             'type'                 => 'slot_booking',
             'ground_id'            => $ground_id,
             'slot_date'            => $slot_date,
-            'slot_hour'            => $slot_hour,
+            'slot_hour'            => $slot_hours[0], // primary / first slot hour
+            'slot_hours'           => $slot_hours,    // complete array of selected hours
+            'items'                => $items,
             'booking_type'         => $booking_type,
-            'full_price'           => $full_price,
+            'full_price'           => $total_full_price,
+            'amount'               => $amount,
             'challenger_team_name' => $challenger_team_name,
             'challenged_user_id'   => $challenged_user_id,
             'challenge_message'    => $ch_message
@@ -185,7 +266,12 @@ try {
         $pdo->prepare("UPDATE payment_transactions SET status = 'failed', raw_callback = ? WHERE id = ?")
             ->execute([json_encode($sessionRes), $transactionId]);
 
-        throw new Exception($sessionRes['error'] ?? 'Failed to initiate AssanPay checkout session.');
+        $rawErr = $sessionRes['error'] ?? 'Failed to initiate AssanPay checkout session.';
+        if (stripos($rawErr, 'limit exceeded') !== false || stripos($rawErr, 'PER_TRANSACTION_LIMIT_EXCEEDED') !== false) {
+            $rawErr = 'AssanPay Gateway Limit: Your current AssanPay test/sandbox merchant account has a server-side cap of 100 PKR per transaction. To test with AssanPay, please use an amount ≤ 100 PKR (or use your live production credentials to remove this limit).';
+        }
+
+        throw new Exception($rawErr);
     }
 
     // Update with session details
