@@ -1,0 +1,28 @@
+User-agent: *
+Allow: /
+Allow: /explore.php
+Allow: /book_slot.php
+Allow: /leaderboard.php
+Allow: /contact.php
+Allow: /terms.php
+Allow: /privacy.php
+Allow: /cancellation-policy.php
+Allow: /refund-policy.php
+
+# Disallow private user/admin/backend endpoints
+Disallow: /admin_dashboard.php
+Disallow: /owner_dashboard.php
+Disallow: /owner_analytics.php
+Disallow: /owner_scores.php
+Disallow: /owner_profile.php
+Disallow: /match_history.php
+Disallow: /wallet.php
+Disallow: /checkout.php
+Disallow: /process_booking.php
+Disallow: /initiate_checkout.php
+Disallow: /hold_slot.php
+Disallow: /cancel_booking.php
+Disallow: /accept_challenge.php
+
+# Sitemap
+Sitemap: https://arenareserve.app/sitemap.php
