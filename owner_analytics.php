@@ -1,5 +1,5 @@
 <?php
-session_start();
+if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'db.php';
 require_once 'logo_helper.php';
 
@@ -13,23 +13,50 @@ $user_id = $_SESSION['user_id'];
 $success_msg = '';
 $error_msg = '';
 
-// Get wallet balance details
+// 1. Get real wallet balance details
 try {
-    $stmt = $pdo->prepare("SELECT available_balance, frozen_escrow_balance FROM wallets WHERE user_id = ?");
+    $stmt = $pdo->prepare("SELECT id, available_balance, frozen_escrow_balance FROM wallets WHERE user_id = ?");
     $stmt->execute([$user_id]);
-    $wallet = $stmt->fetch();
+    $wallet = $stmt->fetch(PDO::FETCH_ASSOC);
     
-    // For demo / screenshot parity: default to 125,000 PKR if 0 or missing
-    $available_balance = ($wallet && $wallet['available_balance'] > 0) ? floatval($wallet['available_balance']) : 125000.00;
+    $available_balance = floatval($wallet['available_balance'] ?? 0.00);
+    $frozen_escrow_balance = floatval($wallet['frozen_escrow_balance'] ?? 0.00);
+    $wallet_id = $wallet ? intval($wallet['id']) : null;
 } catch (Exception $e) {
-    $available_balance = 125000.00;
+    $available_balance = 0.00;
+    $frozen_escrow_balance = 0.00;
+    $wallet_id = null;
 }
 
-$total_earnings = 345000.00;
-$pending_payouts = 15000.00;
+// 2. Fetch all venues/grounds owned by this owner for filter dropdown
+$owner_grounds = [];
+try {
+    $stmt_og = $pdo->prepare("SELECT id, title, sport_type FROM grounds WHERE owner_id = ? ORDER BY title ASC");
+    $stmt_og->execute([$user_id]);
+    $owner_grounds = $stmt_og->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    $owner_grounds = [];
+}
 
-// Handle manual payout request
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'withdraw') {
+// Validate selected ground filter
+$selected_ground_id = isset($_GET['ground_id']) && $_GET['ground_id'] !== '' ? intval($_GET['ground_id']) : null;
+$selected_ground = null;
+
+if ($selected_ground_id !== null) {
+    foreach ($owner_grounds as $og) {
+        if (intval($og['id']) === $selected_ground_id) {
+            $selected_ground = $og;
+            break;
+        }
+    }
+    // If ground does not belong to this owner, reset filter
+    if (!$selected_ground) {
+        $selected_ground_id = null;
+    }
+}
+
+// 3. Handle manual payout request
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['action']) && $_POST['action'] === 'withdraw') {
     $bank_title = trim($_POST['bank_title'] ?? '');
     $iban = trim($_POST['iban'] ?? '');
     $amount = floatval($_POST['amount'] ?? 0);
@@ -45,7 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             // Fetch wallet or create one
             $stmt = $pdo->prepare("SELECT id FROM wallets WHERE user_id = ? FOR UPDATE");
             $stmt->execute([$user_id]);
-            $wallet_db = $stmt->fetch();
+            $wallet_db = $stmt->fetch(PDO::FETCH_ASSOC);
             
             if (!$wallet_db) {
                 $stmt = $pdo->prepare("INSERT INTO wallets (user_id, available_balance, frozen_escrow_balance) VALUES (?, ?, 0.00)");
@@ -73,6 +100,194 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $error_msg = 'Transaction failed: ' . $e->getMessage();
         }
     }
+}
+
+// 4. Compute Real Total Earnings (filtered by selected ground or all)
+try {
+    // Total revenue from all non-cancelled bookings at grounds owned by this owner
+    $sql_earn = "
+        SELECT 
+            COALESCE(SUM(b.price), 0) as total_booking_revenue,
+            COALESCE(SUM(b.amount_paid), 0) as total_advance_collected,
+            COUNT(*) as total_bookings_count
+        FROM bookings b
+        JOIN grounds g ON b.ground_id = g.id
+        WHERE g.owner_id = ? " . ($selected_ground_id ? "AND g.id = ?" : "") . " AND b.status != 'cancelled'
+    ";
+    $params_earn = $selected_ground_id ? [$user_id, $selected_ground_id] : [$user_id];
+    $stmt_earn = $pdo->prepare($sql_earn);
+    $stmt_earn->execute($params_earn);
+    $earn_data = $stmt_earn->fetch(PDO::FETCH_ASSOC);
+    $booking_revenue = floatval($earn_data['total_booking_revenue'] ?? 0.0);
+    $total_bookings_count = intval($earn_data['total_bookings_count'] ?? 0);
+
+    // Plus late cancellation fee compensation credited to owner
+    $sql_cancel = "
+        SELECT COALESCE(SUM(b.cancellation_payout_owner), 0)
+        FROM bookings b
+        JOIN grounds g ON b.ground_id = g.id
+        WHERE g.owner_id = ? " . ($selected_ground_id ? "AND g.id = ?" : "") . " AND b.status = 'cancelled' AND b.cancellation_payout_owner > 0
+    ";
+    $params_cancel = $selected_ground_id ? [$user_id, $selected_ground_id] : [$user_id];
+    $stmt_cancel = $pdo->prepare($sql_cancel);
+    $stmt_cancel->execute($params_cancel);
+    $cancellation_fees = floatval($stmt_cancel->fetchColumn() ?? 0.0);
+
+    $total_earnings = $booking_revenue + $cancellation_fees;
+} catch (Exception $e) {
+    $total_earnings = 0.00;
+    $total_bookings_count = 0;
+    $cancellation_fees = 0.00;
+}
+
+// 5. Compute Real Pending Payouts (Recent Payout requests in the last 7 days + frozen escrow)
+try {
+    $stmt_payouts = $pdo->prepare("
+        SELECT COALESCE(ABS(SUM(wt.amount)), 0)
+        FROM wallet_transactions wt
+        JOIN wallets w ON wt.wallet_id = w.id
+        WHERE w.user_id = ? AND wt.transaction_type = 'Payout' AND wt.recorded_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+    ");
+    $stmt_payouts->execute([$user_id]);
+    $recent_payouts = floatval($stmt_payouts->fetchColumn() ?? 0.0);
+    $pending_payouts = $recent_payouts + $frozen_escrow_balance;
+} catch (Exception $e) {
+    $pending_payouts = 0.00;
+}
+
+// 6. Monthly Revenue Trend (Last 6 Calendar Months, filtered by selected ground or all)
+$months = [];
+for ($i = 5; $i >= 0; $i--) {
+    $time = strtotime("-$i months");
+    $ym = date('Y-m', $time);
+    $label = date('M', $time);
+    $year = date('Y', $time);
+    $months[$ym] = [
+        'ym' => $ym,
+        'label' => $label,
+        'year' => $year,
+        'revenue' => 0.0,
+        'bookings' => 0
+    ];
+}
+
+try {
+    $min_ym = array_key_first($months);
+    $max_ym = array_key_last($months);
+
+    $sql_trend = "
+        SELECT 
+            DATE_FORMAT(b.slot_date, '%Y-%m') as ym,
+            COALESCE(SUM(b.price), 0) as monthly_revenue,
+            COUNT(*) as bookings_count
+        FROM bookings b
+        JOIN grounds g ON b.ground_id = g.id
+        WHERE g.owner_id = ? 
+          " . ($selected_ground_id ? "AND g.id = ?" : "") . "
+          AND b.status != 'cancelled'
+          AND DATE_FORMAT(b.slot_date, '%Y-%m') >= ?
+          AND DATE_FORMAT(b.slot_date, '%Y-%m') <= ?
+        GROUP BY DATE_FORMAT(b.slot_date, '%Y-%m')
+    ";
+    $params_trend = $selected_ground_id ? [$user_id, $selected_ground_id, $min_ym, $max_ym] : [$user_id, $min_ym, $max_ym];
+    $stmt_trend = $pdo->prepare($sql_trend);
+    $stmt_trend->execute($params_trend);
+    foreach ($stmt_trend->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        if (isset($months[$row['ym']])) {
+            $months[$row['ym']]['revenue'] = floatval($row['monthly_revenue']);
+            $months[$row['ym']]['bookings'] = intval($row['bookings_count']);
+        }
+    }
+} catch (Exception $e) {}
+
+// Calculate chart dynamic scale ceiling
+$max_monthly_rev = 0.0;
+foreach ($months as $m) {
+    if ($m['revenue'] > $max_monthly_rev) $max_monthly_rev = $m['revenue'];
+}
+
+if ($max_monthly_rev <= 0) {
+    $chart_ceiling = 10000;
+} elseif ($max_monthly_rev <= 10000) {
+    $chart_ceiling = ceil($max_monthly_rev / 2000) * 2000;
+} elseif ($max_monthly_rev <= 50000) {
+    $chart_ceiling = ceil($max_monthly_rev / 10000) * 10000;
+} elseif ($max_monthly_rev <= 200000) {
+    $chart_ceiling = ceil($max_monthly_rev / 50000) * 50000;
+} else {
+    $chart_ceiling = ceil($max_monthly_rev / 100000) * 100000;
+}
+if ($chart_ceiling <= 0) $chart_ceiling = 10000;
+
+// 7. Recent Activity / Transactions Feed
+$recent_transactions = [];
+try {
+    if ($selected_ground_id) {
+        $stmt_act = $pdo->prepare("
+            SELECT 
+                'booking' AS item_type,
+                b.id AS item_id,
+                g.title AS venue_name,
+                b.price AS amount,
+                b.status AS item_status,
+                b.booking_type AS sub_type,
+                b.created_at AS recorded_time,
+                b.slot_date,
+                b.slot_hour,
+                u.name AS actor_name
+            FROM bookings b
+            JOIN grounds g ON b.ground_id = g.id
+            LEFT JOIN users u ON b.booked_by = u.id
+            WHERE g.owner_id = ? AND g.id = ?
+            ORDER BY recorded_time DESC
+            LIMIT 8
+        ");
+        $stmt_act->execute([$user_id, $selected_ground_id]);
+        $recent_transactions = $stmt_act->fetchAll(PDO::FETCH_ASSOC);
+    } else {
+        $stmt_act = $pdo->prepare("
+            (
+                SELECT 
+                    'booking' AS item_type,
+                    b.id AS item_id,
+                    g.title AS venue_name,
+                    b.price AS amount,
+                    b.status AS item_status,
+                    b.booking_type AS sub_type,
+                    b.created_at AS recorded_time,
+                    b.slot_date,
+                    b.slot_hour,
+                    u.name AS actor_name
+                FROM bookings b
+                JOIN grounds g ON b.ground_id = g.id
+                LEFT JOIN users u ON b.booked_by = u.id
+                WHERE g.owner_id = ?
+            )
+            UNION ALL
+            (
+                SELECT 
+                    'wallet' AS item_type,
+                    wt.id AS item_id,
+                    wt.reference_id AS venue_name,
+                    wt.amount AS amount,
+                    wt.transaction_type AS item_status,
+                    wt.transaction_type AS sub_type,
+                    wt.recorded_at AS recorded_time,
+                    DATE(wt.recorded_at) AS slot_date,
+                    0 AS slot_hour,
+                    'Wallet System' AS actor_name
+                FROM wallet_transactions wt
+                JOIN wallets w ON wt.wallet_id = w.id
+                WHERE w.user_id = ? AND wt.transaction_type IN ('Payout', 'Commission')
+            )
+            ORDER BY recorded_time DESC
+            LIMIT 8
+        ");
+        $stmt_act->execute([$user_id, $user_id]);
+        $recent_transactions = $stmt_act->fetchAll(PDO::FETCH_ASSOC);
+    }
+} catch (Exception $e) {
+    $recent_transactions = [];
 }
 ?>
 <!DOCTYPE html>
@@ -115,13 +330,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 <div class="flex-shrink-0 flex items-center gap-1 sm:gap-2">
                     <!-- Mode Toggle -->
                     <div class="flex-shrink-0 flex items-center gap-1 bg-slate-100 p-1 rounded-full border border-slate-200/80 shadow-inner">
-                        <a href="<?php echo ($_SESSION['current_active_mode'] === 'Owner') ? 'switch_role.php' : '#'; ?>" 
-                           class="text-[11px] sm:text-xs font-semibold px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-full transition-all duration-300 flex items-center gap-1 <?php echo ($_SESSION['current_active_mode'] === 'Player') ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'; ?>" title="Switch to Player Mode">
+                        <a href="<?php echo (($_SESSION['current_active_mode'] ?? '') === 'Owner') ? 'switch_role.php' : '#'; ?>" 
+                           class="text-[11px] sm:text-xs font-semibold px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-full transition-all duration-300 flex items-center gap-1 <?php echo (($_SESSION['current_active_mode'] ?? '') === 'Player') ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'; ?>" title="Switch to Player Mode">
                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
                            <span class="hidden sm:inline">Player</span>
                         </a>
-                        <a href="<?php echo ($_SESSION['current_active_mode'] === 'Player') ? 'switch_role.php' : '#'; ?>" 
-                           class="text-[11px] sm:text-xs font-semibold px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-full transition-all duration-300 flex items-center gap-1 <?php echo ($_SESSION['current_active_mode'] === 'Owner') ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'; ?>" title="Switch to Owner Mode">
+                        <a href="<?php echo (($_SESSION['current_active_mode'] ?? '') === 'Player') ? 'switch_role.php' : '#'; ?>" 
+                           class="text-[11px] sm:text-xs font-semibold px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-full transition-all duration-300 flex items-center gap-1 <?php echo (($_SESSION['current_active_mode'] ?? '') === 'Owner') ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'; ?>" title="Switch to Owner Mode">
                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
                            <span class="hidden sm:inline">Owner</span>
                         </a>
@@ -166,7 +381,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         </div>
         <!-- Mobile Navigation Menu -->
         <div id="mobileNavigationMenu" class="hidden lg:hidden border-t border-slate-100 bg-white py-3 px-4 shadow-inner space-y-1">
-            <?php if ($_SESSION['current_active_mode'] === 'Owner'): ?>
+            <?php if (($_SESSION['current_active_mode'] ?? '') === 'Owner'): ?>
                 <a href="owner_dashboard.php" class="block px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50">My Venues</a>
                 <a href="add_ground.php" class="block px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50">List New Venue</a>
                 <a href="owner_analytics.php" class="block px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50">Analytics & Wallet</a>
@@ -225,6 +440,63 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 </div>
             <?php endif; ?>
 
+            <!-- Ground Filter & Page Header -->
+            <div class="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 mb-6 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold flex-shrink-0 border border-emerald-100">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h1 class="text-lg sm:text-xl font-bold text-slate-800">Venue Analytics</h1>
+                            <?php if ($selected_ground): ?>
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                    <?php echo htmlspecialchars($selected_ground['sport_type']); ?>
+                                </span>
+                            <?php else: ?>
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                                    All Grounds (<?php echo count($owner_grounds); ?>)
+                                </span>
+                            <?php endif; ?>
+                        </div>
+                        <p class="text-xs text-slate-400 mt-0.5">
+                            <?php if ($selected_ground): ?>
+                                Showing performance metrics for <strong class="text-slate-700 font-semibold"><?php echo htmlspecialchars($selected_ground['title']); ?></strong>
+                            <?php else: ?>
+                                Showing combined metrics across all your listed grounds
+                            <?php endif; ?>
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Ground Selector Form -->
+                <form method="GET" action="owner_analytics.php" class="flex items-center gap-2 flex-shrink-0">
+                    <label for="ground_id" class="sr-only">Filter Ground</label>
+                    <div class="relative w-full sm:w-auto">
+                        <select name="ground_id" id="ground_id" onchange="this.form.submit()" 
+                                class="w-full sm:w-64 pl-3.5 pr-8 py-2 text-xs sm:text-sm font-semibold text-slate-700 bg-slate-50 hover:bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all shadow-sm cursor-pointer appearance-none">
+                            <option value="">All Grounds (Combined)</option>
+                            <?php foreach ($owner_grounds as $og): ?>
+                                <option value="<?php echo $og['id']; ?>" <?php echo ($selected_ground_id === intval($og['id'])) ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($og['title']); ?> (<?php echo htmlspecialchars($og['sport_type']); ?>)
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-slate-400">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </div>
+                    </div>
+                    <?php if ($selected_ground_id): ?>
+                        <a href="owner_analytics.php" class="px-2.5 py-2 text-xs font-semibold text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-xl border border-slate-200 transition-colors flex items-center gap-1" title="Reset filter to All Grounds">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                            <span class="hidden md:inline">Reset</span>
+                        </a>
+                    <?php endif; ?>
+                </form>
+            </div>
+
             <!-- Top Metric Cards Grid -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
                 <!-- Wallet Balance -->
@@ -239,6 +511,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         <div class="text-3xl font-bold text-slate-800 mt-3">
                             <?php echo number_format($available_balance); ?> <span class="text-lg font-medium text-slate-500">PKR</span>
                         </div>
+                        <div class="text-[11px] text-slate-400 mt-1">Available for cashout (Account)</div>
                     </div>
                 </div>
 
@@ -249,11 +522,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             <span class="p-1 rounded bg-emerald-50 text-emerald-600">
                                 <svg class="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
                             </span>
-                            Total Earnings
+                            Total Earnings <?php echo $selected_ground ? '<span class="text-[10px] text-emerald-600 font-medium normal-case">(' . htmlspecialchars($selected_ground['title']) . ')</span>' : ''; ?>
                         </div>
                         <div class="text-3xl font-bold text-slate-800 mt-3">
                             <?php echo number_format($total_earnings); ?> <span class="text-lg font-medium text-slate-500">PKR</span>
                         </div>
+                        <div class="text-[11px] text-slate-400 mt-1"><?php echo $total_bookings_count; ?> <?php echo $selected_ground ? 'venue bookings' : 'completed/active bookings'; ?></div>
                     </div>
                 </div>
 
@@ -269,6 +543,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         <div class="text-3xl font-bold text-slate-800 mt-3">
                             <?php echo number_format($pending_payouts); ?> <span class="text-lg font-medium text-slate-500">PKR</span>
                         </div>
+                        <div class="text-[11px] text-slate-400 mt-1">Pending review & escrow</div>
                     </div>
                 </div>
             </div>
@@ -279,22 +554,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 <div class="lg:col-span-2 space-y-6">
                     <!-- Revenue Trend Bar Chart -->
                     <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-                        <h3 class="text-base font-bold text-slate-800 mb-6">Revenue Trend</h3>
+                        <div class="flex items-center justify-between mb-6">
+                            <div>
+                                <h3 class="text-base font-bold text-slate-800">
+                                    Revenue Trend
+                                    <?php if ($selected_ground): ?>
+                                        <span class="text-xs font-semibold text-emerald-600 ml-1.5">(<?php echo htmlspecialchars($selected_ground['title']); ?>)</span>
+                                    <?php endif; ?>
+                                </h3>
+                                <p class="text-xs text-slate-400 mt-0.5">
+                                    <?php if ($selected_ground): ?>
+                                        Monthly booking revenue for this venue over the last 6 months
+                                    <?php else: ?>
+                                        Monthly venue booking volume over the last 6 months
+                                    <?php endif; ?>
+                                </p>
+                            </div>
+                            <div class="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                                Peak: <?php echo number_format($max_monthly_rev); ?> PKR
+                            </div>
+                        </div>
                         
-                        <div class="flex gap-4 items-stretch h-64">
+                        <div class="flex gap-4 items-end">
                             <!-- Y-Axis Labels -->
-                            <div class="flex flex-col justify-between text-[11px] text-slate-400 font-semibold py-2 text-right w-12">
-                                <span>100,000</span>
-                                <span>75,000</span>
-                                <span>50,000</span>
-                                <span>25,000</span>
+                            <div class="flex flex-col justify-between text-[11px] text-slate-400 font-semibold text-right w-14 h-48 mb-7">
+                                <span><?php echo number_format($chart_ceiling); ?></span>
+                                <span><?php echo number_format(round($chart_ceiling * 0.75)); ?></span>
+                                <span><?php echo number_format(round($chart_ceiling * 0.50)); ?></span>
+                                <span><?php echo number_format(round($chart_ceiling * 0.25)); ?></span>
                                 <span>0</span>
                             </div>
 
                             <!-- Chart Area -->
-                            <div class="flex-1 flex items-end justify-between gap-4 border-l border-b border-slate-200 pb-2 pl-4 pr-2 relative">
-                                <!-- Grid Lines -->
-                                <div class="absolute inset-0 flex flex-col justify-between pointer-events-none pl-4 pb-2">
+                            <div class="flex-1 flex flex-col border-l border-b border-slate-200 pl-3 sm:pl-4 pr-2 relative">
+                                <!-- Grid Lines Layer -->
+                                <div class="absolute top-0 left-0 right-0 h-48 flex flex-col justify-between pointer-events-none pl-3 sm:pl-4">
                                     <div class="border-t border-dashed border-slate-200/80 w-full h-0"></div>
                                     <div class="border-t border-dashed border-slate-200/80 w-full h-0"></div>
                                     <div class="border-t border-dashed border-slate-200/80 w-full h-0"></div>
@@ -302,42 +596,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                     <div class="w-full h-0"></div> <!-- Baseline -->
                                 </div>
 
-                                <!-- Bars -->
-                                <!-- Jan: 45,000 -->
-                                <div class="flex flex-col items-center flex-1 z-10 group cursor-pointer">
-                                    <div class="text-[10px] font-semibold text-emerald-600 mb-1 opacity-0 group-hover:opacity-100 transition-opacity">45k</div>
-                                    <div class="bg-emerald-500 hover:bg-emerald-600 w-full rounded-t transition-all" style="height: 45%;"></div>
-                                    <span class="text-xs text-slate-500 mt-2 font-medium">Jan</span>
+                                <!-- Bars Row (Definite height h-48 = 192px) -->
+                                <div class="h-48 flex items-end justify-between gap-3 sm:gap-4 z-10">
+                                    <?php foreach ($months as $m): 
+                                        $rev = $m['revenue'];
+                                        $pct = ($chart_ceiling > 0) ? min(100, max(0, round(($rev / $chart_ceiling) * 100))) : 0;
+                                        $display_amt = ($rev >= 1000000) 
+                                            ? round($rev / 1000000, 1) . 'M' 
+                                            : (($rev >= 1000) ? round($rev / 1000, 1) . 'k' : number_format($rev));
+                                    ?>
+                                    <div class="flex-1 h-full flex flex-col justify-end items-center group cursor-pointer" 
+                                         title="<?php echo htmlspecialchars($m['label'] . ' ' . $m['year'] . ': ' . number_format($rev) . ' PKR (' . $m['bookings'] . ' bookings)'); ?>">
+                                        
+                                        <!-- Value on Top (visible if > 0, full on hover) -->
+                                        <div class="text-[10px] font-bold text-emerald-600 mb-1 <?php echo ($rev > 0) ? 'opacity-90 group-hover:opacity-100' : 'opacity-0'; ?> transition-opacity whitespace-nowrap">
+                                            <?php echo $display_amt; ?>
+                                        </div>
+
+                                        <!-- Bar Element -->
+                                        <div class="w-full max-w-[34px] sm:max-w-[42px] <?php echo ($rev > 0) ? 'bg-emerald-500 group-hover:bg-emerald-600 shadow-sm' : 'bg-slate-200/80'; ?> rounded-t transition-all duration-300"
+                                             style="height: <?php echo max(($rev > 0 ? 6 : 2), $pct); ?>%; min-height: <?php echo ($rev > 0 ? '12px' : '4px'); ?>;"></div>
+                                    </div>
+                                    <?php endforeach; ?>
                                 </div>
-                                <!-- Feb: 52,000 -->
-                                <div class="flex flex-col items-center flex-1 z-10 group cursor-pointer">
-                                    <div class="text-[10px] font-semibold text-emerald-600 mb-1 opacity-0 group-hover:opacity-100 transition-opacity">52k</div>
-                                    <div class="bg-emerald-500 hover:bg-emerald-600 w-full rounded-t transition-all" style="height: 52%;"></div>
-                                    <span class="text-xs text-slate-500 mt-2 font-medium">Feb</span>
-                                </div>
-                                <!-- Mar: 48,000 -->
-                                <div class="flex flex-col items-center flex-1 z-10 group cursor-pointer">
-                                    <div class="text-[10px] font-semibold text-emerald-600 mb-1 opacity-0 group-hover:opacity-100 transition-opacity">48k</div>
-                                    <div class="bg-emerald-500 hover:bg-emerald-600 w-full rounded-t transition-all" style="height: 48%;"></div>
-                                    <span class="text-xs text-slate-500 mt-2 font-medium">Mar</span>
-                                </div>
-                                <!-- Apr: 61,000 -->
-                                <div class="flex flex-col items-center flex-1 z-10 group cursor-pointer">
-                                    <div class="text-[10px] font-semibold text-emerald-600 mb-1 opacity-0 group-hover:opacity-100 transition-opacity">61k</div>
-                                    <div class="bg-emerald-500 hover:bg-emerald-600 w-full rounded-t transition-all" style="height: 61%;"></div>
-                                    <span class="text-xs text-slate-500 mt-2 font-medium">Apr</span>
-                                </div>
-                                <!-- May: 58,000 -->
-                                <div class="flex flex-col items-center flex-1 z-10 group cursor-pointer">
-                                    <div class="text-[10px] font-semibold text-emerald-600 mb-1 opacity-0 group-hover:opacity-100 transition-opacity">58k</div>
-                                    <div class="bg-emerald-500 hover:bg-emerald-600 w-full rounded-t transition-all" style="height: 58%;"></div>
-                                    <span class="text-xs text-slate-500 mt-2 font-medium">May</span>
-                                </div>
-                                <!-- Jun: 82,000 -->
-                                <div class="flex flex-col items-center flex-1 z-10 group cursor-pointer">
-                                    <div class="text-[10px] font-semibold text-emerald-600 mb-1 opacity-0 group-hover:opacity-100 transition-opacity">82k</div>
-                                    <div class="bg-emerald-500 hover:bg-emerald-600 w-full rounded-t transition-all" style="height: 82%;"></div>
-                                    <span class="text-xs text-slate-500 mt-2 font-medium">Jun</span>
+
+                                <!-- Month Labels Row -->
+                                <div class="flex justify-between gap-3 sm:gap-4 mt-2 pb-1">
+                                    <?php foreach ($months as $m): ?>
+                                    <div class="flex-1 text-center">
+                                        <span class="text-xs text-slate-500 font-medium"><?php echo $m['label']; ?></span>
+                                    </div>
+                                    <?php endforeach; ?>
                                 </div>
                             </div>
                         </div>
@@ -345,42 +634,86 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
                     <!-- Recent Transactions -->
                     <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-                        <h3 class="text-base font-bold text-slate-800 mb-4">Recent Transactions</h3>
-                        <div class="divide-y divide-slate-100">
-                            <!-- Tx 1 -->
-                            <div class="flex justify-between items-center py-3.5">
-                                <div>
-                                    <h4 class="text-sm font-semibold text-slate-800">Champions Stadium A</h4>
-                                    <span class="text-xs text-slate-400 font-medium">2026-05-30</span>
-                                </div>
-                                <div class="text-right">
-                                    <span class="text-sm font-bold text-emerald-600">+3,500 PKR</span>
-                                    <div class="text-[10px] text-slate-400 font-medium capitalize">Booking</div>
-                                </div>
+                        <div class="flex items-center justify-between mb-4">
+                            <div>
+                                <h3 class="text-base font-bold text-slate-800">
+                                    Recent Activity
+                                    <?php if ($selected_ground): ?>
+                                        <span class="text-xs font-semibold text-emerald-600 ml-1.5">(<?php echo htmlspecialchars($selected_ground['title']); ?>)</span>
+                                    <?php endif; ?>
+                                </h3>
+                                <p class="text-xs text-slate-400 mt-0.5">
+                                    <?php if ($selected_ground): ?>
+                                        Latest match bookings and payments at this venue
+                                    <?php else: ?>
+                                        Real-time ledger of venue bookings and payout events
+                                    <?php endif; ?>
+                                </p>
                             </div>
-                            <!-- Tx 2 -->
-                            <div class="flex justify-between items-center py-3.5">
-                                <div>
-                                    <h4 class="text-sm font-semibold text-slate-800">Sunset Cricket Arena</h4>
-                                    <span class="text-xs text-slate-400 font-medium">2026-05-28</span>
-                                </div>
-                                <div class="text-right">
-                                    <span class="text-sm font-bold text-emerald-600">+6,400 PKR</span>
-                                    <div class="text-[10px] text-slate-400 font-medium capitalize">Booking</div>
-                                </div>
-                            </div>
-                            <!-- Tx 3 -->
-                            <div class="flex justify-between items-center py-3.5">
-                                <div>
-                                    <h4 class="text-sm font-semibold text-slate-800">Victory Basketball Court</h4>
-                                    <span class="text-xs text-slate-400 font-medium">2026-05-25</span>
-                                </div>
-                                <div class="text-right">
-                                    <span class="text-sm font-bold text-emerald-600">+1,500 PKR</span>
-                                    <div class="text-[10px] text-slate-400 font-medium capitalize">Booking</div>
-                                </div>
-                            </div>
+                            <span class="text-xs font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                                <?php echo count($recent_transactions); ?> recorded
+                            </span>
                         </div>
+                        
+                        <?php if (empty($recent_transactions)): ?>
+                            <div class="text-center py-10 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                                <div class="text-slate-300 text-3xl mb-2">📋</div>
+                                <p class="text-sm font-semibold text-slate-700">No transactions recorded yet</p>
+                                <p class="text-xs text-slate-400 mt-0.5">When players book slots at your venues, payments and payouts will appear here.</p>
+                            </div>
+                        <?php else: ?>
+                            <div class="divide-y divide-slate-100">
+                                <?php foreach ($recent_transactions as $tx): 
+                                    $is_wallet = ($tx['item_type'] === 'wallet');
+                                    $is_payout = ($is_wallet && $tx['sub_type'] === 'Payout');
+                                    $is_commission = ($is_wallet && $tx['sub_type'] === 'Commission');
+                                    $is_cancelled = ($tx['item_status'] === 'cancelled');
+                                    $raw_amount = floatval($tx['amount']);
+                                    $abs_amount = abs($raw_amount);
+                                    $formatted_date = date('M j, Y', strtotime($tx['recorded_time']));
+                                ?>
+                                <div class="flex justify-between items-center py-3.5 hover:bg-slate-50/50 px-2 rounded-lg transition-colors">
+                                    <div class="min-w-0 pr-3">
+                                        <h4 class="text-sm font-semibold text-slate-800 truncate flex items-center gap-2">
+                                            <?php if ($is_payout): ?>
+                                                <span class="w-2 h-2 rounded-full bg-rose-500 flex-shrink-0"></span>
+                                                <span>Bank Cashout Request</span>
+                                            <?php elseif ($is_commission): ?>
+                                                <span class="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0"></span>
+                                                <span>Match Commission Credited</span>
+                                            <?php else: ?>
+                                                <span class="w-2 h-2 rounded-full <?php echo $is_cancelled ? 'bg-slate-300' : 'bg-emerald-500'; ?> flex-shrink-0"></span>
+                                                <span class="truncate"><?php echo htmlspecialchars($tx['venue_name']); ?></span>
+                                            <?php endif; ?>
+                                        </h4>
+                                        <div class="flex items-center gap-2 text-xs text-slate-400 font-medium mt-0.5">
+                                            <span><?php echo $formatted_date; ?></span>
+                                            <?php if (!$is_wallet && !empty($tx['actor_name'])): ?>
+                                                <span>•</span>
+                                                <span class="truncate text-slate-500 font-normal">Player: <?php echo htmlspecialchars($tx['actor_name']); ?></span>
+                                            <?php endif; ?>
+                                            <?php if (!$is_wallet && !empty($tx['slot_date'])): ?>
+                                                <span>•</span>
+                                                <span class="text-slate-500 font-normal">Slot: <?php echo date('g A', strtotime($tx['slot_hour'] . ':00')); ?></span>
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
+                                    <div class="text-right flex-shrink-0">
+                                        <?php if ($is_payout): ?>
+                                            <span class="text-sm font-bold text-rose-600">-<?php echo number_format($abs_amount); ?> PKR</span>
+                                            <div class="text-[10px] text-amber-600 font-semibold capitalize">Payout Request</div>
+                                        <?php elseif ($is_cancelled): ?>
+                                            <span class="text-sm font-bold text-slate-400 line-through"><?php echo number_format($abs_amount); ?> PKR</span>
+                                            <div class="text-[10px] text-rose-500 font-semibold capitalize">Cancelled</div>
+                                        <?php else: ?>
+                                            <span class="text-sm font-bold text-emerald-600">+<?php echo number_format($abs_amount); ?> PKR</span>
+                                            <div class="text-[10px] text-slate-400 font-medium capitalize"><?php echo htmlspecialchars(str_replace('_', ' ', $tx['item_status'])); ?></div>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
                     </div>
                 </div>
 
@@ -396,7 +729,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             <h3 class="text-base font-bold text-slate-800">Withdraw Funds</h3>
                         </div>
 
-                        <form action="owner_analytics.php" method="POST" class="space-y-4">
+                        <form action="owner_analytics.php<?php echo $selected_ground_id ? '?ground_id=' . $selected_ground_id : ''; ?>" method="POST" class="space-y-4">
                             <input type="hidden" name="action" value="withdraw">
                             
                             <div>
@@ -420,11 +753,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
                             <div>
                                 <label for="amount" class="text-xs font-semibold text-slate-500 block mb-1">Withdrawal Amount (PKR)</label>
-                                <input type="number" id="amount" name="amount" min="1" max="<?php echo $available_balance; ?>" required placeholder="Enter amount"
-                                       class="w-full text-sm border border-slate-200 rounded-lg px-3.5 py-2.5 text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-500">
+                                <input type="number" id="amount" name="amount" min="1" max="<?php echo max(0, $available_balance); ?>" step="any" required placeholder="Enter amount"
+                                       <?php echo ($available_balance <= 0) ? 'disabled' : ''; ?>
+                                       class="w-full text-sm border border-slate-200 rounded-lg px-3.5 py-2.5 text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-slate-50 disabled:text-slate-400">
                             </div>
 
-                            <button type="submit" class="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 px-4 rounded-lg text-sm transition-colors mt-6">
+                            <?php if ($available_balance <= 0): ?>
+                                <p class="text-[11px] text-amber-600 bg-amber-50 p-2.5 rounded-lg border border-amber-200/60 leading-relaxed">
+                                    ℹ️ You currently have 0 PKR available balance for withdrawal. Payouts can be requested once players book your venues.
+                                </p>
+                            <?php endif; ?>
+
+                            <button type="submit" 
+                                    <?php echo ($available_balance <= 0) ? 'disabled' : ''; ?>
+                                    class="w-full <?php echo ($available_balance <= 0) ? 'bg-slate-300 cursor-not-allowed' : 'bg-emerald-500 hover:bg-emerald-600'; ?> text-white font-bold py-3 px-4 rounded-lg text-sm transition-colors mt-6">
                                 Submit Manual Cashout Request
                             </button>
                         </form>

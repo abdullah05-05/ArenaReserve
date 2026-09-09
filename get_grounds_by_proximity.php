@@ -69,6 +69,8 @@ $sql = "SELECT
             g.base_price,
             g.peak_price,
             g.image_path,
+            COALESCE(gr.avg_rating, 0.0) AS avg_rating,
+            COALESCE(gr.total_reviews, 0) AS total_reviews,
             (6371 * acos(
                 LEAST(1.0, 
                     cos(radians(:player_lat1)) * cos(radians(g.latitude))
@@ -77,6 +79,13 @@ $sql = "SELECT
                 )
             )) AS distance_km
         FROM grounds g
+        LEFT JOIN (
+            SELECT ground_id, 
+                   ROUND(AVG(rating), 1) AS avg_rating, 
+                   COUNT(*) AS total_reviews 
+            FROM ground_ratings 
+            GROUP BY ground_id
+        ) gr ON gr.ground_id = g.id
         WHERE g.is_verified = 1
           AND (g.ground_status IS NULL OR g.ground_status = 'Active')";
 
@@ -134,6 +143,13 @@ try {
 
         // Image URL
         $g['image_url'] = !empty($g['image_path']) ? $g['image_path'] : null;
+
+        // Rating info
+        $g['avg_rating']     = floatval($g['avg_rating'] ?? 0);
+        $g['total_reviews']  = intval($g['total_reviews'] ?? 0);
+        $g['rating_label']   = ($g['total_reviews'] > 0)
+            ? number_format($g['avg_rating'], 1) . ' (' . $g['total_reviews'] . ')'
+            : 'New';
 
         // Book slot URL
         $g['book_url'] = 'book_slot.php?ground=' . intval($g['id']);

@@ -1,5 +1,5 @@
 <?php
-session_start();
+if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'db.php';
 require_once 'logo_helper.php';
 
@@ -21,9 +21,18 @@ try {
     $stmt = $pdo->prepare(
         "SELECT g.*, COALESCE(op.rejection_reason, '') as rejection_reason,
                 COALESCE(g.ground_status, 'Active') as ground_status,
-                COALESCE(g.block_reason, '') as block_reason
+                COALESCE(g.block_reason, '') as block_reason,
+                COALESCE(gr.avg_rating, 0.0) AS avg_rating,
+                COALESCE(gr.total_reviews, 0) AS total_reviews
          FROM grounds g
          LEFT JOIN onboarding_packages op ON g.id = op.ground_id
+         LEFT JOIN (
+             SELECT ground_id, 
+                    ROUND(AVG(rating), 1) AS avg_rating, 
+                    COUNT(*) AS total_reviews 
+             FROM ground_ratings 
+             GROUP BY ground_id
+         ) gr ON gr.ground_id = g.id
          WHERE g.owner_id = ? ORDER BY g.created_at DESC"
     );
     $stmt->execute([$user_id]);
@@ -31,9 +40,30 @@ try {
     
     $total_venues = count($venues);
     
-    // Stats
-    $active_bookings = 14;
-    $weekly_revenue = 46000;
+    // Real Stats
+    // 1. Active / Upcoming bookings for owner's venues
+    $stmt_act = $pdo->prepare("
+        SELECT COUNT(*) 
+        FROM bookings b
+        JOIN grounds g ON b.ground_id = g.id
+        WHERE g.owner_id = ? 
+          AND b.status IN ('confirmed', 'challenge_open', 'challenge_pending', 'challenge_accepted')
+          AND (b.slot_date > CURDATE() OR (b.slot_date = CURDATE() AND b.slot_hour >= HOUR(NOW())))
+    ");
+    $stmt_act->execute([$user_id]);
+    $active_bookings = intval($stmt_act->fetchColumn() ?? 0);
+
+    // 2. Weekly Revenue (non-cancelled bookings in the last 7 days)
+    $stmt_rev = $pdo->prepare("
+        SELECT COALESCE(SUM(b.price), 0)
+        FROM bookings b
+        JOIN grounds g ON b.ground_id = g.id
+        WHERE g.owner_id = ? 
+          AND b.status != 'cancelled'
+          AND b.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+    ");
+    $stmt_rev->execute([$user_id]);
+    $weekly_revenue = floatval($stmt_rev->fetchColumn() ?? 0.0);
 } catch (Exception $e) {
     $venues = [];
     $total_venues = 0;
@@ -207,13 +237,13 @@ try {
                 <div class="flex-shrink-0 flex items-center gap-1 sm:gap-2">
                     <!-- Mode Toggle -->
                     <div class="flex-shrink-0 flex items-center gap-1 bg-slate-100 p-1 rounded-full border border-slate-200/80 shadow-inner">
-                        <a href="<?php echo ($_SESSION['current_active_mode'] === 'Owner') ? 'switch_role.php' : '#'; ?>" 
-                           class="text-[11px] sm:text-xs font-semibold px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-full transition-all duration-300 flex items-center gap-1 <?php echo ($_SESSION['current_active_mode'] === 'Player') ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'; ?>" title="Switch to Player Mode">
+                        <a href="<?php echo (($_SESSION['current_active_mode'] ?? '') === 'Owner') ? 'switch_role.php' : '#'; ?>" 
+                           class="text-[11px] sm:text-xs font-semibold px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-full transition-all duration-300 flex items-center gap-1 <?php echo (($_SESSION['current_active_mode'] ?? '') === 'Player') ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'; ?>" title="Switch to Player Mode">
                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
                            <span class="hidden sm:inline">Player</span>
                         </a>
-                        <a href="<?php echo ($_SESSION['current_active_mode'] === 'Player') ? 'switch_role.php' : '#'; ?>" 
-                           class="text-[11px] sm:text-xs font-semibold px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-full transition-all duration-300 flex items-center gap-1 <?php echo ($_SESSION['current_active_mode'] === 'Owner') ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'; ?>" title="Switch to Owner Mode">
+                        <a href="<?php echo (($_SESSION['current_active_mode'] ?? '') === 'Player') ? 'switch_role.php' : '#'; ?>" 
+                           class="text-[11px] sm:text-xs font-semibold px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-full transition-all duration-300 flex items-center gap-1 <?php echo (($_SESSION['current_active_mode'] ?? '') === 'Owner') ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'; ?>" title="Switch to Owner Mode">
                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
                            <span class="hidden sm:inline">Owner</span>
                         </a>
@@ -229,15 +259,15 @@ try {
                                 <?php if (!empty($_SESSION['profile_picture']) && file_exists(__DIR__ . '/' . $_SESSION['profile_picture'])): ?>
                                     <img src="<?php echo htmlspecialchars($_SESSION['profile_picture']); ?>" alt="Profile" class="w-full h-full object-cover">
                                 <?php else: ?>
-                                    <?php echo strtoupper(substr($_SESSION['name'], 0, 1)); ?>
+                                    <?php echo strtoupper(substr($_SESSION['name'] ?? 'U', 0, 1)); ?>
                                 <?php endif; ?>
                             </div>
                             <div class="hidden md:block text-left">
                                 <div class="text-xs font-semibold text-slate-800 flex items-center gap-1">
-                                    <?php echo htmlspecialchars($_SESSION['name']); ?>
+                                    <?php echo htmlspecialchars($_SESSION['name'] ?? 'User'); ?>
                                     <svg class="w-3 h-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                                 </div>
-                                <div class="text-[10px] text-slate-400 capitalize"><?php echo htmlspecialchars($_SESSION['current_active_mode']); ?></div>
+                                <div class="text-[10px] text-slate-400 capitalize"><?php echo htmlspecialchars($_SESSION['current_active_mode'] ?? 'Owner'); ?></div>
                             </div>
                         </button>
                         <!-- Dropdown Menu -->
@@ -258,7 +288,7 @@ try {
         </div>
         <!-- Mobile Navigation Menu -->
         <div id="mobileNavigationMenu" class="hidden lg:hidden border-t border-slate-100 bg-white py-3 px-4 shadow-inner space-y-1">
-            <?php if ($_SESSION['current_active_mode'] === 'Owner'): ?>
+            <?php if (($_SESSION['current_active_mode'] ?? '') === 'Owner'): ?>
                 <a href="owner_dashboard.php" class="block px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50">My Venues</a>
                 <a href="add_ground.php" class="block px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50">List New Venue</a>
                 <a href="owner_analytics.php" class="block px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50">Analytics & Wallet</a>
@@ -409,6 +439,17 @@ try {
                                 <div>
                                     <span class="text-slate-400 font-medium">Base / Peak:</span>
                                     <span class="font-bold text-slate-700 ml-1"><?php echo number_format($venue['base_price']); ?> / <?php echo number_format($venue['peak_price']); ?> PKR</span>
+                                </div>
+                                <?php 
+                                    $vAvg = floatval($venue['avg_rating'] ?? 0);
+                                    $vRev = intval($venue['total_reviews'] ?? 0);
+                                ?>
+                                <div class="flex items-center gap-1 text-[11px] font-semibold <?php echo ($vRev > 0) ? 'text-amber-800 bg-amber-50 border border-amber-200' : 'text-slate-500 bg-slate-50 border border-slate-200'; ?> px-2 py-0.5 rounded-md shadow-2xs" title="<?php echo ($vRev > 0) ? number_format($vAvg, 1) . ' out of 5 stars based on ' . $vRev . ' review(s)' : 'No player ratings yet'; ?>">
+                                    <span class="text-amber-500">★</span>
+                                    <span><?php echo ($vRev > 0) ? number_format($vAvg, 1) : 'New'; ?></span>
+                                    <?php if ($vRev > 0): ?>
+                                    <span class="text-[9px] text-slate-400 font-normal">(<?php echo $vRev; ?>)</span>
+                                    <?php endif; ?>
                                 </div>
                             </div>
 
