@@ -10,6 +10,7 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/JazzCashService.php';
+require_once __DIR__ . '/payment_fulfill_helper.php';
 
 // Ensure user is authenticated
 if (!isset($_SESSION['user_id'])) {
@@ -39,6 +40,8 @@ $paymentMethod = trim($_POST['payment_method'] ?? '');
 $customerPhone = trim($_POST['phone'] ?? ($user['phone'] ?? ''));
 $customerEmail = trim($_POST['email'] ?? ($user['email'] ?? ''));
 $customerName  = trim($_POST['name'] ?? ($user['name'] ?? ''));
+$mwalletMobile = trim($_POST['mwallet_mobile'] ?? ($_POST['phone'] ?? $customerPhone));
+$mwalletCnic   = trim($_POST['mwallet_cnic'] ?? ($_POST['cnic'] ?? ''));
 
 // Clean customer phone (ensure e.g. 03001234567 format)
 $customerPhone = preg_replace('/[^0-9]/', '', $customerPhone);
@@ -214,6 +217,103 @@ try {
         throw new Exception('JazzCash Merchant ID is not configured.');
     }
 
+    $normalizedMethod = strtolower($paymentMethod);
+    $isMWallet = in_array($normalizedMethod, ['mwallet', 'jazzcash_mwallet', 'm_wallet', 'jazzcash_wallet']);
+
+    if ($isMWallet) {
+        // Clean and validate mobile number
+        $cleanMobile = preg_replace('/[^0-9]/', '', $mwalletMobile);
+        if (strpos($cleanMobile, '92') === 0 && strlen($cleanMobile) === 12) {
+            $cleanMobile = '0' . substr($cleanMobile, 2);
+        }
+        if (strlen($cleanMobile) !== 11 || strpos($cleanMobile, '03') !== 0) {
+            throw new Exception('Please enter a valid 11-digit JazzCash mobile number (e.g. 03001234567).');
+        }
+
+        // Clean and validate CNIC last 6 digits
+        $cleanCnic6 = preg_replace('/[^0-9]/', '', $mwalletCnic);
+        if (strlen($cleanCnic6) === 13) {
+            $cleanCnic6 = substr($cleanCnic6, -6);
+        }
+        if (strlen($cleanCnic6) !== 6) {
+            throw new Exception('Please enter the last 6 digits of your CNIC (e.g. 123456).');
+        }
+
+        // Insert pending payment record for M-Wallet
+        $insStmt = $pdo->prepare("
+            INSERT INTO payment_transactions 
+            (user_id, order_id, session_id, amount, purpose, payment_method, meta_data, status) 
+            VALUES (?, ?, ?, ?, ?, 'MWALLET', ?, 'pending')
+        ");
+        $insStmt->execute([
+            $user_id,
+            $orderId,
+            $txnRefNo,
+            $amount,
+            $purpose,
+            json_encode($metaData)
+        ]);
+        $transactionId = $pdo->lastInsertId();
+
+        // Execute JazzCash MWallet REST API v2.0
+        $mwalletRes = $jc->processMWalletPayment(
+            $amount,
+            $txnRefNo,
+            $orderId,
+            $cleanMobile,
+            $cleanCnic6,
+            $description
+        );
+
+        if ($mwalletRes['success']) {
+            // Payment approved on customer phone! Fulfill transaction idempotently
+            $retrievalRef = $mwalletRes['retrieval_ref'] ?: $txnRefNo;
+            fulfillPaymentTransaction(
+                $pdo,
+                $orderId,
+                $retrievalRef,
+                json_encode($mwalletRes['raw']),
+                $mwalletRes['auth_code']
+            );
+
+            $redirectUrl = 'jazzcash_return.php?orderId=' . urlencode($orderId) . '&status=success&pp_ResponseCode=000&pp_TxnRefNo=' . urlencode($txnRefNo);
+
+            header('Content-Type: application/json');
+            echo json_encode([
+                'success'      => true,
+                'is_mwallet'   => true,
+                'orderId'      => $orderId,
+                'txnRefNo'     => $txnRefNo,
+                'redirect_url' => $redirectUrl,
+                'message'      => 'Payment approved successfully!'
+            ]);
+            exit;
+        } else {
+            // Mark payment as failed in database
+            $pdo->prepare("UPDATE payment_transactions SET status = 'failed', raw_callback = ? WHERE id = ?")
+                ->execute([json_encode($mwalletRes['raw'] ?? $mwalletRes), $transactionId]);
+
+            $errMsg = !empty($mwalletRes['message']) 
+                ? $mwalletRes['message'] 
+                : 'Transaction failed or was rejected on your mobile phone.';
+            
+            header('Content-Type: application/json');
+            echo json_encode([
+                'success'    => false,
+                'is_mwallet' => true,
+                'code'       => $mwalletRes['response_code'] ?? 'ERR',
+                'message'    => $errMsg
+            ]);
+            exit;
+        }
+    }
+
+    // Card transactions: Page Redirection to JazzCash Hosted Checkout
+    $txnType = 'MPAY';
+    if (in_array(strtoupper($paymentMethod), ['MPAY', 'OTC'])) {
+        $txnType = strtoupper($paymentMethod);
+    }
+
     // Insert pending payment record
     $insStmt = $pdo->prepare("
         INSERT INTO payment_transactions 
@@ -226,7 +326,7 @@ try {
         $txnRefNo,
         $amount,
         $purpose,
-        $paymentMethod ?: 'JazzCash',
+        $txnType,
         json_encode($metaData)
     ]);
     $transactionId = $pdo->lastInsertId();
@@ -244,13 +344,7 @@ try {
         $extra['ppmpf_3'] = get_app_base_url() . '/jazzcash_return.php';
     }
 
-    // Determine JazzCash transaction type (empty string for hosted multi-option checkout, or specific like MPAY / MWALLET)
-    $txnType = '';
-    if (in_array(strtoupper($paymentMethod), ['MPAY', 'MWALLET', 'OTC'])) {
-        $txnType = strtoupper($paymentMethod);
-    }
-
-    // Build Hosted Checkout payload
+    // Build Hosted Checkout payload for Card
     $checkoutData = $jc->buildCheckoutPayload($amount, $txnRefNo, $orderId, $description, $txnType, $extra);
 
     // Handle AJAX JSON request

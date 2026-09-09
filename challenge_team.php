@@ -578,7 +578,10 @@ function submitChallenge() {
     })
     .then(r => r.json())
     .then(res => {
-      if (res.success && res.post_url && res.params) {
+      if (res.success && res.redirect_url) {
+        btn.textContent = '✅ Payment Approved! Redirecting…';
+        window.location.href = res.redirect_url;
+      } else if (res.success && res.post_url && res.params) {
         btn.textContent = 'Redirecting to JazzCash…';
         const form = document.createElement('form');
         form.method = 'POST';

@@ -464,31 +464,36 @@ $challenge_advance_amount = round($total_full_price * 0.25, 2);
                 <div class="pt-2">
                     <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-2.5">Select Payment Method</label>
                     
-                    <div class="grid grid-cols-2 gap-3 mb-4">
+                    <div class="grid grid-cols-3 gap-2 mb-4">
                         <!-- Wallet Option -->
-                        <div id="btn-method-wallet" onclick="selectPayMethod('wallet')" class="pay-method-card selected">
-                            <div class="flex items-center gap-1.5 mb-1">
-                                <span class="text-base">💳</span>
-                                <span class="font-bold text-xs text-slate-900">Wallet</span>
-                            </div>
-                            <div class="text-[10px] text-slate-500 truncate">
-                                Bal: <span class="font-bold text-slate-700"><?php echo number_format($available_balance, 0); ?> PKR</span>
+                        <div id="btn-method-wallet" onclick="selectPayMethod('wallet')" class="pay-method-card selected p-2 rounded-xl border text-center cursor-pointer transition-all">
+                            <div class="text-base mb-0.5">💳</div>
+                            <div class="font-bold text-xs text-slate-900 leading-tight">Wallet</div>
+                            <div class="text-[10px] text-slate-500 truncate mt-0.5">
+                                <?php echo number_format($available_balance, 0); ?> PKR
                             </div>
                         </div>
 
-                        <!-- JazzCash Option -->
-                        <div id="btn-method-jazzcash" onclick="selectPayMethod('jazzcash')" class="pay-method-card">
-                            <div class="flex items-center gap-1.5 mb-1">
-                                <span class="text-base">⚡</span>
-                                <span class="font-bold text-xs text-slate-900">JazzCash</span>
+                        <!-- JazzCash Mobile Account -->
+                        <div id="btn-method-mwallet" onclick="selectPayMethod('mwallet')" class="pay-method-card p-2 rounded-xl border text-center cursor-pointer transition-all">
+                            <div class="text-base mb-0.5">📱</div>
+                            <div class="font-bold text-xs text-slate-900 leading-tight">JazzCash</div>
+                            <div class="text-[10px] text-red-600 font-semibold truncate mt-0.5">
+                                Mobile PIN
                             </div>
-                            <div class="text-[10px] text-red-600 font-semibold truncate">
-                                Mobile · Cards · Voucher
+                        </div>
+
+                        <!-- Card Option -->
+                        <div id="btn-method-card" onclick="selectPayMethod('card')" class="pay-method-card p-2 rounded-xl border text-center cursor-pointer transition-all">
+                            <div class="text-base mb-0.5">💳</div>
+                            <div class="font-bold text-xs text-slate-900 leading-tight">Card</div>
+                            <div class="text-[10px] text-slate-500 truncate mt-0.5">
+                                Visa / Master
                             </div>
                         </div>
                     </div>
 
-                    <!-- Panel: Wallet -->
+                    <!-- Panel 1: Wallet -->
                     <div id="checkout-panel-wallet" class="space-y-3">
                         <div class="bg-slate-50 rounded-xl p-3 border border-slate-200 text-xs space-y-1.5">
                             <div class="flex justify-between text-slate-500">
@@ -503,9 +508,9 @@ $challenge_advance_amount = round($total_full_price * 0.25, 2);
 
                         <div id="wallet-insufficient-msg" class="hidden bg-red-50 border border-red-200 rounded-xl p-3 text-xs text-red-700 space-y-1.5">
                             <div class="font-bold">⚠️ Insufficient Wallet Balance</div>
-                            <p class="text-[11px]">Your wallet balance is lower than the advance required. You can pay instantly using JazzCash.</p>
-                            <button type="button" onclick="selectPayMethod('jazzcash')" class="text-xs font-bold text-red-700 underline cursor-pointer">
-                                Switch to JazzCash Online Checkout →
+                            <p class="text-[11px]">Your balance is lower than required. You can pay instantly using JazzCash Mobile or Card.</p>
+                            <button type="button" onclick="selectPayMethod('mwallet')" class="text-xs font-bold text-red-700 underline cursor-pointer">
+                                Switch to JazzCash Mobile PIN →
                             </button>
                         </div>
 
@@ -515,23 +520,72 @@ $challenge_advance_amount = round($total_full_price * 0.25, 2);
                         </button>
                     </div>
 
-                    <!-- Panel: JazzCash Online -->
-                    <div id="checkout-panel-jazzcash" class="hidden space-y-3">
-                        <div class="bg-gradient-to-r from-red-50 to-amber-50 border border-red-200 rounded-xl p-3 text-xs space-y-2">
+                    <!-- Panel 2: JazzCash Mobile Account (REST API v2.0) -->
+                    <div id="checkout-panel-mwallet" class="hidden space-y-3">
+                        <div class="bg-gradient-to-r from-red-50 to-amber-50 border border-red-200 rounded-xl p-3 text-xs space-y-1.5">
                             <div class="flex items-center justify-between">
-                                <span class="font-bold text-slate-800">⚡ JazzCash Online Checkout</span>
-                                <div class="flex items-center gap-1">
-                                    <span class="px-1.5 py-0.5 bg-white border border-red-200 text-[9px] font-bold text-red-700 rounded">JazzCash</span>
-                                    <span class="px-1.5 py-0.5 bg-white border border-red-200 text-[9px] font-bold text-red-700 rounded">Debit/Credit Card</span>
-                                </div>
+                                <span class="font-bold text-slate-900 flex items-center gap-1.5">
+                                    <span>📱</span> JazzCash Mobile Account
+                                </span>
+                                <span class="px-2 py-0.5 bg-red-600 text-[10px] font-bold text-white rounded-full">Instant MPIN</span>
                             </div>
-                            <p class="text-[11px] text-slate-600">You will be transferred securely to JazzCash's official payment portal.</p>
+                            <p class="text-[11px] text-slate-600">Enter your mobile number and CNIC digits. You will receive an approval prompt on your phone.</p>
                         </div>
 
-                        <button type="button" id="pay-jazzcash-submit-btn" onclick="executeJazzCashPayment()"
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                            <div>
+                                <label class="block text-[11px] font-bold text-slate-700 mb-1">JazzCash Mobile #</label>
+                                <input type="tel" id="mwallet-phone" maxlength="11"
+                                       value="<?php echo htmlspecialchars($user['phone'] ?? ''); ?>"
+                                       placeholder="03001234567"
+                                       class="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-red-500 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-bold text-slate-700 mb-1">CNIC (Last 6 Digits)</label>
+                                <input type="text" id="mwallet-cnic" maxlength="6"
+                                       placeholder="e.g. 123456"
+                                       class="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-red-500 focus:outline-none">
+                            </div>
+                        </div>
+
+                        <!-- Waiting status alert -->
+                        <div id="mwallet-waiting-alert" class="hidden p-3 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-900 space-y-1">
+                            <div class="flex items-center gap-2 font-bold">
+                                <svg class="animate-spin h-4 w-4 text-amber-600" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                <span>Approval Prompt Sent to Your Mobile!</span>
+                            </div>
+                            <p class="text-[11px] text-amber-800">Please unlock your phone now, check your screen, and enter your 4-digit JazzCash MPIN.</p>
+                        </div>
+
+                        <div id="mwallet-error-box" class="hidden p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-medium"></div>
+
+                        <button type="button" id="pay-mwallet-submit-btn" onclick="executeMWalletPayment()"
                                 class="w-full bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-700 hover:to-amber-700 text-white font-extrabold py-3.5 px-4 rounded-xl text-sm transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 cursor-pointer">
                             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-                            <span id="pay-jc-btn-text">⚡ Pay <?php echo number_format($direct_advance_amount, 0); ?> PKR via JazzCash</span>
+                            <span id="pay-mwallet-btn-text">📱 Pay <?php echo number_format($direct_advance_amount, 0); ?> PKR via JazzCash Mobile</span>
+                        </button>
+                    </div>
+
+                    <!-- Panel 3: Debit / Credit Card (Page Redirection) -->
+                    <div id="checkout-panel-card" class="hidden space-y-3">
+                        <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs space-y-2">
+                            <div class="flex items-center justify-between">
+                                <span class="font-bold text-slate-800 flex items-center gap-1.5">
+                                    <span>💳</span> Debit / Credit Card Checkout
+                                </span>
+                                <div class="flex items-center gap-1">
+                                    <span class="px-1.5 py-0.5 bg-white border border-slate-300 text-[9px] font-bold text-slate-700 rounded">Visa</span>
+                                    <span class="px-1.5 py-0.5 bg-white border border-slate-300 text-[9px] font-bold text-slate-700 rounded">MasterCard</span>
+                                    <span class="px-1.5 py-0.5 bg-white border border-slate-300 text-[9px] font-bold text-slate-700 rounded">PayPak</span>
+                                </div>
+                            </div>
+                            <p class="text-[11px] text-slate-600">You will be transferred securely to JazzCash's official card payment portal.</p>
+                        </div>
+
+                        <button type="button" id="pay-card-submit-btn" onclick="executeCardPayment()"
+                                class="w-full bg-slate-900 hover:bg-slate-800 text-white font-extrabold py-3.5 px-4 rounded-xl text-sm transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 cursor-pointer">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+                            <span id="pay-card-btn-text">💳 Proceed to Card Payment (<?php echo number_format($direct_advance_amount, 0); ?> PKR)</span>
                         </button>
                     </div>
 
@@ -578,22 +632,21 @@ function setBookingType(type, el) {
 // ---- Payment Method Switcher ----
 function selectPayMethod(method) {
     selectedMethod = method;
-    const wCard  = document.getElementById('btn-method-wallet');
-    const jcCard = document.getElementById('btn-method-jazzcash');
-    const wPanel = document.getElementById('checkout-panel-wallet');
-    const jcPanel= document.getElementById('checkout-panel-jazzcash');
+    const wCard   = document.getElementById('btn-method-wallet');
+    const mwCard  = document.getElementById('btn-method-mwallet');
+    const cCard   = document.getElementById('btn-method-card');
 
-    if (method === 'wallet') {
-        if (wCard)  wCard.className  = 'pay-method-card selected';
-        if (jcCard) jcCard.className = 'pay-method-card';
-        if (wPanel) wPanel.classList.remove('hidden');
-        if (jcPanel) jcPanel.classList.add('hidden');
-    } else {
-        if (wCard)  wCard.className  = 'pay-method-card';
-        if (jcCard) jcCard.className = 'pay-method-card selected';
-        if (wPanel) wPanel.classList.add('hidden');
-        if (jcPanel) jcPanel.classList.remove('hidden');
-    }
+    const wPanel  = document.getElementById('checkout-panel-wallet');
+    const mwPanel = document.getElementById('checkout-panel-mwallet');
+    const cPanel  = document.getElementById('checkout-panel-card');
+
+    if (wCard)  wCard.classList.toggle('selected', method === 'wallet');
+    if (mwCard) mwCard.classList.toggle('selected', method === 'mwallet');
+    if (cCard)  cCard.classList.toggle('selected', method === 'card');
+
+    if (wPanel)  wPanel.classList.toggle('hidden', method !== 'wallet');
+    if (mwPanel) mwPanel.classList.toggle('hidden', method !== 'mwallet');
+    if (cPanel)  cPanel.classList.toggle('hidden', method !== 'card');
 }
 
 // ---- Recalculate Totals ----
@@ -640,10 +693,14 @@ function recalculatePrices() {
     const walletBtn = document.getElementById('pay-wallet-submit-btn');
     const walletAlert = document.getElementById('wallet-insufficient-msg');
     const wBtnText = document.getElementById('pay-wallet-btn-text');
-    const jcBtnText = document.getElementById('pay-jc-btn-text');
+    const mwBtnText = document.getElementById('pay-mwallet-btn-text');
+    const cBtnText  = document.getElementById('pay-card-btn-text');
 
-    if (jcBtnText) {
-        jcBtnText.textContent = `⚡ Pay ${formatNum(advanceAmount)} PKR via JazzCash`;
+    if (mwBtnText) {
+        mwBtnText.textContent = `📱 Pay ${formatNum(advanceAmount)} PKR via JazzCash Mobile`;
+    }
+    if (cBtnText) {
+        cBtnText.textContent = `💳 Proceed to Card Payment (${formatNum(advanceAmount)} PKR)`;
     }
 
     if (userBalance < advanceAmount) {
@@ -653,7 +710,9 @@ function recalculatePrices() {
         }
         if (wBtnText) wBtnText.textContent = '❌ Insufficient Wallet Balance';
         if (walletAlert) walletAlert.classList.remove('hidden');
-        selectPayMethod('jazzcash');
+        if (selectedMethod === 'wallet') {
+            selectPayMethod('mwallet');
+        }
     } else {
         if (walletBtn) {
             walletBtn.disabled = false;
@@ -746,13 +805,35 @@ function executeWalletPayment() {
     });
 }
 
-// ---- Execute JazzCash Payment ----
-function executeJazzCashPayment() {
-    const btn = document.getElementById('pay-jazzcash-submit-btn');
-    const btnText = document.getElementById('pay-jc-btn-text');
+// ---- Execute JazzCash Mobile Account (REST API v2.0) ----
+function executeMWalletPayment() {
+    const btn = document.getElementById('pay-mwallet-submit-btn');
+    const btnText = document.getElementById('pay-mwallet-btn-text');
+    const phoneInput = document.getElementById('mwallet-phone');
+    const cnicInput  = document.getElementById('mwallet-cnic');
+    const waitingAlert = document.getElementById('mwallet-waiting-alert');
+    const errorBox = document.getElementById('mwallet-error-box');
 
-    const phone            = document.getElementById('payer-phone')?.value || '';
-    const email            = document.getElementById('payer-email')?.value || '';
+    if (errorBox) {
+        errorBox.classList.add('hidden');
+        errorBox.textContent = '';
+    }
+
+    const phone = (phoneInput?.value || '').replace(/\D/g, '');
+    const cnic  = (cnicInput?.value || '').replace(/\D/g, '');
+
+    if (!phone || phone.length !== 11 || !phone.startsWith('03')) {
+        showToast('⚠️ Please enter a valid 11-digit JazzCash mobile number (03XXXXXXXXX).', 'error');
+        if (phoneInput) phoneInput.focus();
+        return;
+    }
+
+    if (!cnic || cnic.length !== 6) {
+        showToast('⚠️ Please enter the last 6 digits of your CNIC.', 'error');
+        if (cnicInput) cnicInput.focus();
+        return;
+    }
+
     const teamName         = (document.getElementById('challenger-team-name')?.value || '').trim();
     const challengedUserId = parseInt(document.getElementById('challenged-user-id')?.value || '0', 10);
     const challengeMsg     = (document.getElementById('challenge-message')?.value || '').trim();
@@ -769,7 +850,8 @@ function executeJazzCashPayment() {
     }
 
     if (btn) btn.disabled = true;
-    if (btnText) btnText.textContent = 'Initiating JazzCash Checkout…';
+    if (btnText) btnText.textContent = '📲 Prompt sent! Enter MPIN on phone…';
+    if (waitingAlert) waitingAlert.classList.remove('hidden');
 
     const params = {
         purpose:              'slot_booking',
@@ -778,9 +860,86 @@ function executeJazzCashPayment() {
         slot_date:            slotDate,
         slot_hours:           JSON.stringify(slotHours),
         booking_type:         selectedType,
-        payment_method:       'JazzCash',
-        phone:                phone,
-        email:                email,
+        payment_method:       'mwallet',
+        mwallet_mobile:       phone,
+        mwallet_cnic:         cnic,
+        challenger_team_name: teamName,
+        challenged_user_id:   challengedUserId,
+        challenge_message:    challengeMsg
+    };
+
+    fetch('initiate_checkout.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Accept': 'application/json'
+        },
+        body: new URLSearchParams(params)
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (res.success && res.redirect_url) {
+            if (btnText) btnText.textContent = '✅ Payment Approved! Redirecting…';
+            showToast('✅ Payment approved! Transferring to confirmation…', 'success');
+            setTimeout(() => {
+                window.location.href = res.redirect_url;
+            }, 800);
+        } else {
+            if (waitingAlert) waitingAlert.classList.add('hidden');
+            const msg = res.message || 'Payment was declined or timed out.';
+            if (errorBox) {
+                errorBox.textContent = '❌ ' + msg;
+                errorBox.classList.remove('hidden');
+            }
+            showToast('❌ ' + msg, 'error');
+            if (btn) btn.disabled = false;
+            recalculatePrices();
+        }
+    })
+    .catch(() => {
+        if (waitingAlert) waitingAlert.classList.add('hidden');
+        const errText = 'Network timeout while waiting for phone approval. If you entered your MPIN, please check your bookings.';
+        if (errorBox) {
+            errorBox.textContent = '⚠️ ' + errText;
+            errorBox.classList.remove('hidden');
+        }
+        showToast('⚠️ ' + errText, 'error');
+        if (btn) btn.disabled = false;
+        recalculatePrices();
+    });
+}
+
+// ---- Execute Debit / Credit Card Payment (Page Redirection) ----
+function executeCardPayment() {
+    const btn = document.getElementById('pay-card-submit-btn');
+    const btnText = document.getElementById('pay-card-btn-text');
+
+    const teamName         = (document.getElementById('challenger-team-name')?.value || '').trim();
+    const challengedUserId = parseInt(document.getElementById('challenged-user-id')?.value || '0', 10);
+    const challengeMsg     = (document.getElementById('challenge-message')?.value || '').trim();
+
+    if (selectedType === 'team_challenge') {
+        if (!teamName) {
+            showToast('⚠️ Please enter your team name.', 'error');
+            return;
+        }
+        if (!challengedUserId || challengedUserId <= 0) {
+            showToast('⚠️ Please select an opponent squad to challenge.', 'error');
+            return;
+        }
+    }
+
+    if (btn) btn.disabled = true;
+    if (btnText) btnText.textContent = 'Connecting to Secure Card Checkout…';
+
+    const params = {
+        purpose:              'slot_booking',
+        format:               'json',
+        ground_id:            groundId,
+        slot_date:            slotDate,
+        slot_hours:           JSON.stringify(slotHours),
+        booking_type:         selectedType,
+        payment_method:       'card',
         challenger_team_name: teamName,
         challenged_user_id:   challengedUserId,
         challenge_message:    challengeMsg
@@ -797,7 +956,7 @@ function executeJazzCashPayment() {
     .then(r => r.json())
     .then(res => {
         if (res.success && res.post_url && res.params) {
-            if (btnText) btnText.textContent = 'Redirecting to JazzCash…';
+            if (btnText) btnText.textContent = 'Redirecting to JazzCash Card Portal…';
             const form = document.createElement('form');
             form.method = 'POST';
             form.action = res.post_url;
@@ -819,7 +978,7 @@ function executeJazzCashPayment() {
         }
     })
     .catch(() => {
-        showToast('❌ Network error while initiating checkout.', 'error');
+        showToast('❌ Network error while connecting to payment gateway.', 'error');
         if (btn) btn.disabled = false;
         recalculatePrices();
     });

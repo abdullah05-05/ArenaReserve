@@ -1832,69 +1832,12 @@ function submitWalletBooking() {
   submitBooking(selectedType);
 }
 
-// ---- Submit JazzCash Hosted Checkout Booking ----
+// ---- Submit JazzCash Online Checkout Booking ----
 function submitJazzCashBooking() {
   if (selectedSlots.size === 0) return;
-
-  const btn = document.getElementById('jazzcash-pay-btn');
-  const btnText = document.getElementById('jc-booking-btn-text');
-  if (btn) btn.disabled = true;
-  if (btnText) btnText.textContent = 'Initiating Checkout…';
-
-  const phone = document.getElementById('jc-booking-phone')?.value || '';
-  const email = document.getElementById('jc-booking-email')?.value || '';
   const hours = Array.from(selectedSlots.keys());
-
-  fetch('initiate_checkout.php', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'Accept': 'application/json'
-    },
-    body: new URLSearchParams({
-      purpose:        'slot_booking',
-      format:         'json',
-      ground_id:      currentGroundId,
-      slot_date:      currentDate,
-      slot_hours:     JSON.stringify(hours),
-      booking_type:   selectedType,
-      payment_method: 'JazzCash',
-      phone:          phone,
-      email:          email
-    })
-  })
-  .then(r => r.json())
-  .then(res => {
-    if (res.success && res.post_url && res.params) {
-      if (btnText) btnText.textContent = 'Redirecting to JazzCash…';
-      const form = document.createElement('form');
-      form.method = 'POST';
-      form.action = res.post_url;
-      for (const key in res.params) {
-        if (res.params.hasOwnProperty(key)) {
-          const input = document.createElement('input');
-          input.type = 'hidden';
-          input.name = key;
-          input.value = res.params[key];
-          form.appendChild(input);
-        }
-      }
-      document.body.appendChild(form);
-      form.submit();
-    } else {
-      showToast('❌ ' + (res.message || 'Payment initiation failed.'), 'error');
-      if (btn) btn.disabled = false;
-      let totalP = 0;
-      selectedSlots.forEach(s => totalP += s.price);
-      const advAmt = (selectedType === 'direct') ? Math.round(totalP * 0.5) : Math.round(totalP * 0.25);
-      if (btnText) btnText.textContent = `⚡ Pay ${formatNum(advAmt)} PKR via JazzCash`;
-    }
-  })
-  .catch(() => {
-    showToast('❌ Network error while initiating checkout.', 'error');
-    if (btn) btn.disabled = false;
-    if (btnText) btnText.textContent = '⚡ Proceed to JazzCash Checkout';
-  });
+  const url = `checkout.php?ground_id=${currentGroundId}&date=${currentDate}&hours=${encodeURIComponent(JSON.stringify(hours))}&type=${selectedType || 'direct'}&method=mwallet`;
+  window.location.href = url;
 }
 
 // ---- Submit Booking via Wallet ----

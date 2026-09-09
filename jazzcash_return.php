@@ -57,9 +57,12 @@ if ($transaction) {
     }
 
     // Verify hash if POSTed from JazzCash
-    $hashValid = true;
-    if (!empty($_POST) && !empty($receivedHash)) {
-        $hashValid = $jazzCash->verifySecureHash($_POST);
+    $hashValid = false;
+    if (!empty($_POST)) {
+        $hashValid = !empty($receivedHash) && $jazzCash->verifySecureHash($_POST);
+    } else {
+        // Arriving via GET (e.g. status inquiry, page refresh, or redirect bridge)
+        $hashValid = true;
     }
 
     // Check if approved ('000' is Success, '121' is Payment Completed)

@@ -18,6 +18,7 @@ class JazzCashService {
     private string $environment;
     private string $postUrl;
     private string $statusInquiryUrl;
+    private string $mwalletUrl;
     private string $returnUrl;
     private string $ipnUrl;
     public function __construct(?array $config = null) {
@@ -29,6 +30,7 @@ class JazzCashService {
         $this->environment      = $cfg['environment'] ?? 'sandbox';
         $this->postUrl          = $cfg['post_url'] ?? '';
         $this->statusInquiryUrl = $cfg['status_inquiry_url'] ?? '';
+        $this->mwalletUrl       = $cfg['mwallet_url'] ?? 'https://onlinepayments.jazzcash.com.pk/payment-orchestrator/api/v2/rest/payments/m-wallet';
         $this->returnUrl        = $cfg['return_url'] ?? '';
         $this->ipnUrl           = $cfg['ipn_url'] ?? '';
 
@@ -145,6 +147,144 @@ class JazzCashService {
         return [
             'post_url' => $this->postUrl,
             'params'   => $params
+        ];
+    }
+
+    /**
+     * Executes official JazzCash MWallet REST API v2.0 (With CNIC).
+     *
+     * Rules per Official 2026 Guide:
+     * - All values passed as strings enclosed in double quotes.
+     * - Empty parameters must remain as empty strings "".
+     * - pp_Amount multiplied by 100 (in Paisas).
+     * - pp_CNIC requires last 6 digits.
+     * - pp_TxnExpiryDateTime set to +1 day.
+     * - pp_SecureHash calculated using HMAC-SHA256 with Integrity Salt.
+     *
+     * @param float  $amount Amount in PKR
+     * @param string $txnRefNo Unique transaction reference
+     * @param string $billReference Order / Bill reference
+     * @param string $mobileNumber Customer JazzCash mobile number (e.g. 03001234567)
+     * @param string $cnic6 Customer CNIC last 6 digits
+     * @param string $description Payment description
+     * @return array
+     */
+    public function processMWalletPayment(
+        float $amount,
+        string $txnRefNo,
+        string $billReference,
+        string $mobileNumber,
+        string $cnic6,
+        string $description = 'ArenaReserve Payment'
+    ): array {
+        $amountInPaisas = (int)round($amount * 100);
+
+        // Sanitize bill reference: alphanumeric only
+        $cleanBillRef = preg_replace('/[^A-Za-z0-9]/', '', $billReference);
+        if (empty($cleanBillRef)) {
+            $cleanBillRef = 'BILL' . date('YmdHis');
+        }
+
+        // Sanitize description: alphanumeric and space only, max 60 chars
+        $cleanDesc = trim(preg_replace('/[^A-Za-z0-9 ]/', '', $description));
+        if (empty($cleanDesc)) {
+            $cleanDesc = 'ArenaReserve Payment';
+        }
+
+        // Clean mobile number (e.g. 03001234567)
+        $cleanMobile = preg_replace('/[^0-9]/', '', $mobileNumber);
+        // Clean CNIC last 6 digits
+        $cleanCnic6 = preg_replace('/[^0-9]/', '', $cnic6);
+
+        $params = [
+            'pp_Amount'            => (string)$amountInPaisas,
+            'pp_BankID'            => '',
+            'pp_BillReference'     => $cleanBillRef,
+            'pp_CNIC'              => (string)$cleanCnic6,
+            'pp_Description'       => substr($cleanDesc, 0, 60),
+            'pp_Language'          => 'EN',
+            'pp_MerchantID'        => $this->merchantId,
+            'pp_MobileNumber'      => (string)$cleanMobile,
+            'pp_Password'          => $this->password,
+            'pp_ProductID'         => '',
+            'pp_SubMerchantID'     => '',
+            'pp_TxnCurrency'       => 'PKR',
+            'pp_TxnDateTime'       => date('YmdHis'),
+            'pp_TxnExpiryDateTime' => date('YmdHis', strtotime('+1 day')),
+            'pp_TxnRefNo'          => $txnRefNo,
+            'ppmpf_1'              => '',
+            'ppmpf_2'              => '',
+            'ppmpf_3'              => '',
+            'ppmpf_4'              => '',
+            'ppmpf_5'              => '',
+        ];
+
+        // Generate and attach Secure Hash per official 2026 guidelines
+        $params['pp_SecureHash'] = $this->calculateSecureHash($params);
+
+        $ch = curl_init($this->mwalletUrl);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($params));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json',
+            'Accept: application/json'
+        ]);
+        // 75 seconds timeout for USSD MPIN entry on customer phone
+        curl_setopt($ch, CURLOPT_TIMEOUT, 75);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 15);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err = curl_error($ch);
+        curl_close($ch);
+
+        if ($err) {
+            return [
+                'success'       => false,
+                'response_code' => 'CURL_ERR',
+                'message'       => 'Connection timed out or failed: ' . $err,
+                'http_code'     => $httpCode,
+                'raw'           => null
+            ];
+        }
+
+        $data = json_decode($response, true);
+        if (!$data || !is_array($data)) {
+            return [
+                'success'       => false,
+                'response_code' => 'INVALID_RESP',
+                'message'       => 'Unexpected response from JazzCash server.',
+                'http_code'     => $httpCode,
+                'raw'           => $response
+            ];
+        }
+
+        $respCode     = trim($data['pp_ResponseCode'] ?? '');
+        $respMsg      = trim($data['pp_ResponseMessage'] ?? '');
+        $retrievalRef = trim($data['pp_RetreivalReferenceNo'] ?? ($data['pp_RetrievalReferenceNo'] ?? ''));
+        $authCode     = trim($data['pp_AuthCode'] ?? '');
+
+        // Verify hash if present in response
+        $hashValid = true;
+        if (!empty($data['pp_SecureHash'])) {
+            $hashValid = $this->verifySecureHash($data);
+        }
+
+        // '000' is official JazzCash success code for MWallet REST v2.0
+        $isSuccess = ($respCode === '000') && $hashValid;
+
+        return [
+            'success'       => $isSuccess,
+            'response_code' => $respCode,
+            'message'       => $respMsg,
+            'retrieval_ref' => $retrievalRef,
+            'auth_code'     => $authCode,
+            'data'          => $data,
+            'raw'           => $data,
+            'http_code'     => $httpCode,
+            'hash_valid'    => $hashValid
         ];
     }
 

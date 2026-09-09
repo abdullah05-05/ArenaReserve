@@ -32,13 +32,11 @@ log_jazzcash_ipn('Incoming JazzCash IPN', ['body' => $rawBody, 'post' => $_POST]
 $jc = new JazzCashService();
 
 // Verify Secure Hash
-if (!empty($payload['pp_SecureHash'])) {
-    if (!$jc->verifySecureHash($payload)) {
-        log_jazzcash_ipn('Invalid Secure Hash in IPN', ['payload' => $payload]);
-        http_response_code(400);
-        echo json_encode(['error' => 'Invalid Secure Hash']);
-        exit;
-    }
+if (empty($payload['pp_SecureHash']) || !$jc->verifySecureHash($payload)) {
+    log_jazzcash_ipn('Invalid or Missing Secure Hash in IPN', ['payload' => $payload]);
+    http_response_code(400);
+    echo json_encode(['error' => 'Invalid or Missing Secure Hash']);
+    exit;
 }
 
 $txnRefNo     = trim($payload['pp_TxnRefNo'] ?? '');
