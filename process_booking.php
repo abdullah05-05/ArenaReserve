@@ -146,7 +146,7 @@ try {
         $pdo->rollBack();
         echo json_encode([
             'success'  => false,
-            'message'  => 'Insufficient wallet balance. Please top up your wallet or pay via AssanPay.',
+            'message'  => 'Insufficient wallet balance. Please top up your wallet or pay online via JazzCash.',
             'required' => $total_amount_to_charge,
             'balance'  => floatval($wallet['available_balance'] ?? 0)
         ]);

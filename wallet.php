@@ -90,7 +90,7 @@ try {
     $uStmt->execute([$user_id]);
     $currentUser = $uStmt->fetch() ?: ['name' => $_SESSION['name'] ?? '', 'email' => '', 'phone' => ''];
 
-    // Fetch online payments (AssanPay)
+    // Fetch online payments (JazzCash)
     $stmt = $pdo->prepare("SELECT * FROM payment_transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT 15");
     $stmt->execute([$user_id]);
     $online_payments = $stmt->fetchAll();
@@ -298,7 +298,7 @@ if (isset($_SESSION['payment_error'])) {
                                 class="flex-1 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all bg-white text-emerald-600 shadow-sm">
                             <svg class="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
                             <span>Instant Online Top-up</span>
-                            <span class="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full hidden sm:inline">AssanPay</span>
+                            <span class="bg-red-100 text-red-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full hidden sm:inline">JazzCash</span>
                         </button>
                         <button type="button" id="tabBtnManual" onclick="switchTopupTab('manual')"
                                 class="flex-1 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-all text-slate-500 hover:text-slate-700">
@@ -320,24 +320,22 @@ if (isset($_SESSION['payment_error'])) {
                             </div>
                         <?php endif; ?>
 
-                        <!-- 1. INSTANT TOP-UP TAB (AssanPay Hosted Checkout) -->
+                        <!-- 1. INSTANT TOP-UP TAB (JazzCash Online) -->
                         <div id="tabContentInstant" class="space-y-5">
-                            <div class="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200/80 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                            <div class="bg-gradient-to-r from-red-50 to-amber-50 border border-red-200/80 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                                 <div>
                                     <h4 class="font-bold text-slate-900 text-sm flex items-center gap-1.5">
-                                        <span>⚡ Instant Wallet Credit</span>
+                                        <span>⚡ Instant JazzCash Deposit</span>
                                     </h4>
-                                    <p class="text-xs text-slate-600 mt-0.5">Pay via JazzCash, EasyPaisa, Debit/Credit Card, or QR. Your wallet updates instantly upon completion.</p>
+                                    <p class="text-xs text-slate-600 mt-0.5">Pay via JazzCash Mobile Account or Debit/Credit Card. Your wallet balance updates instantly upon payment.</p>
                                 </div>
                                 <div class="flex items-center gap-1.5 flex-wrap">
-                                    <span class="px-2 py-1 bg-white border border-emerald-200 text-[10px] font-bold text-emerald-700 rounded-md shadow-2xs">JazzCash</span>
-                                    <span class="px-2 py-1 bg-white border border-emerald-200 text-[10px] font-bold text-emerald-700 rounded-md shadow-2xs">EasyPaisa</span>
-                                    <span class="px-2 py-1 bg-white border border-emerald-200 text-[10px] font-bold text-emerald-700 rounded-md shadow-2xs">Cards</span>
-                                    <span class="px-2 py-1 bg-white border border-emerald-200 text-[10px] font-bold text-emerald-700 rounded-md shadow-2xs">QR Pay</span>
+                                    <span class="px-2 py-1 bg-white border border-red-200 text-[10px] font-bold text-red-700 rounded-md shadow-2xs">JazzCash Account</span>
+                                    <span class="px-2 py-1 bg-white border border-red-200 text-[10px] font-bold text-red-700 rounded-md shadow-2xs">Debit / Credit Card</span>
                                 </div>
                             </div>
 
-                            <form id="assanpayTopupForm" action="initiate_checkout.php" method="POST" class="space-y-4" onsubmit="handleAssanPaySubmit(event)">
+                            <form id="jazzcashTopupForm" action="initiate_checkout.php" method="POST" class="space-y-4" onsubmit="handleJazzCashSubmit(event)">
                                 <input type="hidden" name="purpose" value="wallet_topup">
                                 <input type="hidden" name="format" value="json">
 
@@ -356,51 +354,39 @@ if (isset($_SESSION['payment_error'])) {
 
                                 <!-- Amount Input -->
                                 <div>
-                                    <label for="ap_amount" class="block text-xs font-semibold text-slate-700">Or Enter Custom Amount (PKR)</label>
+                                    <label for="jc_amount" class="block text-xs font-semibold text-slate-700">Or Enter Custom Amount (PKR)</label>
                                     <div class="mt-1 relative rounded-md shadow-sm">
-                                        <input id="ap_amount" name="amount" type="number" step="1" min="1" required placeholder="e.g. 1000"
+                                        <input id="jc_amount" name="amount" type="number" step="1" min="1" required placeholder="e.g. 1000"
                                                class="appearance-none block w-full px-3 py-2 border border-slate-300 rounded-lg placeholder-slate-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 text-sm font-semibold text-slate-900">
                                     </div>
-                                    <p class="text-[11px] text-slate-500 mt-1">Instant online deposit &bull; No per-transaction limit.</p>
-                                </div>
-
-                                <!-- Payment Channel Selection -->
-                                <div>
-                                    <label for="ap_method" class="block text-xs font-semibold text-slate-700">Preferred Payment Channel (Optional)</label>
-                                    <select id="ap_method" name="payment_method" class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 text-xs text-slate-700">
-                                        <option value="">Choose on AssanPay Hosted Checkout (Recommended)</option>
-                                        <option value="JazzCash">JazzCash Mobile Account</option>
-                                        <option value="Easypaisa">Easypaisa Mobile Account</option>
-                                        <option value="Card">Debit / Credit Card</option>
-                                        <option value="QR">Raast / QR Code</option>
-                                    </select>
+                                    <p class="text-[11px] text-slate-500 mt-1">Instant online deposit &bull; Verified in real-time via JazzCash.</p>
                                 </div>
 
                                 <!-- Payer Details (Pre-filled) -->
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
-                                        <label for="ap_phone" class="block text-xs font-semibold text-slate-700">Account / Mobile Number</label>
-                                        <input id="ap_phone" name="phone" type="text" required
+                                        <label for="jc_phone" class="block text-xs font-semibold text-slate-700">Account / Mobile Number</label>
+                                        <input id="jc_phone" name="phone" type="text" required
                                                value="<?php echo htmlspecialchars($currentUser['phone'] ?? ''); ?>"
                                                placeholder="03001234567"
                                                class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 text-xs text-slate-800">
                                     </div>
                                     <div>
-                                        <label for="ap_email" class="block text-xs font-semibold text-slate-700">Email Address</label>
-                                        <input id="ap_email" name="email" type="email" required
+                                        <label for="jc_email" class="block text-xs font-semibold text-slate-700">Email Address</label>
+                                        <input id="jc_email" name="email" type="email" required
                                                value="<?php echo htmlspecialchars($currentUser['email'] ?? ''); ?>"
                                                placeholder="player@example.com"
                                                class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 text-xs text-slate-800">
                                     </div>
                                 </div>
 
-                                <div id="ap_error_box" class="hidden bg-red-50 border border-red-200 text-red-700 p-3 rounded-lg text-xs"></div>
+                                <div id="jc_error_box" class="hidden bg-red-50 border border-red-200 text-red-700 p-3 rounded-lg text-xs"></div>
 
                                 <!-- Submit Button -->
-                                <button type="submit" id="ap_submit_btn"
-                                        class="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl shadow-md text-sm font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-all cursor-pointer">
+                                <button type="submit" id="jc_submit_btn"
+                                        class="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl shadow-md text-sm font-bold text-white bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-700 hover:to-amber-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-all cursor-pointer">
                                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-                                    <span id="ap_btn_text">Proceed to AssanPay Hosted Checkout</span>
+                                    <span id="jc_btn_text">Proceed to JazzCash Payment</span>
                                 </button>
                             </form>
                         </div>
@@ -465,11 +451,11 @@ if (isset($_SESSION['payment_error'])) {
 
             <!-- Right 1 Col: Transaction Logs & Payment History -->
             <div class="space-y-6">
-                <!-- Online Transactions (AssanPay) -->
+                <!-- Online Transactions (JazzCash) -->
                 <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
                     <h3 class="text-sm font-bold text-slate-800 mb-3 border-b border-slate-100 pb-2 flex items-center justify-between">
                         <span>Online Payments</span>
-                        <span class="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">AssanPay</span>
+                        <span class="text-[10px] font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">JazzCash</span>
                     </h3>
                     <?php if (empty($online_payments)): ?>
                         <p class="text-xs text-slate-500 py-3 text-center">No online transactions yet.</p>
@@ -583,23 +569,25 @@ if (isset($_SESSION['payment_error'])) {
 
         // ---- Quick Amount Setter ----
         function setQuickAmount(val) {
-            const input = document.getElementById('ap_amount');
-            input.value = val;
-            input.focus();
+            const input = document.getElementById('jc_amount');
+            if (input) {
+                input.value = val;
+                input.focus();
+            }
         }
 
-        // ---- Handle AssanPay Checkout Submit ----
-        function handleAssanPaySubmit(e) {
+        // ---- Handle JazzCash Checkout Submit ----
+        function handleJazzCashSubmit(e) {
             e.preventDefault();
-            const form = document.getElementById('assanpayTopupForm');
-            const btn = document.getElementById('ap_submit_btn');
-            const btnText = document.getElementById('ap_btn_text');
-            const errBox = document.getElementById('ap_error_box');
+            const form = document.getElementById('jazzcashTopupForm');
+            const btn = document.getElementById('jc_submit_btn');
+            const btnText = document.getElementById('jc_btn_text');
+            const errBox = document.getElementById('jc_error_box');
 
             errBox.classList.add('hidden');
             errBox.textContent = '';
 
-            const amount = parseFloat(document.getElementById('ap_amount').value || 0);
+            const amount = parseFloat(document.getElementById('jc_amount').value || 0);
             if (amount < 1) {
                 errBox.textContent = 'Please enter a valid amount (minimum 1 PKR).';
                 errBox.classList.remove('hidden');
@@ -622,21 +610,34 @@ if (isset($_SESSION['payment_error'])) {
             })
             .then(res => res.json())
             .then(data => {
-                if (data.success && data.checkoutUrl) {
-                    btnText.textContent = 'Redirecting to AssanPay...';
-                    window.location.href = data.checkoutUrl;
+                if (data.success && data.post_url && data.params) {
+                    btnText.textContent = 'Redirecting to JazzCash...';
+                    const postForm = document.createElement('form');
+                    postForm.method = 'POST';
+                    postForm.action = data.post_url;
+                    for (const key in data.params) {
+                        if (data.params.hasOwnProperty(key)) {
+                            const input = document.createElement('input');
+                            input.type = 'hidden';
+                            input.name = key;
+                            input.value = data.params[key];
+                            postForm.appendChild(input);
+                        }
+                    }
+                    document.body.appendChild(postForm);
+                    postForm.submit();
                 } else {
                     btn.disabled = false;
                     btn.classList.remove('opacity-75', 'cursor-not-allowed');
-                    btnText.textContent = 'Proceed to AssanPay Hosted Checkout';
-                    errBox.textContent = data.message || 'Unable to connect to AssanPay gateway. Please check your credentials or try again.';
+                    btnText.textContent = 'Proceed to JazzCash Payment';
+                    errBox.textContent = data.message || 'Unable to connect to JazzCash gateway. Please check your credentials or try again.';
                     errBox.classList.remove('hidden');
                 }
             })
             .catch(err => {
                 btn.disabled = false;
                 btn.classList.remove('opacity-75', 'cursor-not-allowed');
-                btnText.textContent = 'Proceed to AssanPay Hosted Checkout';
+                btnText.textContent = 'Proceed to JazzCash Payment';
                 errBox.textContent = 'Network or server error. Please try again.';
                 errBox.classList.remove('hidden');
             });

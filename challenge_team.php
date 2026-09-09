@@ -447,40 +447,28 @@ body { font-family:'Inter',sans-serif; background:#f8fafc; }
             <div class="text-[10px] text-slate-500">Balance: <span class="font-bold text-slate-700"><?php echo number_format($available_balance, 0); ?> PKR</span></div>
           </div>
 
-          <!-- AssanPay Card Option -->
-          <div id="ct-payopt-assanpay" onclick="selectCTPaymentMethod('assanpay')" class="pay-method-card">
+          <!-- JazzCash Card Option -->
+          <div id="ct-payopt-jazzcash" onclick="selectCTPaymentMethod('jazzcash')" class="pay-method-card">
             <div class="flex items-center gap-1.5 mb-1">
               <span class="text-base">⚡</span>
-              <span class="font-bold text-xs text-slate-800">AssanPay</span>
+              <span class="font-bold text-xs text-slate-800">JazzCash</span>
             </div>
-            <div class="text-[10px] text-orange-600 font-semibold truncate">Cards · JazzCash · QR</div>
+            <div class="text-[10px] text-red-600 font-semibold truncate">Mobile · Cards · Voucher</div>
           </div>
         </div>
       </div>
 
-      <!-- Panel: AssanPay details -->
-      <div id="ct-panel-assanpay" class="hidden space-y-3 mb-4">
-        <div class="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-xl p-3 text-xs space-y-1.5">
+      <!-- Panel: JazzCash details -->
+      <div id="ct-panel-jazzcash" class="hidden space-y-3 mb-4">
+        <div class="bg-gradient-to-r from-red-50 to-amber-50 border border-red-200 rounded-xl p-3 text-xs space-y-1.5">
           <div class="flex items-center justify-between">
-            <span class="font-bold text-slate-800">⚡ Instant Hosted Checkout</span>
+            <span class="font-bold text-slate-800">⚡ JazzCash Online Checkout</span>
             <div class="flex items-center gap-1">
-              <span class="px-1.5 py-0.5 bg-white border border-orange-200 text-[10px] font-bold text-orange-700 rounded shadow-2xs">JazzCash</span>
-              <span class="px-1.5 py-0.5 bg-white border border-orange-200 text-[10px] font-bold text-orange-700 rounded shadow-2xs">EasyPaisa</span>
-              <span class="px-1.5 py-0.5 bg-white border border-orange-200 text-[10px] font-bold text-orange-700 rounded shadow-2xs">Cards</span>
+              <span class="px-1.5 py-0.5 bg-white border border-red-200 text-[10px] font-bold text-red-700 rounded shadow-2xs">JazzCash</span>
+              <span class="px-1.5 py-0.5 bg-white border border-red-200 text-[10px] font-bold text-red-700 rounded shadow-2xs">Cards</span>
             </div>
           </div>
-          <p class="text-[11px] text-slate-600">Pay your 25% challenge share directly via AssanPay online checkout.</p>
-        </div>
-
-        <div>
-          <label class="block text-[11px] font-semibold text-slate-700 mb-1">Payment Channel (Optional)</label>
-          <select id="ct-ap-method" class="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 focus:ring-1 focus:ring-orange-400 focus:outline-none">
-            <option value="">Choose on Hosted Checkout (Recommended)</option>
-            <option value="JazzCash">JazzCash Mobile Account</option>
-            <option value="Easypaisa">Easypaisa Mobile Account</option>
-            <option value="Card">Debit / Credit Card</option>
-            <option value="QR">Raast / QR Pay</option>
-          </select>
+          <p class="text-[11px] text-slate-600">Pay your 25% challenge share directly via JazzCash online checkout.</p>
         </div>
         <div class="grid grid-cols-2 gap-2 text-xs">
           <div>
@@ -525,20 +513,20 @@ let ctSelectedMethod = 'wallet';
 function selectCTPaymentMethod(method) {
   ctSelectedMethod = method;
   const wCard = document.getElementById('ct-payopt-wallet');
-  const aCard = document.getElementById('ct-payopt-assanpay');
-  const aPanel = document.getElementById('ct-panel-assanpay');
+  const jcCard = document.getElementById('ct-payopt-jazzcash');
+  const jcPanel = document.getElementById('ct-panel-jazzcash');
   const submitBtn = document.getElementById('ch-submit-btn');
 
   if (method === 'wallet') {
     if (wCard) wCard.className = 'pay-method-card selected';
-    if (aCard) aCard.className = 'pay-method-card';
-    if (aPanel) aPanel.classList.add('hidden');
+    if (jcCard) jcCard.className = 'pay-method-card';
+    if (jcPanel) jcPanel.classList.add('hidden');
     if (submitBtn) submitBtn.textContent = '⚡ Pay 25% from Wallet & Send';
   } else {
     if (wCard) wCard.className = 'pay-method-card';
-    if (aCard) aCard.className = 'pay-method-card selected';
-    if (aPanel) aPanel.classList.remove('hidden');
-    if (submitBtn) submitBtn.textContent = '⚡ Pay 25% via AssanPay & Send';
+    if (jcCard) jcCard.className = 'pay-method-card selected';
+    if (jcPanel) jcPanel.classList.remove('hidden');
+    if (submitBtn) submitBtn.textContent = '⚡ Pay 25% via JazzCash & Send';
   }
 }
 
@@ -561,12 +549,11 @@ function submitChallenge() {
   btn.disabled    = true;
   btn.textContent = 'Securing slot…';
 
-  // 1. If AssanPay chosen, initiate hosted checkout directly
-  if (ctSelectedMethod === 'assanpay') {
+  // 1. If JazzCash chosen, initiate hosted checkout directly
+  if (ctSelectedMethod === 'jazzcash') {
     btn.textContent = 'Initiating Checkout…';
-    const channel = document.getElementById('ct-ap-method')?.value || '';
-    const phone   = document.getElementById('ct-ap-phone')?.value || '';
-    const email   = document.getElementById('ct-ap-email')?.value || '';
+    const phone = document.getElementById('ct-ap-phone')?.value || '';
+    const email = document.getElementById('ct-ap-email')?.value || '';
 
     fetch('initiate_checkout.php', {
       method: 'POST',
@@ -584,26 +571,39 @@ function submitChallenge() {
         challenger_team_name: selectedTeamName,
         challenged_user_id:   selectedTeamId,
         ch_message:           (document.getElementById('ch-message')?.value || ''),
-        payment_method:       channel,
+        payment_method:       'JazzCash',
         phone:                phone,
         email:                email
       })
     })
     .then(r => r.json())
     .then(res => {
-      if (res.success && res.checkoutUrl) {
-        btn.textContent = 'Redirecting to AssanPay…';
-        window.location.href = res.checkoutUrl;
+      if (res.success && res.post_url && res.params) {
+        btn.textContent = 'Redirecting to JazzCash…';
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = res.post_url;
+        for (const key in res.params) {
+          if (res.params.hasOwnProperty(key)) {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = key;
+            input.value = res.params[key];
+            form.appendChild(input);
+          }
+        }
+        document.body.appendChild(form);
+        form.submit();
       } else {
         showCTToast('❌ ' + (res.message || 'Payment initiation failed.'), 'error');
         btn.disabled = false;
-        btn.textContent = '⚡ Pay 25% via AssanPay & Send';
+        btn.textContent = '⚡ Pay 25% via JazzCash & Send';
       }
     })
     .catch(() => {
       showCTToast('❌ Network error while initiating checkout.', 'error');
       btn.disabled = false;
-      btn.textContent = '⚡ Pay 25% via AssanPay & Send';
+      btn.textContent = '⚡ Pay 25% via JazzCash & Send';
     });
     return;
   }

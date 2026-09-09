@@ -1,7 +1,7 @@
 <?php
 /**
- * assanpay_return.php
- * Landing page when user returns from AssanPay Hosted Checkout.
+ * jazzcash_return.php
+ * Landing page when user returns from JazzCash Hosted Checkout.
  * Displays real-time transaction status and seamless navigation for wallet top-ups and slot bookings.
  */
 
@@ -10,112 +10,153 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/logo_helper.php';
-require_once __DIR__ . '/AssanPayService.php';
+require_once __DIR__ . '/JazzCashService.php';
 require_once __DIR__ . '/payment_fulfill_helper.php';
 
-$orderId = trim($_GET['orderId'] ?? '');
-$paramStatus = trim($_GET['status'] ?? '');
+$jazzCash = new JazzCashService();
+
+// Extract parameters from POST (JazzCash response) or GET
+$rawPayload = !empty($_POST) ? json_encode($_POST) : json_encode($_GET);
+
+// JazzCash response parameters
+$responseCode    = trim($_POST['pp_ResponseCode'] ?? ($_GET['pp_ResponseCode'] ?? ''));
+$responseMsg     = trim($_POST['pp_ResponseMessage'] ?? ($_GET['pp_ResponseMessage'] ?? ''));
+$txnRefNo        = trim($_POST['pp_TxnRefNo'] ?? ($_GET['pp_TxnRefNo'] ?? ($_GET['txnRefNo'] ?? '')));
+$billRef         = trim($_POST['pp_BillReference'] ?? ($_GET['pp_BillReference'] ?? ($_GET['orderId'] ?? '')));
+$retrievalRef    = trim($_POST['pp_RetreivalReferenceNo'] ?? ($_POST['pp_RetrievalReferenceNo'] ?? ($_GET['pp_RetreivalReferenceNo'] ?? '')));
+$authCode        = trim($_POST['pp_AuthCode'] ?? '');
+$receivedHash    = trim($_POST['pp_SecureHash'] ?? '');
 
 $transaction = null;
 $metaData = [];
 $bookingDetails = null;
+$allBookings = [];
 $error = '';
 $isSuccess = false;
 $isPending = false;
 $isFailed = false;
 
+// Determine internal order ID
+$orderId = $billRef ?: $txnRefNo;
+
 if (!empty($orderId)) {
-    try {
-        $stmt = $pdo->prepare("SELECT * FROM payment_transactions WHERE order_id = ?");
-        $stmt->execute([$orderId]);
-        $transaction = $stmt->fetch();
-
-        if ($transaction) {
-            $metaData = !empty($transaction['meta_data']) ? json_decode($transaction['meta_data'], true) : [];
-
-            // If still pending in DB, query AssanPay status inquiry API in real-time
-            if ($transaction['status'] === 'pending') {
-                $service = new AssanPayService();
-                $inquiry = $service->checkPaymentStatus($orderId);
-                
-                if ($inquiry['success'] && isset($inquiry['data'])) {
-                    $inqData = $inquiry['data'];
-                    $inqStatus = strtoupper($inqData['status'] ?? '');
-                    if ($inqStatus === 'SUCCESS' || ($inqData['statusCode'] ?? '') === '200') {
-                        $ref = $inqData['reference'] ?? $inqData['transactionId'] ?? null;
-                        $fulRes = fulfillPaymentTransaction($pdo, $orderId, $ref, json_encode($inqData));
-                        
-                        // Reload transaction
-                        $stmt->execute([$orderId]);
-                        $transaction = $stmt->fetch();
-                        $metaData = !empty($transaction['meta_data']) ? json_decode($transaction['meta_data'], true) : [];
-                    } elseif ($inqStatus === 'FAILED' || ($inqData['statusCode'] ?? '') === '400') {
-                        $errorReason = $inqData['message'] ?? $inqData['reason'] ?? 'Transaction was cancelled or declined by PSP.';
-                        $pdo->prepare("UPDATE payment_transactions SET status = 'failed', raw_callback = ? WHERE id = ?")
-                            ->execute([json_encode($inqData), $transaction['id']]);
-                        $transaction['status'] = 'failed';
-                        $error = $errorReason;
-                    }
-                }
-            }
-
-            if ($transaction['status'] === 'success') {
-                $isSuccess = true;
-
-                // If slot booking, fetch detailed info for rich UI
-                if (($transaction['purpose'] ?? '') === 'slot_booking') {
-                    $metaData = json_decode($transaction['meta_data'] ?? '{}', true);
-                    $gId   = intval($metaData['ground_id'] ?? 0);
-                    $sDate = trim($metaData['slot_date'] ?? '');
-                    $slotHours = !empty($metaData['slot_hours']) && is_array($metaData['slot_hours'])
-                        ? array_map('intval', $metaData['slot_hours'])
-                        : [intval($metaData['slot_hour'] ?? -1)];
-
-                    if ($gId && $sDate && !empty($slotHours)) {
-                        $inClause = implode(',', array_fill(0, count($slotHours), '?'));
-                        $bStmt = $pdo->prepare("
-                            SELECT b.*, g.title AS ground_title, g.sport_type 
-                            FROM bookings b 
-                            JOIN grounds g ON g.id = b.ground_id 
-                            WHERE b.ground_id = ? AND b.slot_date = ? AND b.slot_hour IN ($inClause) AND b.booked_by = ?
-                            ORDER BY b.slot_hour ASC
-                        ");
-                        $bStmt->execute(array_merge([$gId, $sDate], $slotHours, [$transaction['user_id']]));
-                        $allBookings = $bStmt->fetchAll();
-                        $bookingDetails = $allBookings[0] ?? null;
-                    }
-                }
-
-            } elseif ($transaction['status'] === 'pending') {
-                $isPending = true;
-            } else {
-                $isFailed = true;
-                if (empty($error) && !empty($transaction['raw_callback'])) {
-                    $cb = json_decode($transaction['raw_callback'], true);
-                    $error = $cb['message'] ?? $cb['reason'] ?? $cb['error'] ?? '';
-                }
-            }
-        } else {
-            $error = 'Transaction record not found.';
-            $isFailed = true;
-        }
-    } catch (Exception $e) {
-        $error = 'Database error: ' . $e->getMessage();
-        $isFailed = true;
-    }
-} else {
-    $error = 'No Order ID provided in return URL.';
-    $isFailed = true;
+    // Look up transaction by order_id or session_id (which stores txnRefNo)
+    $stmt = $pdo->prepare("
+        SELECT * FROM payment_transactions 
+        WHERE order_id = ? OR session_id = ? OR order_id = ?
+        LIMIT 1
+    ");
+    $stmt->execute([$orderId, $txnRefNo, $billRef]);
+    $transaction = $stmt->fetch();
 }
 
-// Format time label helper
+if ($transaction) {
+    $orderId = $transaction['order_id'];
+    if (!empty($transaction['meta_data'])) {
+        $metaData = json_decode($transaction['meta_data'], true) ?: [];
+    }
+
+    // Verify hash if POSTed from JazzCash
+    $hashValid = true;
+    if (!empty($_POST) && !empty($receivedHash)) {
+        $hashValid = $jazzCash->verifySecureHash($_POST);
+    }
+
+    // Check if approved ('000' is Success, '121' is Payment Completed)
+    if ($hashValid && ($responseCode === '000' || $responseCode === '121')) {
+        // Fulfill payment
+        $reference = $retrievalRef ?: $txnRefNo;
+        $fulfillResult = fulfillPaymentTransaction($pdo, $orderId, $reference, $rawPayload, $authCode);
+        $isSuccess = $fulfillResult['success'] || ($transaction['status'] === 'success');
+    } elseif ($transaction['status'] === 'success') {
+        $isSuccess = true;
+    } elseif ($responseCode === '' && $transaction['status'] === 'pending') {
+        // Direct arrival / checking status: Query Status API if available
+        if (!empty($transaction['session_id']) && !empty($jazzCash->getMerchantId())) {
+            $inquiry = $jazzCash->queryStatus($transaction['session_id']);
+            if (!empty($inquiry['is_paid'])) {
+                $fulfillResult = fulfillPaymentTransaction($pdo, $orderId, $transaction['session_id'], json_encode($inquiry), 'INQUIRY');
+                $isSuccess = true;
+            } else {
+                $isPending = true;
+            }
+        } else {
+            $isPending = true;
+        }
+    } else {
+        $isFailed = true;
+        $error = !empty($responseMsg) ? $responseMsg : 'The transaction was declined or cancelled.';
+        
+        // Update transaction status if still pending
+        if ($transaction['status'] === 'pending') {
+            $pdo->prepare("UPDATE payment_transactions SET status = 'failed', raw_callback = ? WHERE id = ?")
+                ->execute([$rawPayload, $transaction['id']]);
+        }
+    }
+
+    // If callback landed on live server but transaction was initiated from localhost,
+    // bridge browser back to localhost so local development session shows the verified receipt.
+    $localBridge = trim($_POST['ppmpf_3'] ?? ($_POST['ppmpf_1'] ?? ($_GET['ppmpf_3'] ?? ($_GET['ppmpf_1'] ?? ''))));
+    $currentHost = strtolower(explode(':', $_SERVER['HTTP_HOST'] ?? '')[0]);
+    $isCurrentHostLocal = in_array($currentHost, ['localhost', '127.0.0.1', '::1']);
+
+    if (!$isCurrentHostLocal && !empty($localBridge) && (stripos($localBridge, 'localhost') !== false || stripos($localBridge, '127.0.0.1') !== false)) {
+        $sep = (strpos($localBridge, '?') !== false) ? '&' : '?';
+        $redirUrl = $localBridge . $sep . 'orderId=' . urlencode($orderId) . '&status=' . ($isSuccess ? 'success' : ($isPending ? 'pending' : 'failed'));
+        if (!empty($responseCode)) {
+            $redirUrl .= '&pp_ResponseCode=' . urlencode($responseCode);
+        }
+        if (!empty($responseMsg)) {
+            $redirUrl .= '&pp_ResponseMessage=' . urlencode($responseMsg);
+        }
+        if (!empty($txnRefNo)) {
+            $redirUrl .= '&pp_TxnRefNo=' . urlencode($txnRefNo);
+        }
+        header('Location: ' . $redirUrl);
+        exit;
+    }
+
+    // Fetch booking details if slot booking
+    if ($transaction['purpose'] === 'slot_booking' && $isSuccess) {
+        if (!empty($metaData['slot_hours']) && is_array($metaData['slot_hours'])) {
+            $inSlots = implode(',', array_map('intval', $metaData['slot_hours']));
+            $bStmt = $pdo->prepare("
+                SELECT b.*, g.title AS ground_title, g.sport_type 
+                FROM bookings b
+                JOIN grounds g ON g.id = b.ground_id
+                WHERE b.ground_id = ? AND b.slot_date = ? AND b.slot_hour IN ($inSlots)
+                ORDER BY b.slot_hour ASC
+            ");
+            $bStmt->execute([$metaData['ground_id'], $metaData['slot_date']]);
+            $allBookings = $bStmt->fetchAll();
+            $bookingDetails = $allBookings[0] ?? null;
+        } else {
+            $bStmt = $pdo->prepare("
+                SELECT b.*, g.title AS ground_title, g.sport_type 
+                FROM bookings b
+                JOIN grounds g ON g.id = b.ground_id
+                WHERE b.ground_id = ? AND b.slot_date = ? AND b.slot_hour = ?
+                LIMIT 1
+            ");
+            $bStmt->execute([$metaData['ground_id'] ?? 0, $metaData['slot_date'] ?? '', $metaData['slot_hour'] ?? 0]);
+            $bookingDetails = $bStmt->fetch();
+            if ($bookingDetails) {
+                $allBookings = [$bookingDetails];
+            }
+        }
+    }
+} else {
+    $isFailed = true;
+    $error = !empty($responseMsg) ? $responseMsg : 'Transaction record not found.';
+}
+
 function formatSlotHourDisplay(int $h): string {
-    $suffix    = $h < 12 ? 'AM' : 'PM';
-    $displayH  = $h === 0 ? 12 : ($h > 12 ? $h - 12 : $h);
-    $nextH     = $h + 1;
-    $nextDisp  = $nextH === 0 ? 12 : ($nextH > 12 ? $nextH - 12 : ($nextH === 12 ? 12 : $nextH));
-    $nextSuffix = $nextH < 12 ? 'AM' : 'PM';
-    return sprintf('%d:00 %s – %d:00 %s', $displayH, $suffix, $nextDisp, $nextSuffix);
+    $suffix   = $h < 12 ? 'AM' : 'PM';
+    $displayH = $h === 0 ? 12 : ($h > 12 ? $h - 12 : $h);
+    $nextH    = $h + 1;
+    $nextDisp = $nextH === 0 ? 12 : ($nextH > 12 ? $nextH - 12 : ($nextH === 12 ? 12 : $nextH));
+    $nextSuf  = $nextH < 12 ? 'AM' : 'PM';
+    return sprintf('%d:00 %s – %d:00 %s', $displayH, $suffix, $nextDisp, $nextSuf);
 }
 ?>
 <!DOCTYPE html>
@@ -160,7 +201,7 @@ function formatSlotHourDisplay(int $h): string {
                     <h1 class="text-2xl font-extrabold text-slate-900 mb-1">
                         <?php echo $bookingCount > 1 ? "{$bookingCount} Bookings Confirmed! ⚽" : "Booking Confirmed! ⚽"; ?>
                     </h1>
-                    <p class="text-xs text-slate-500 mb-6">Your slot advance has been paid securely via AssanPay.</p>
+                    <p class="text-xs text-slate-500 mb-6">Your slot advance has been paid securely via JazzCash.</p>
 
                     <!-- Slot Booking Details Card -->
                     <div class="bg-emerald-50/60 border border-emerald-200 rounded-xl p-4 text-left text-xs space-y-2.5 mb-6">
@@ -208,20 +249,20 @@ function formatSlotHourDisplay(int $h): string {
                         </div>
 
                         <?php 
-                        $totalFullPrice = floatval($metaData['full_price'] ?? 0);
-                        $totalPaid = floatval($transaction['amount'] ?? 0);
-                        $totalRemaining = max(0, $totalFullPrice - $totalPaid);
-                        if ($totalRemaining > 0): 
+                        $totalFull = floatval($metaData['full_price'] ?? ($bookingDetails['price'] ?? 0));
+                        $paidAmt   = floatval($transaction['amount'] ?? 0);
+                        $remaining = max(0, $totalFull - $paidAmt);
+                        if ($remaining > 0): 
                         ?>
-                        <div class="flex justify-between text-amber-700 font-medium bg-amber-50 rounded p-1.5 text-[11px]">
-                            <span>Remaining Due at Venue:</span>
-                            <span class="font-bold"><?php echo number_format($totalRemaining, 0); ?> PKR</span>
+                        <div class="flex justify-between text-amber-800 bg-amber-50/90 -mx-4 -mb-4 p-3 rounded-b-xl border-t border-amber-200">
+                            <span class="font-medium">Remaining Due at Venue:</span>
+                            <span class="font-bold"><?php echo number_format($remaining, 0); ?> PKR</span>
                         </div>
                         <?php endif; ?>
 
                         <div class="flex justify-between pt-1">
                             <span class="text-slate-400">Order ID:</span>
-                            <span class="font-mono text-slate-600"><?php echo htmlspecialchars($orderId); ?></span>
+                            <span class="font-mono text-[10px] text-slate-600"><?php echo htmlspecialchars($orderId); ?></span>
                         </div>
                     </div>
 
@@ -235,8 +276,8 @@ function formatSlotHourDisplay(int $h): string {
                     </div>
 
                 <?php elseif (($transaction['purpose'] ?? '') === 'accept_challenge'): ?>
-                    <h1 class="text-2xl font-extrabold text-slate-900 mb-1">Challenge Accepted! ⚡</h1>
-                    <p class="text-xs text-slate-500 mb-6">Your 25% advance share was paid securely via AssanPay. Match is confirmed!</p>
+                    <h1 class="text-2xl font-extrabold text-slate-900 mb-1">Challenge Accepted! ⚔️</h1>
+                    <p class="text-xs text-slate-500 mb-6">Your 25% match share has been paid via JazzCash.</p>
 
                     <div class="bg-violet-50 border border-violet-200 rounded-xl p-4 text-left text-xs space-y-2.5 mb-6">
                         <div class="flex justify-between">
@@ -249,7 +290,7 @@ function formatSlotHourDisplay(int $h): string {
                         </div>
                         <div class="flex justify-between">
                             <span class="text-slate-500">Status:</span>
-                            <span class="font-semibold text-emerald-600">Match Set & Confirmed</span>
+                            <span class="font-semibold text-emerald-600">Match Confirmed</span>
                         </div>
                     </div>
 
@@ -264,7 +305,7 @@ function formatSlotHourDisplay(int $h): string {
 
                 <?php else: ?>
                     <h1 class="text-2xl font-extrabold text-slate-900 mb-1">Wallet Top-up Successful! 💳</h1>
-                    <p class="text-xs text-slate-500 mb-6">Your wallet balance has been updated instantly via AssanPay.</p>
+                    <p class="text-xs text-slate-500 mb-6">Your wallet balance has been updated instantly via JazzCash.</p>
 
                     <!-- Wallet Topup Details Card -->
                     <div class="bg-slate-50 border border-slate-200/80 rounded-xl p-4 text-left text-xs space-y-2.5 mb-6">
@@ -276,10 +317,10 @@ function formatSlotHourDisplay(int $h): string {
                             <span class="text-slate-500">Amount Credited:</span>
                             <span class="font-bold text-emerald-600 text-sm"><?php echo number_format($transaction['amount'] ?? 0, 2); ?> PKR</span>
                         </div>
-                        <?php if (!empty($transaction['reference'])): ?>
+                        <?php if (!empty($retrievalRef)): ?>
                         <div class="flex justify-between">
-                            <span class="text-slate-500">Gateway Ref:</span>
-                            <span class="font-mono text-slate-700"><?php echo htmlspecialchars($transaction['reference']); ?></span>
+                            <span class="text-slate-500">JazzCash Ref:</span>
+                            <span class="font-mono text-slate-700"><?php echo htmlspecialchars($retrievalRef); ?></span>
                         </div>
                         <?php endif; ?>
                         <div class="flex justify-between">
@@ -306,7 +347,7 @@ function formatSlotHourDisplay(int $h): string {
                     </svg>
                 </div>
                 <h1 class="text-xl font-bold text-slate-900 mb-1">Payment Verification Pending</h1>
-                <p class="text-xs text-slate-500 mb-6">AssanPay is confirming the transaction. Your booking/wallet will be updated automatically as soon as confirmation arrives.</p>
+                <p class="text-xs text-slate-500 mb-6">JazzCash is confirming your transaction. Your booking/wallet will be updated as soon as confirmation arrives.</p>
 
                 <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-left text-xs space-y-2 mb-6">
                     <div class="flex justify-between">
@@ -320,7 +361,7 @@ function formatSlotHourDisplay(int $h): string {
                 </div>
 
                 <div class="space-y-2">
-                    <a href="assanpay_return.php?orderId=<?php echo urlencode($orderId); ?>" class="w-full block py-2.5 px-4 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-lg text-sm transition-colors">
+                    <a href="jazzcash_return.php?orderId=<?php echo urlencode($orderId); ?>" class="w-full block py-2.5 px-4 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-lg text-sm transition-colors">
                         🔄 Refresh Status
                     </a>
                     <a href="book_slot.php" class="w-full block py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg text-xs transition-colors">
@@ -335,7 +376,7 @@ function formatSlotHourDisplay(int $h): string {
                         <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                     </svg>
                 </div>
-                <h1 class="text-xl font-bold text-slate-900 mb-1">Payment Failed or Cancelled</h1>
+                <h1 class="text-xl font-bold text-slate-900 mb-1">Payment Declined or Cancelled</h1>
                 <p class="text-xs text-slate-500 mb-6"><?php echo !empty($error) ? htmlspecialchars($error) : 'The payment could not be completed. No funds were charged.'; ?></p>
 
                 <?php if ($transaction): ?>
@@ -353,26 +394,26 @@ function formatSlotHourDisplay(int $h): string {
 
                 <div class="space-y-2">
                     <?php if (($transaction['purpose'] ?? '') === 'slot_booking'): ?>
-                        <a href="book_slot.php<?php echo !empty($metaData['ground_id']) ? '?ground=' . intval($metaData['ground_id']) . '&date=' . urlencode($metaData['slot_date'] ?? '') : ''; ?>" class="w-full block py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg text-sm transition-colors shadow-sm">
-                            Try Again on Book Slot
+                        <a href="checkout.php<?php echo !empty($metaData['ground_id']) ? '?ground=' . intval($metaData['ground_id']) . '&date=' . urlencode($metaData['slot_date'] ?? '') . '&hours=' . (is_array($metaData['slot_hours'] ?? null) ? implode(',', $metaData['slot_hours']) : ($metaData['slot_hour'] ?? '')) : ''; ?>" class="w-full block py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg text-sm transition-colors shadow-sm">
+                            Try Again on Checkout
                         </a>
                     <?php else: ?>
                         <a href="wallet.php" class="w-full block py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg text-sm transition-colors shadow-sm">
-                            Try Again on Wallet
+                            Return to Wallet
                         </a>
                     <?php endif; ?>
                     <a href="explore.php" class="w-full block py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg text-xs transition-colors">
-                        Back to Home
+                        Explore Grounds
                     </a>
                 </div>
             <?php endif; ?>
 
         </div>
-    </main>
+    </div>
 
-    <!-- Footer -->
-    <footer class="text-center py-4 text-xs text-slate-400">
-        &copy; <?php echo date('Y'); ?> ArenaReserve &bull; Secured with AssanPay
-    </footer>
+    <div class="fixed bottom-4 text-center w-full text-[11px] text-slate-400 pointer-events-none">
+        © <?php echo date('Y'); ?> ArenaReserve • Powered by JazzCash
+    </div>
+
 </body>
 </html>

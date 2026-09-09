@@ -1,7 +1,7 @@
 <?php
 /**
  * initiate_checkout.php
- * Endpoint to initiate an AssanPay Hosted Checkout session.
+ * Endpoint to initiate a JazzCash Payment Gateway Hosted Checkout session (v1.1).
  * Supports AJAX JSON requests and standard form submissions.
  */
 
@@ -9,7 +9,7 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 require_once __DIR__ . '/db.php';
-require_once __DIR__ . '/AssanPayService.php';
+require_once __DIR__ . '/JazzCashService.php';
 
 // Ensure user is authenticated
 if (!isset($_SESSION['user_id'])) {
@@ -34,11 +34,11 @@ if (!$user) {
     exit;
 }
 
-$purpose = trim($_POST['purpose'] ?? 'wallet_topup');
+$purpose       = trim($_POST['purpose'] ?? 'wallet_topup');
 $paymentMethod = trim($_POST['payment_method'] ?? '');
-$customerPhone = trim($_POST['phone'] ?? $user['phone']);
-$customerEmail = trim($_POST['email'] ?? $user['email']);
-$customerName  = trim($_POST['name'] ?? $user['name']);
+$customerPhone = trim($_POST['phone'] ?? ($user['phone'] ?? ''));
+$customerEmail = trim($_POST['email'] ?? ($user['email'] ?? ''));
+$customerName  = trim($_POST['name'] ?? ($user['name'] ?? ''));
 
 // Clean customer phone (ensure e.g. 03001234567 format)
 $customerPhone = preg_replace('/[^0-9]/', '', $customerPhone);
@@ -48,6 +48,7 @@ if (strpos($customerPhone, '92') === 0 && strlen($customerPhone) === 12) {
 
 $amount = 0.00;
 $metaData = [];
+$description = 'ArenaReserve Payment';
 
 try {
     if ($purpose === 'wallet_topup') {
@@ -55,20 +56,21 @@ try {
         if ($amount < 1.00) {
             throw new Exception('Minimum deposit amount is 1 PKR.');
         }
+        $description = 'ArenaReserve Wallet Top-up';
         $metaData = [
-            'type' => 'wallet_topup',
+            'type'    => 'wallet_topup',
             'user_id' => $user_id,
-            'amount' => $amount
+            'amount'  => $amount
         ];
     } elseif ($purpose === 'slot_booking') {
-        $ground_id = intval($_POST['ground_id'] ?? 0);
-        $slot_date = trim($_POST['slot_date'] ?? '');
-        $booking_type = trim($_POST['booking_type'] ?? 'direct');
+        $ground_id            = intval($_POST['ground_id'] ?? 0);
+        $slot_date            = trim($_POST['slot_date'] ?? '');
+        $booking_type         = trim($_POST['booking_type'] ?? 'direct');
         $challenger_team_name = trim($_POST['challenger_team_name'] ?? '');
-        $challenged_user_id = intval($_POST['challenged_user_id'] ?? 0);
-        $ch_message = trim($_POST['ch_message'] ?? ($_POST['challenge_message'] ?? ''));
+        $challenged_user_id   = intval($_POST['challenged_user_id'] ?? 0);
+        $ch_message           = trim($_POST['ch_message'] ?? ($_POST['challenge_message'] ?? ''));
 
-        // Parse slot hours (can be array e.g. [14, 15] or comma-separated "14,15" or single "slot_hour")
+        // Parse slot hours (array or comma-separated string)
         $slot_hours = [];
         if (isset($_POST['slot_hours'])) {
             if (is_array($_POST['slot_hours'])) {
@@ -165,13 +167,14 @@ try {
         }
 
         $amount = $total_advance;
+        $description = 'Slot Booking (' . count($slot_hours) . ' slots)';
 
         $metaData = [
             'type'                 => 'slot_booking',
             'ground_id'            => $ground_id,
             'slot_date'            => $slot_date,
-            'slot_hour'            => $slot_hours[0], // primary / first slot hour
-            'slot_hours'           => $slot_hours,    // complete array of selected hours
+            'slot_hour'            => $slot_hours[0],
+            'slot_hours'           => $slot_hours,
             'items'                => $items,
             'booking_type'         => $booking_type,
             'full_price'           => $total_full_price,
@@ -190,6 +193,7 @@ try {
         }
 
         $amount = round(floatval($booking['price']) * 0.25, 2);
+        $description = 'Challenge Share Payment';
         $metaData = [
             'type'       => 'accept_challenge',
             'booking_id' => $booking_id,
@@ -199,93 +203,57 @@ try {
         throw new Exception('Unsupported checkout purpose.');
     }
 
-    // Generate unique compliant Order ID
-    $orderId = AssanPayService::generateOrderId('AR');
+    // Generate unique compliant Order ID and TxnRefNo
+    $orderId = 'AR' . date('ymd') . strtoupper(substr(uniqid(), -6));
+    $txnRefNo = JazzCashService::generateTxnRefNo('TRN');
 
-    // Build absolute return URLs
-    $appUrl = get_app_base_url();
-    $successUrl  = $appUrl . '/assanpay_return.php?orderId=' . $orderId . '&status=success';
-    $failedUrl   = $appUrl . '/assanpay_return.php?orderId=' . $orderId . '&status=failed';
-    $pendingUrl  = $appUrl . '/assanpay_return.php?orderId=' . $orderId . '&status=pending';
+    $jc = new JazzCashService();
 
-    // AssanPay cloud servers reject 'localhost' / '127.0.0.1' in server-to-server callbackUrl.
-    // Only send callbackUrl if it's on a public/routable host or explicitly configured.
-    $callbackUrl = null;
-    $host = parse_url($appUrl, PHP_URL_HOST);
-    $isLocal = in_array(strtolower((string)$host), ['localhost', '127.0.0.1', '::1', '0.0.0.0', '']);
-
-    $customWebhook = getenv('ASSANPAY_WEBHOOK_URL');
-    if (!empty($customWebhook)) {
-        $callbackUrl = $customWebhook;
-    } elseif (!$isLocal) {
-        $callbackUrl = $appUrl . '/assanpay_webhook.php';
+    // Check credentials configured
+    if (empty($jc->getMerchantId())) {
+        throw new Exception('JazzCash Merchant ID is not configured.');
     }
 
     // Insert pending payment record
     $insStmt = $pdo->prepare("
         INSERT INTO payment_transactions 
-        (user_id, order_id, amount, purpose, payment_method, meta_data, status) 
-        VALUES (?, ?, ?, ?, ?, ?, 'pending')
+        (user_id, order_id, session_id, amount, purpose, payment_method, meta_data, status) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')
     ");
     $insStmt->execute([
         $user_id,
         $orderId,
+        $txnRefNo,
         $amount,
         $purpose,
-        $paymentMethod ?: null,
+        $paymentMethod ?: 'JazzCash',
         json_encode($metaData)
     ]);
     $transactionId = $pdo->lastInsertId();
 
-    // Instantiate service and create Hosted Checkout session
-    $assanPay = new AssanPayService();
-    $sessionParams = [
-        'amount'            => $amount,
-        'orderId'           => $orderId,
-        'customerContact'   => $customerPhone,
-        'customerEmail'     => $customerEmail,
-        'customerName'      => $customerName,
-        'successUrl'        => $successUrl,
-        'failedUrl'         => $failedUrl,
-        'pendingUrl'        => $pendingUrl,
-        'expiresInSeconds'  => 600
-    ];
-
-    if (!empty($callbackUrl)) {
-        $sessionParams['callbackUrl'] = $callbackUrl;
+    // Detect if initiating from local development environment
+    $isLocal = false;
+    if (isset($_SERVER['HTTP_HOST'])) {
+        $hostOnly = strtolower(explode(':', $_SERVER['HTTP_HOST'])[0]);
+        $isLocal = in_array($hostOnly, ['localhost', '127.0.0.1', '::1', '0.0.0.0']) || str_ends_with($hostOnly, '.test') || str_ends_with($hostOnly, '.local');
     }
 
-    if (!empty($paymentMethod)) {
-        $sessionParams['paymentMethodName'] = $paymentMethod;
+    $extra = [];
+    if ($isLocal) {
+        // Pass local return URL in ppmpf_3 so live return URL can bridge back to localhost
+        $extra['ppmpf_3'] = get_app_base_url() . '/jazzcash_return.php';
     }
 
-    $sessionRes = $assanPay->createCheckoutSession($sessionParams);
-
-    if (!$sessionRes['success']) {
-        // Mark failed
-        $pdo->prepare("UPDATE payment_transactions SET status = 'failed', raw_callback = ? WHERE id = ?")
-            ->execute([json_encode($sessionRes), $transactionId]);
-
-        $rawErr = $sessionRes['error'] ?? 'Failed to initiate AssanPay checkout session.';
-        if (stripos($rawErr, 'limit exceeded') !== false || stripos($rawErr, 'PER_TRANSACTION_LIMIT_EXCEEDED') !== false) {
-            $rawErr = 'AssanPay Gateway Limit: Your current AssanPay test/sandbox merchant account has a server-side cap of 100 PKR per transaction. To test with AssanPay, please use an amount ≤ 100 PKR (or use your live production credentials to remove this limit).';
-        }
-
-        throw new Exception($rawErr);
+    // Determine JazzCash transaction type (empty string for hosted multi-option checkout, or specific like MPAY / MWALLET)
+    $txnType = '';
+    if (in_array(strtoupper($paymentMethod), ['MPAY', 'MWALLET', 'OTC'])) {
+        $txnType = strtoupper($paymentMethod);
     }
 
-    // Update with session details
-    $pdo->prepare("
-        UPDATE payment_transactions 
-        SET session_id = ?, payment_id = ? 
-        WHERE id = ?
-    ")->execute([
-        $sessionRes['sessionId'] ?? null,
-        $sessionRes['paymentId'] ?? null,
-        $transactionId
-    ]);
+    // Build Hosted Checkout payload
+    $checkoutData = $jc->buildCheckoutPayload($amount, $txnRefNo, $orderId, $description, $txnType, $extra);
 
-    // Handle AJAX vs Redirect
+    // Handle AJAX JSON request
     $isJson = (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false)
               || (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest')
               || (isset($_POST['format']) && $_POST['format'] === 'json');
@@ -293,18 +261,48 @@ try {
     if ($isJson) {
         header('Content-Type: application/json');
         echo json_encode([
-            'success'     => true,
-            'orderId'     => $orderId,
-            'sessionId'   => $sessionRes['sessionId'] ?? '',
-            'checkoutUrl' => $sessionRes['checkoutUrl'] ?? '',
-            'amount'      => $amount,
-            'message'     => 'Redirecting to AssanPay Hosted Checkout...'
+            'success'   => true,
+            'orderId'   => $orderId,
+            'txnRefNo'  => $txnRefNo,
+            'post_url'  => $checkoutData['post_url'],
+            'params'    => $checkoutData['params'],
+            'amount'    => $amount,
+            'message'   => 'Redirecting to JazzCash Payment Gateway...'
         ]);
         exit;
     }
 
-    // Direct Browser Redirection
-    header('Location: ' . $sessionRes['checkoutUrl']);
+    // Direct Browser HTML auto-submit redirection
+    $postUrl = htmlspecialchars($checkoutData['post_url'], ENT_QUOTES, 'UTF-8');
+    ?>
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>Connecting to JazzCash...</title>
+        <style>
+            body { font-family: system-ui, sans-serif; background: #0f172a; color: #fff; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+            .box { text-align: center; background: #1e293b; padding: 2rem; border-radius: 1rem; box-shadow: 0 10px 25px rgba(0,0,0,0.4); max-width: 420px; }
+            .spinner { width: 44px; height: 44px; border: 4px solid #334155; border-top-color: #10b981; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 1.5rem; }
+            @keyframes spin { to { transform: rotate(360deg); } }
+        </style>
+    </head>
+    <body>
+        <div class="box">
+            <div class="spinner"></div>
+            <h2 style="margin: 0 0 0.5rem; font-size: 1.25rem;">Connecting to JazzCash</h2>
+            <p style="margin: 0; color: #94a3b8; font-size: 0.875rem;">Please wait while we transfer you to the secure payment portal...</p>
+            <form id="jc_form" method="POST" action="<?php echo $postUrl; ?>">
+                <?php foreach ($checkoutData['params'] as $k => $v): ?>
+                    <input type="hidden" name="<?php echo htmlspecialchars($k, ENT_QUOTES, 'UTF-8'); ?>" value="<?php echo htmlspecialchars($v, ENT_QUOTES, 'UTF-8'); ?>">
+                <?php endforeach; ?>
+                <noscript><button type="submit" style="margin-top: 1rem; padding: 0.5rem 1rem;">Click here if not redirected</button></noscript>
+            </form>
+            <script>document.getElementById('jc_form').submit();</script>
+        </div>
+    </body>
+    </html>
+    <?php
     exit;
 
 } catch (Exception $e) {
