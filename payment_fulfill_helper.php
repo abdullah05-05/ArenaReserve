@@ -1,7 +1,7 @@
 <?php
 /**
  * payment_fulfill_helper.php
- * Centralized, thread-safe, idempotent fulfillment helper for AssanPay transactions.
+ * Centralized, thread-safe, idempotent fulfillment helper for JazzCash transactions.
  * Handles wallet_topup, slot_booking (single and multi-slot), and accept_challenge transactions.
  */
 
@@ -100,12 +100,12 @@ function fulfillPaymentTransaction(PDO $pdo, string $orderId, ?string $reference
             $pdo->prepare("
                 INSERT INTO wallet_transactions (wallet_id, amount, transaction_type, reference_id) 
                 VALUES (?, ?, 'Deposit', ?)
-            ")->execute([$walletId, $amount, 'AP-' . $orderId]);
+            ")->execute([$walletId, $amount, 'JC-' . $orderId]);
 
             // In-app notification
             createNotification($pdo, $userId, 'wallet_topup',
                 'Wallet Top-up Successful! 💳',
-                "Your wallet has been credited with " . number_format($amount, 2) . " PKR via AssanPay.",
+                "Your wallet has been credited with " . number_format($amount, 2) . " PKR via JazzCash.",
                 'wallet.php'
             );
 
@@ -215,9 +215,9 @@ function fulfillPaymentTransaction(PDO $pdo, string $orderId, ?string $reference
                     'team_challenge' => $slotCount > 1 ? "{$slotCount} Team Challenges Sent!" : 'Team Challenge Sent!',
                 ];
                 $playerNotifMsgs = [
-                    'direct'         => "Your slots ({$timeString}) at {$info['ground_title']} on {$slotDate} are confirmed (Paid online via AssanPay).",
-                    'open_challenge' => "Your open challenges ({$timeString}) at {$info['ground_title']} on {$slotDate} are live (Paid online via AssanPay).",
-                    'team_challenge' => "Your team challenges ({$timeString}) at {$info['ground_title']} on {$slotDate} are sent (Paid online via AssanPay).",
+                    'direct'         => "Your slots ({$timeString}) at {$info['ground_title']} on {$slotDate} are confirmed (Paid online via JazzCash).",
+                    'open_challenge' => "Your open challenges ({$timeString}) at {$info['ground_title']} on {$slotDate} are live (Paid online via JazzCash).",
+                    'team_challenge' => "Your team challenges ({$timeString}) at {$info['ground_title']} on {$slotDate} are sent (Paid online via JazzCash).",
                 ];
 
                 createNotification($pdo, $userId, 'booking_confirmed',
@@ -229,7 +229,7 @@ function fulfillPaymentTransaction(PDO $pdo, string $orderId, ?string $reference
                 if ($info['owner_id'] != $userId) {
                     createNotification($pdo, $info['owner_id'], 'new_booking_owner',
                         'New Booking on ' . $info['ground_title'],
-                        "{$info['player_name']} booked {$slotCount} slot(s) ({$timeString}) on {$slotDate} (Paid online via AssanPay).",
+                        "{$info['player_name']} booked {$slotCount} slot(s) ({$timeString}) on {$slotDate} (Paid online via JazzCash).",
                         'owner_dashboard.php'
                     );
                 }
@@ -335,7 +335,7 @@ function fulfillPaymentTransaction(PDO $pdo, string $orderId, ?string $reference
 
                     createNotification($pdo, $userId, 'challenge_accepted',
                         'Challenge Confirmed!',
-                        "You paid your 25% share via AssanPay and accepted the challenge at {$info['ground_title']}. Match confirmed!",
+                        "You paid your 25% share via JazzCash and accepted the challenge at {$info['ground_title']}. Match confirmed!",
                         'match_history.php'
                     );
 

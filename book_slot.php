@@ -691,13 +691,13 @@ body { background: #f5f6fa; }
             <div class="text-[10px] text-slate-500">Balance: <span class="font-bold text-slate-700" id="s2-wallet-bal">-- PKR</span></div>
           </div>
 
-          <!-- AssanPay Card Option -->
-          <div id="payopt-assanpay" onclick="selectPaymentMethod('assanpay')" class="pay-method-card">
+          <!-- JazzCash Card Option -->
+          <div id="payopt-jazzcash" onclick="selectPaymentMethod('jazzcash')" class="pay-method-card">
             <div class="flex items-center gap-1.5 mb-1">
               <span class="text-base">⚡</span>
-              <span class="font-bold text-xs text-slate-800">AssanPay Online</span>
+              <span class="font-bold text-xs text-slate-800">JazzCash Online</span>
             </div>
-            <div class="text-[10px] text-emerald-600 font-semibold truncate">JazzCash · Cards · QR</div>
+            <div class="text-[10px] text-red-600 font-semibold truncate">Mobile · Cards · Voucher</div>
           </div>
         </div>
       </div>
@@ -719,9 +719,9 @@ body { background: #f5f6fa; }
           <div class="font-bold mb-1 flex items-center gap-1">
             <span>⚠️ Insufficient Wallet Balance</span>
           </div>
-          <p class="text-[11px]">Your wallet balance is less than the advance fee. You can pay instantly online via AssanPay!</p>
-          <button type="button" onclick="selectPaymentMethod('assanpay')" class="mt-2 text-xs font-bold text-emerald-700 bg-emerald-100 hover:bg-emerald-200 px-3 py-1.5 rounded-lg transition-colors inline-flex items-center gap-1 cursor-pointer">
-            ⚡ Switch to AssanPay Online Checkout →
+          <p class="text-[11px]">Your wallet balance is less than the advance fee. You can pay instantly online via JazzCash!</p>
+          <button type="button" onclick="selectPaymentMethod('jazzcash')" class="mt-2 text-xs font-bold text-red-700 bg-red-100 hover:bg-red-200 px-3 py-1.5 rounded-lg transition-colors inline-flex items-center gap-1 cursor-pointer">
+            ⚡ Switch to JazzCash Online Checkout →
           </button>
         </div>
 
@@ -731,48 +731,36 @@ body { background: #f5f6fa; }
         </button>
       </div>
 
-      <!-- Panel 2: AssanPay Online Checkout -->
-      <div id="panel-assanpay" class="hidden space-y-3">
-        <div class="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-3 text-xs space-y-2">
+      <!-- Panel 2: JazzCash Online Checkout -->
+      <div id="panel-jazzcash" class="hidden space-y-3">
+        <div class="bg-gradient-to-r from-red-50 to-amber-50 border border-red-200 rounded-xl p-3 text-xs space-y-2">
           <div class="flex items-center justify-between">
-            <span class="font-bold text-slate-800">⚡ Instant Hosted Checkout</span>
+            <span class="font-bold text-slate-800">⚡ JazzCash Online Checkout</span>
             <div class="flex items-center gap-1">
-              <span class="px-1.5 py-0.5 bg-white border border-emerald-200 text-[10px] font-bold text-emerald-700 rounded shadow-2xs">JazzCash</span>
-              <span class="px-1.5 py-0.5 bg-white border border-emerald-200 text-[10px] font-bold text-emerald-700 rounded shadow-2xs">EasyPaisa</span>
-              <span class="px-1.5 py-0.5 bg-white border border-emerald-200 text-[10px] font-bold text-emerald-700 rounded shadow-2xs">Cards</span>
+              <span class="px-1.5 py-0.5 bg-white border border-red-200 text-[10px] font-bold text-red-700 rounded shadow-2xs">JazzCash</span>
+              <span class="px-1.5 py-0.5 bg-white border border-red-200 text-[10px] font-bold text-red-700 rounded shadow-2xs">Cards</span>
             </div>
           </div>
-          <p class="text-[11px] text-slate-600">Pay your advance fee securely via AssanPay. You will be redirected to the secure checkout page.</p>
-        </div>
-
-        <div>
-          <label class="block text-[11px] font-semibold text-slate-700 mb-1">Preferred Channel (Optional)</label>
-          <select id="ap-booking-method" class="w-full border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-700 focus:ring-1 focus:ring-emerald-400 focus:outline-none">
-            <option value="">Choose on AssanPay Checkout (Recommended)</option>
-            <option value="JazzCash">JazzCash Mobile Account</option>
-            <option value="Easypaisa">Easypaisa Mobile Account</option>
-            <option value="Card">Debit / Credit Card (Visa/Mastercard)</option>
-            <option value="QR">Raast / QR Pay</option>
-          </select>
+          <p class="text-[11px] text-slate-600">Pay your advance fee securely via JazzCash. You will be redirected to the secure payment page.</p>
         </div>
 
         <div class="grid grid-cols-2 gap-2 text-xs">
           <div>
             <label class="block text-[11px] font-semibold text-slate-700 mb-1">Mobile Number</label>
-            <input type="text" id="ap-booking-phone" value="<?php echo htmlspecialchars($currentUser['phone'] ?? ''); ?>" placeholder="03001234567"
+            <input type="text" id="jc-booking-phone" value="<?php echo htmlspecialchars($currentUser['phone'] ?? ''); ?>" placeholder="03001234567"
                    class="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:ring-1 focus:ring-emerald-400 focus:outline-none">
           </div>
           <div>
             <label class="block text-[11px] font-semibold text-slate-700 mb-1">Email Address</label>
-            <input type="email" id="ap-booking-email" value="<?php echo htmlspecialchars($currentUser['email'] ?? ''); ?>" placeholder="player@example.com"
+            <input type="email" id="jc-booking-email" value="<?php echo htmlspecialchars($currentUser['email'] ?? ''); ?>" placeholder="player@example.com"
                    class="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:ring-1 focus:ring-emerald-400 focus:outline-none">
           </div>
         </div>
 
-        <button type="button" id="assanpay-pay-btn" onclick="submitAssanPayBooking()"
-                class="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold py-3 rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer">
+        <button type="button" id="jazzcash-pay-btn" onclick="submitJazzCashBooking()"
+                class="w-full bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-700 hover:to-amber-700 text-white font-bold py-3 rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer">
           <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-          <span id="ap-booking-btn-text">⚡ Proceed to AssanPay Checkout</span>
+          <span id="jc-booking-btn-text">⚡ Proceed to JazzCash Checkout</span>
         </button>
       </div>
     </div>
@@ -1273,20 +1261,20 @@ function onDateChanged(newDate) {
 function selectPaymentMethod(method) {
   currentPaymentMethod = method;
   const wCard = document.getElementById('payopt-wallet');
-  const aCard = document.getElementById('payopt-assanpay');
+  const jcCard = document.getElementById('payopt-jazzcash');
   const wPanel = document.getElementById('panel-wallet');
-  const aPanel = document.getElementById('panel-assanpay');
+  const jcPanel = document.getElementById('panel-jazzcash');
 
   if (method === 'wallet') {
     if (wCard) { wCard.className = 'pay-method-card selected'; }
-    if (aCard) { aCard.className = 'pay-method-card'; }
+    if (jcCard) { jcCard.className = 'pay-method-card'; }
     if (wPanel) { wPanel.classList.remove('hidden'); }
-    if (aPanel) { aPanel.classList.add('hidden'); }
+    if (jcPanel) { jcPanel.classList.add('hidden'); }
   } else {
     if (wCard) { wCard.className = 'pay-method-card'; }
-    if (aCard) { aCard.className = 'pay-method-card selected'; }
+    if (jcCard) { jcCard.className = 'pay-method-card selected'; }
     if (wPanel) { wPanel.classList.add('hidden'); }
-    if (aPanel) { aPanel.classList.remove('hidden'); }
+    if (jcPanel) { jcPanel.classList.remove('hidden'); }
   }
 }
 
@@ -1399,10 +1387,10 @@ function showStep(n) {
 
   const walletBtn = document.getElementById('wallet-pay-btn');
   const alertBox  = document.getElementById('pw-insufficient-alert');
-  const apBtnText = document.getElementById('ap-booking-btn-text');
+  const jcBtnText = document.getElementById('jc-booking-btn-text');
 
-  if (apBtnText) {
-    apBtnText.textContent = `⚡ Pay ${formatNum(advanceAmount)} PKR via AssanPay`;
+  if (jcBtnText) {
+    jcBtnText.textContent = `⚡ Pay ${formatNum(advanceAmount)} PKR via JazzCash`;
   }
 
   if (balance < advanceAmount) {
@@ -1412,7 +1400,7 @@ function showStep(n) {
       walletBtn.className = 'w-full bg-slate-300 text-slate-500 font-bold py-3 rounded-xl text-sm cursor-not-allowed';
     }
     if (alertBox) alertBox.classList.remove('hidden');
-    selectPaymentMethod('assanpay');
+    selectPaymentMethod('jazzcash');
   } else {
     if (walletBtn) {
       walletBtn.disabled = false;
@@ -1438,19 +1426,18 @@ function submitWalletBooking() {
   submitBooking(selectedType);
 }
 
-// ---- Submit AssanPay Hosted Checkout Booking ----
-function submitAssanPayBooking() {
+// ---- Submit JazzCash Hosted Checkout Booking ----
+function submitJazzCashBooking() {
   if (selectedSlots.size === 0) return;
 
-  const btn = document.getElementById('assanpay-pay-btn');
-  const btnText = document.getElementById('ap-booking-btn-text');
+  const btn = document.getElementById('jazzcash-pay-btn');
+  const btnText = document.getElementById('jc-booking-btn-text');
   if (btn) btn.disabled = true;
   if (btnText) btnText.textContent = 'Initiating Checkout…';
 
-  const channel = document.getElementById('ap-booking-method')?.value || '';
-  const phone   = document.getElementById('ap-booking-phone')?.value || '';
-  const email   = document.getElementById('ap-booking-email')?.value || '';
-  const hours   = Array.from(selectedSlots.keys());
+  const phone = document.getElementById('jc-booking-phone')?.value || '';
+  const email = document.getElementById('jc-booking-email')?.value || '';
+  const hours = Array.from(selectedSlots.keys());
 
   fetch('initiate_checkout.php', {
     method: 'POST',
@@ -1465,29 +1452,42 @@ function submitAssanPayBooking() {
       slot_date:      currentDate,
       slot_hours:     JSON.stringify(hours),
       booking_type:   selectedType,
-      payment_method: channel,
+      payment_method: 'JazzCash',
       phone:          phone,
       email:          email
     })
   })
   .then(r => r.json())
   .then(res => {
-    if (res.success && res.checkoutUrl) {
-      if (btnText) btnText.textContent = 'Redirecting to AssanPay Hosted Checkout…';
-      window.location.href = res.checkoutUrl;
+    if (res.success && res.post_url && res.params) {
+      if (btnText) btnText.textContent = 'Redirecting to JazzCash…';
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = res.post_url;
+      for (const key in res.params) {
+        if (res.params.hasOwnProperty(key)) {
+          const input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = key;
+          input.value = res.params[key];
+          form.appendChild(input);
+        }
+      }
+      document.body.appendChild(form);
+      form.submit();
     } else {
       showToast('❌ ' + (res.message || 'Payment initiation failed.'), 'error');
       if (btn) btn.disabled = false;
       let totalP = 0;
       selectedSlots.forEach(s => totalP += s.price);
       const advAmt = (selectedType === 'direct') ? Math.round(totalP * 0.5) : Math.round(totalP * 0.25);
-      if (btnText) btnText.textContent = `⚡ Pay ${formatNum(advAmt)} PKR via AssanPay`;
+      if (btnText) btnText.textContent = `⚡ Pay ${formatNum(advAmt)} PKR via JazzCash`;
     }
   })
   .catch(() => {
     showToast('❌ Network error while initiating checkout.', 'error');
     if (btn) btn.disabled = false;
-    if (btnText) btnText.textContent = '⚡ Proceed to AssanPay Checkout';
+    if (btnText) btnText.textContent = '⚡ Proceed to JazzCash Checkout';
   });
 }
 
