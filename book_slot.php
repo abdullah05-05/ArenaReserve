@@ -22,9 +22,23 @@ try {
     $currentUser = ['name' => $_SESSION['name'] ?? '', 'email' => '', 'phone' => ''];
 }
 
-// Fetch verified active grounds
+// Fetch verified active grounds with ratings
 try {
-    $stmt = $pdo->prepare("SELECT * FROM grounds WHERE is_verified = 1 AND COALESCE(ground_status, 'Active') = 'Active' ORDER BY title ASC");
+    $stmt = $pdo->prepare("
+        SELECT g.*, 
+               COALESCE(gr.avg_rating, 0.0) AS avg_rating,
+               COALESCE(gr.total_reviews, 0) AS total_reviews
+        FROM grounds g 
+        LEFT JOIN (
+            SELECT ground_id, 
+                   ROUND(AVG(rating), 1) AS avg_rating, 
+                   COUNT(*) AS total_reviews 
+            FROM ground_ratings 
+            GROUP BY ground_id
+        ) gr ON gr.ground_id = g.id
+        WHERE g.is_verified = 1 AND COALESCE(g.ground_status, 'Active') = 'Active' 
+        ORDER BY g.title ASC
+    ");
     $stmt->execute();
     $grounds = $stmt->fetchAll();
 } catch (Exception $e) { $grounds = []; }
@@ -33,6 +47,65 @@ $selected_ground_id = intval($_GET['ground'] ?? ($grounds[0]['id'] ?? 0));
 $selected_ground    = null;
 foreach ($grounds as $g) { if ($g['id'] == $selected_ground_id) { $selected_ground = $g; break; } }
 if (!$selected_ground && !empty($grounds)) { $selected_ground = $grounds[0]; $selected_ground_id = $selected_ground['id']; }
+
+// Helper to resolve ground image
+if (!function_exists('getGroundCardImage')) {
+    function getGroundCardImage(?array $g): string {
+        if (!$g) return 'assets/images/football.png';
+        if (!empty($g['image_path']) && file_exists(__DIR__ . '/' . $g['image_path'])) {
+            return htmlspecialchars($g['image_path']);
+        }
+        $st = strtolower($g['sport_type'] ?? '');
+        if (strpos($st, 'basketball') !== false) {
+            return 'assets/images/basketball.png';
+        } else if (strpos($st, 'cricket') !== false) {
+            return 'assets/images/cricket.png';
+        } else {
+            return 'assets/images/football.png';
+        }
+    }
+}
+
+// Fetch verified reviews for all grounds
+$reviews_by_ground = [];
+try {
+    $rStmt = $pdo->query("
+        SELECT r.id, r.ground_id, r.rating, r.review, r.created_at,
+               u.name AS user_name, u.city AS user_city
+        FROM ground_ratings r
+        JOIN users u ON u.id = r.user_id
+        ORDER BY r.created_at DESC
+    ");
+    while ($r = $rStmt->fetch(PDO::FETCH_ASSOC)) {
+        $reviews_by_ground[intval($r['ground_id'])][] = $r;
+    }
+} catch (Exception $e) { $reviews_by_ground = []; }
+
+// Prepare grounds data map for JavaScript
+$grounds_js_map = [];
+foreach ($grounds as $g) {
+    $gid = intval($g['id']);
+    $desc = trim($g['description'] ?? '');
+    if (empty($desc)) {
+        $desc = "Standard " . ($g['sport_type'] ?? 'sports') . " venue located at " . ($g['address'] ?? 'the city center') . " equipped with high-grade playable turf, floodlighting, boundary nets, and player pavilion.";
+    }
+    $grounds_js_map[$gid] = [
+        'id'            => $gid,
+        'title'         => $g['title'],
+        'sport_type'    => $g['sport_type'],
+        'address'       => $g['address'],
+        'description'   => $desc,
+        'image_url'     => getGroundCardImage($g),
+        'avg_rating'    => floatval($g['avg_rating'] ?? 0),
+        'total_reviews' => intval($g['total_reviews'] ?? 0),
+        'base_price'    => floatval($g['base_price'] ?? 0),
+        'peak_price'    => floatval($g['peak_price'] ?? 0),
+    ];
+}
+
+$current_ground_reviews = $reviews_by_ground[$selected_ground_id] ?? [];
+$first_review = $current_ground_reviews[0] ?? null;
+$remaining_reviews = array_slice($current_ground_reviews, 1);
 
 $selected_date = $_GET['date'] ?? date('Y-m-d');
 if ($selected_date < date('Y-m-d')) $selected_date = date('Y-m-d');
@@ -276,13 +349,13 @@ body { background: #f5f6fa; }
       </a>
       <!-- Mode Toggle -->
       <div class="flex-shrink-0 flex items-center gap-1 bg-slate-100 p-1 rounded-full border border-slate-200/80 shadow-inner">
-          <a href="<?php echo ($_SESSION['current_active_mode'] === 'Owner') ? 'switch_role.php' : '#'; ?>" 
-             class="text-[11px] sm:text-xs font-semibold px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-full transition-all duration-300 flex items-center gap-1 <?php echo ($_SESSION['current_active_mode'] === 'Player') ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'; ?>" title="Switch to Player Mode">
+          <a href="<?php echo (($_SESSION['current_active_mode'] ?? '') === 'Owner') ? 'switch_role.php' : '#'; ?>" 
+             class="text-[11px] sm:text-xs font-semibold px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-full transition-all duration-300 flex items-center gap-1 <?php echo (($_SESSION['current_active_mode'] ?? '') === 'Player') ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'; ?>" title="Switch to Player Mode">
              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
              <span class="hidden sm:inline">Player</span>
           </a>
-          <a href="<?php echo ($_SESSION['current_active_mode'] === 'Player') ? 'switch_role.php' : '#'; ?>" 
-             class="text-[11px] sm:text-xs font-semibold px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-full transition-all duration-300 flex items-center gap-1 <?php echo ($_SESSION['current_active_mode'] === 'Owner') ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'; ?>" title="Switch to Owner Mode">
+          <a href="<?php echo (($_SESSION['current_active_mode'] ?? '') === 'Player') ? 'switch_role.php' : '#'; ?>" 
+             class="text-[11px] sm:text-xs font-semibold px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-full transition-all duration-300 flex items-center gap-1 <?php echo (($_SESSION['current_active_mode'] ?? '') === 'Owner') ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'; ?>" title="Switch to Owner Mode">
              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
              <span class="hidden sm:inline">Owner</span>
           </a>
@@ -326,7 +399,7 @@ body { background: #f5f6fa; }
   </div>
   <!-- Mobile Navigation Menu -->
   <div id="mobileNavigationMenu" class="hidden lg:hidden border-t border-slate-100 bg-white py-3 px-4 shadow-inner space-y-1">
-      <?php if ($_SESSION['current_active_mode'] === 'Owner'): ?>
+      <?php if (($_SESSION['current_active_mode'] ?? '') === 'Owner'): ?>
           <a href="owner_dashboard.php" class="block px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50">My Venues</a>
           <a href="add_ground.php" class="block px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50">List New Venue</a>
           <a href="owner_analytics.php" class="block px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50">Analytics & Wallet</a>
@@ -397,11 +470,171 @@ body { background: #f5f6fa; }
               onchange="onGroundChanged(this.value)"
               class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-400">
         <?php foreach ($grounds as $g): ?>
-          <option value="<?php echo $g['id']; ?>" data-sport="<?php echo htmlspecialchars($g['sport_type']); ?>" data-title="<?php echo htmlspecialchars($g['title']); ?>" <?php echo ($g['id']==$selected_ground_id)?'selected':''; ?>>
+          <option value="<?php echo $g['id']; ?>" data-sport="<?php echo htmlspecialchars($g['sport_type']); ?>" data-title="<?php echo htmlspecialchars($g['title']); ?>" data-rating="<?php echo floatval($g['avg_rating'] ?? 0); ?>" data-reviews="<?php echo intval($g['total_reviews'] ?? 0); ?>" <?php echo ($g['id']==$selected_ground_id)?'selected':''; ?>>
             <?php echo htmlspecialchars($g['title']); ?> — <?php echo $g['sport_type']; ?>
           </option>
         <?php endforeach; ?>
       </select>
+
+      <!-- Venue Showcase: Photo, Description & Verified Reviews -->
+      <div id="venue-showcase-card" class="mt-4 pt-4 border-t border-slate-100">
+        <!-- Photo with overlay badges -->
+        <div class="relative rounded-xl overflow-hidden mb-3.5 bg-slate-900 aspect-[16/9] sm:h-52 w-full border border-slate-100 shadow-xs group">
+          <img id="venue-photo" 
+               src="<?php echo getGroundCardImage($selected_ground); ?>" 
+               alt="<?php echo htmlspecialchars($selected_ground['title'] ?? 'Venue'); ?>" 
+               class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+               onerror="this.onerror=null; this.src='assets/images/football.png';">
+          <div class="absolute inset-0 bg-gradient-to-t from-black/75 via-black/25 to-transparent"></div>
+          
+          <!-- Sport Badge top-right -->
+          <div class="absolute top-3 right-3 flex items-center gap-1.5">
+            <span id="venue-sport-tag" class="px-2.5 py-1 bg-white/95 backdrop-blur-xs text-slate-800 text-[10px] font-bold uppercase rounded-md shadow-sm">
+              <?php echo htmlspecialchars($selected_ground['sport_type'] ?? ''); ?>
+            </span>
+          </div>
+
+          <!-- Bottom details overlay -->
+          <div class="absolute bottom-3 left-3 right-3 flex justify-between items-end text-white">
+            <div class="min-w-0 pr-2">
+              <h2 id="venue-title-display" class="font-extrabold text-base sm:text-lg leading-tight drop-shadow-sm truncate">
+                <?php echo htmlspecialchars($selected_ground['title'] ?? ''); ?>
+              </h2>
+              <p id="venue-address-display" class="text-xs text-slate-200 flex items-center gap-1 mt-0.5 drop-shadow-xs truncate">
+                <svg class="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/></svg>
+                <span class="truncate"><?php echo htmlspecialchars($selected_ground['address'] ?? ''); ?></span>
+              </p>
+            </div>
+            <div class="text-right flex-shrink-0">
+              <div id="venue-rating-display" class="inline-flex items-center gap-1 text-xs font-bold bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/20">
+                <span class="text-amber-400">★</span>
+                <span id="venue-rating-val"><?php echo (!empty($selected_ground['total_reviews']) && $selected_ground['total_reviews'] > 0) ? number_format(floatval($selected_ground['avg_rating']), 1) : 'New'; ?></span>
+                <?php if (!empty($selected_ground['total_reviews']) && $selected_ground['total_reviews'] > 0): ?>
+                <span id="venue-rating-count" class="text-[10px] text-slate-300 font-normal">(<?php echo intval($selected_ground['total_reviews']); ?>)</span>
+                <?php endif; ?>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Description -->
+        <div class="mb-4 bg-slate-50 border border-slate-200/80 rounded-xl p-3">
+          <div class="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1 flex items-center gap-1">
+            <svg class="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            About This Ground
+          </div>
+          <p id="venue-description" class="text-xs sm:text-sm text-slate-700 leading-relaxed">
+            <?php 
+              $desc = trim($selected_ground['description'] ?? '');
+              if (empty($desc)) {
+                  $desc = "Standard " . ($selected_ground['sport_type'] ?? 'sports') . " ground located in " . ($selected_ground['address'] ?? 'the city') . " equipped with high-quality playable surface, floodlighting, boundary nets, and player pavilion.";
+              }
+              echo htmlspecialchars($desc);
+            ?>
+          </p>
+        </div>
+
+        <!-- Verified Player Reviews Container -->
+        <div class="bg-slate-50 border border-slate-200/80 rounded-xl p-3.5">
+          <div class="flex items-center justify-between mb-2.5">
+            <div class="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+              <span class="text-amber-500">⭐</span>
+              <span>Player Reviews</span>
+              <span id="venue-reviews-count-badge" class="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-full">
+                <?php echo count($current_ground_reviews); ?>
+              </span>
+            </div>
+            <div class="text-[11px] font-semibold text-slate-500" id="venue-score-summary">
+              <?php if (!empty($selected_ground['total_reviews']) && $selected_ground['total_reviews'] > 0): ?>
+                ★ <?php echo number_format(floatval($selected_ground['avg_rating']), 1); ?>/5 Average
+              <?php else: ?>
+                No reviews yet
+              <?php endif; ?>
+            </div>
+          </div>
+
+          <!-- Featured 1 Review (or empty state) -->
+          <div id="venue-featured-review-box">
+            <?php if ($first_review): ?>
+            <div class="bg-white border border-slate-200 rounded-lg p-3 shadow-2xs">
+              <div class="flex items-center justify-between mb-1.5">
+                <div class="flex items-center gap-2">
+                  <div class="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold flex items-center justify-center">
+                    <?php echo strtoupper(substr($first_review['user_name'] ?? 'P', 0, 1)); ?>
+                  </div>
+                  <div>
+                    <span class="text-xs font-bold text-slate-800"><?php echo htmlspecialchars($first_review['user_name'] ?? 'Player'); ?></span>
+                    <span class="text-[10px] text-emerald-600 font-semibold ml-1">✓ Verified Match</span>
+                  </div>
+                </div>
+                <div class="text-amber-500 text-xs font-semibold tracking-tighter">
+                  <?php echo str_repeat('★', intval($first_review['rating'])) . str_repeat('☆', 5 - intval($first_review['rating'])); ?>
+                </div>
+              </div>
+              <?php if (!empty($first_review['review'])): ?>
+              <p class="text-xs text-slate-600 italic mt-1 leading-relaxed">
+                "<?php echo htmlspecialchars($first_review['review']); ?>"
+              </p>
+              <?php else: ?>
+              <p class="text-xs text-slate-400 italic mt-0.5">Rated <?php echo intval($first_review['rating']); ?>/5 stars without written comments.</p>
+              <?php endif; ?>
+              <div class="text-[10px] text-slate-400 mt-1.5">
+                <?php echo date('M j, Y', strtotime($first_review['created_at'])); ?>
+              </div>
+            </div>
+            <?php else: ?>
+            <div class="text-center py-4 bg-white border border-dashed border-slate-200 rounded-lg">
+              <div class="text-amber-400 text-base mb-1">⭐</div>
+              <p class="text-xs font-semibold text-slate-700">No player reviews yet for this venue</p>
+              <p class="text-[11px] text-slate-400 mt-0.5">Book a slot and be the first verified player to rate this ground!</p>
+            </div>
+            <?php endif; ?>
+          </div>
+
+          <!-- Hidden Extra Reviews (toggled by Show More) -->
+          <div id="venue-extra-reviews" class="hidden mt-2.5 pt-2.5 border-t border-slate-200 space-y-2.5">
+            <?php foreach ($remaining_reviews as $r): ?>
+            <div class="bg-white border border-slate-200 rounded-lg p-3 shadow-2xs">
+              <div class="flex items-center justify-between mb-1.5">
+                <div class="flex items-center gap-2">
+                  <div class="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold flex items-center justify-center">
+                    <?php echo strtoupper(substr($r['user_name'] ?? 'P', 0, 1)); ?>
+                  </div>
+                  <div>
+                    <span class="text-xs font-bold text-slate-800"><?php echo htmlspecialchars($r['user_name'] ?? 'Player'); ?></span>
+                    <span class="text-[10px] text-emerald-600 font-semibold ml-1">✓ Verified Match</span>
+                  </div>
+                </div>
+                <div class="text-amber-500 text-xs font-semibold tracking-tighter">
+                  <?php echo str_repeat('★', intval($r['rating'])) . str_repeat('☆', 5 - intval($r['rating'])); ?>
+                </div>
+              </div>
+              <?php if (!empty($r['review'])): ?>
+              <p class="text-xs text-slate-600 italic mt-1 leading-relaxed">
+                "<?php echo htmlspecialchars($r['review']); ?>"
+              </p>
+              <?php else: ?>
+              <p class="text-xs text-slate-400 italic mt-0.5">Rated <?php echo intval($r['rating']); ?>/5 stars without written comments.</p>
+              <?php endif; ?>
+              <div class="text-[10px] text-slate-400 mt-1.5">
+                <?php echo date('M j, Y', strtotime($r['created_at'])); ?>
+              </div>
+            </div>
+            <?php endforeach; ?>
+          </div>
+
+          <!-- Show More Button -->
+          <div id="venue-show-more-wrap" class="mt-2.5 pt-2 border-t border-slate-200/60 text-center <?php echo (count($current_ground_reviews) <= 1) ? 'hidden' : ''; ?>">
+            <button type="button" id="venue-show-more-btn" onclick="toggleMoreReviews()" 
+                    class="text-xs font-bold text-emerald-700 hover:text-emerald-800 flex items-center justify-center gap-1 mx-auto py-1 px-3 rounded-lg hover:bg-emerald-50 transition-colors">
+              <span id="venue-show-more-text">Show More Reviews (<?php echo max(0, count($current_ground_reviews) - 1); ?> more)</span>
+              <svg id="venue-show-more-icon" class="w-3.5 h-3.5 transition-transform duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
     <?php endif; ?>
 
@@ -432,7 +665,17 @@ body { background: #f5f6fa; }
           <span id="live-indicator" class="flex items-center gap-1 text-[11px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
             <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>Live
           </span>
-          <?php if ($selected_ground): ?>
+          <?php if ($selected_ground): 
+            $selAvg = floatval($selected_ground['avg_rating'] ?? 0);
+            $selRev = intval($selected_ground['total_reviews'] ?? 0);
+          ?>
+          <div id="ground-rating-badge" class="flex items-center gap-1 text-xs font-semibold <?php echo ($selRev > 0) ? 'text-amber-800 bg-amber-50 border border-amber-200' : 'text-slate-500 bg-slate-50 border border-slate-200'; ?> px-2.5 py-1.5 rounded-lg shadow-2xs">
+            <span class="text-amber-500">★</span>
+            <span><?php echo ($selRev > 0) ? number_format($selAvg, 1) : 'New'; ?></span>
+            <?php if ($selRev > 0): ?>
+            <span class="text-[10px] text-slate-400 font-normal">(<?php echo $selRev; ?> reviews)</span>
+            <?php endif; ?>
+          </div>
           <div id="ground-sport-badge" class="text-xs text-slate-500 font-medium bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">
             <?php echo htmlspecialchars($selected_ground['sport_type']); ?>
           </div>
@@ -814,6 +1057,153 @@ let holdSeconds         = 600;
 let selectedType        = null;
 let isModalOpen         = false;
 let currentPaymentMethod = 'wallet';
+
+// Grounds Data & Reviews Maps
+const groundsDataMap   = <?php echo json_encode($grounds_js_map); ?>;
+const groundReviewsMap = <?php echo json_encode($reviews_by_ground); ?>;
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function renderReviewItemHtml(r) {
+  const initial = (r.user_name || 'P').charAt(0).toUpperCase();
+  const stars   = '★'.repeat(parseInt(r.rating || 5)) + '☆'.repeat(Math.max(0, 5 - parseInt(r.rating || 5)));
+  const text    = r.review ? `<p class="text-xs text-slate-600 italic mt-1 leading-relaxed">"${escapeHtml(r.review)}"</p>` : `<p class="text-xs text-slate-400 italic mt-0.5">Rated ${r.rating}/5 stars without written comments.</p>`;
+  const dateStr = r.created_at ? new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+
+  return `
+    <div class="bg-white border border-slate-200 rounded-lg p-3 shadow-2xs">
+      <div class="flex items-center justify-between mb-1.5">
+        <div class="flex items-center gap-2">
+          <div class="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold flex items-center justify-center">
+            ${initial}
+          </div>
+          <div>
+            <span class="text-xs font-bold text-slate-800">${escapeHtml(r.user_name || 'Player')}</span>
+            <span class="text-[10px] text-emerald-600 font-semibold ml-1">✓ Verified Match</span>
+          </div>
+        </div>
+        <div class="text-amber-500 text-xs font-semibold tracking-tighter">
+          ${stars}
+        </div>
+      </div>
+      ${text}
+      <div class="text-[10px] text-slate-400 mt-1.5">
+        ${dateStr}
+      </div>
+    </div>
+  `;
+}
+
+function updateVenueShowcase(groundId) {
+  const g = groundsDataMap[groundId];
+  if (!g) return;
+
+  const photo = document.getElementById('venue-photo');
+  if (photo) {
+    photo.src = g.image_url;
+    photo.alt = g.title;
+  }
+
+  const sportTag = document.getElementById('venue-sport-tag');
+  if (sportTag) sportTag.textContent = g.sport_type;
+
+  const titleEl = document.getElementById('venue-title-display');
+  if (titleEl) titleEl.textContent = g.title;
+
+  const addrEl = document.getElementById('venue-address-display');
+  if (addrEl) {
+    addrEl.innerHTML = `<svg class="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/></svg><span class="truncate">${escapeHtml(g.address)}</span>`;
+  }
+
+  const ratingVal = document.getElementById('venue-rating-val');
+  if (ratingVal) {
+    ratingVal.textContent = g.total_reviews > 0 ? g.avg_rating.toFixed(1) : 'New';
+  }
+
+  const ratingCount = document.getElementById('venue-rating-count');
+  if (ratingCount) {
+    if (g.total_reviews > 0) {
+      ratingCount.textContent = `(${g.total_reviews})`;
+      ratingCount.style.display = 'inline';
+    } else {
+      ratingCount.style.display = 'none';
+    }
+  }
+
+  const descEl = document.getElementById('venue-description');
+  if (descEl) descEl.textContent = g.description;
+
+  const reviews = groundReviewsMap[groundId] || [];
+  const countBadge = document.getElementById('venue-reviews-count-badge');
+  if (countBadge) countBadge.textContent = reviews.length;
+
+  const scoreSummary = document.getElementById('venue-score-summary');
+  if (scoreSummary) {
+    scoreSummary.textContent = reviews.length > 0 ? `★ ${g.avg_rating.toFixed(1)}/5 Average` : 'No reviews yet';
+  }
+
+  const featuredBox = document.getElementById('venue-featured-review-box');
+  const extraBox    = document.getElementById('venue-extra-reviews');
+  const showMoreWrap = document.getElementById('venue-show-more-wrap');
+  const showMoreText = document.getElementById('venue-show-more-text');
+  const showMoreIcon = document.getElementById('venue-show-more-icon');
+
+  if (featuredBox) {
+    if (reviews.length > 0) {
+      featuredBox.innerHTML = renderReviewItemHtml(reviews[0]);
+      if (reviews.length > 1) {
+        if (extraBox) {
+          extraBox.innerHTML = reviews.slice(1).map(renderReviewItemHtml).join('');
+          extraBox.classList.add('hidden');
+        }
+        if (showMoreWrap) showMoreWrap.classList.remove('hidden');
+        if (showMoreText) showMoreText.textContent = `Show More Reviews (${reviews.length - 1} more)`;
+        if (showMoreIcon) showMoreIcon.classList.remove('rotate-180');
+      } else {
+        if (extraBox) {
+          extraBox.innerHTML = '';
+          extraBox.classList.add('hidden');
+        }
+        if (showMoreWrap) showMoreWrap.classList.add('hidden');
+      }
+    } else {
+      featuredBox.innerHTML = `
+        <div class="text-center py-4 bg-white border border-dashed border-slate-200 rounded-lg">
+          <div class="text-amber-400 text-base mb-1">⭐</div>
+          <p class="text-xs font-semibold text-slate-700">No player reviews yet for this venue</p>
+          <p class="text-[11px] text-slate-400 mt-0.5">Book a slot and be the first verified player to rate this ground!</p>
+        </div>
+      `;
+      if (extraBox) {
+        extraBox.innerHTML = '';
+        extraBox.classList.add('hidden');
+      }
+      if (showMoreWrap) showMoreWrap.classList.add('hidden');
+    }
+  }
+}
+
+function toggleMoreReviews() {
+  const extraBox = document.getElementById('venue-extra-reviews');
+  const showMoreText = document.getElementById('venue-show-more-text');
+  const showMoreIcon = document.getElementById('venue-show-more-icon');
+  if (!extraBox) return;
+
+  const isHidden = extraBox.classList.contains('hidden');
+  if (isHidden) {
+    extraBox.classList.remove('hidden');
+    if (showMoreText) showMoreText.textContent = 'Show Fewer Reviews';
+    if (showMoreIcon) showMoreIcon.classList.add('rotate-180');
+  } else {
+    extraBox.classList.add('hidden');
+    const reviews = groundReviewsMap[currentGroundId] || [];
+    if (showMoreText) showMoreText.textContent = `Show More Reviews (${Math.max(0, reviews.length - 1)} more)`;
+    if (showMoreIcon) showMoreIcon.classList.remove('rotate-180');
+  }
+}
 
 // ---- Slot Color Theme Mapping ----
 function getSlotColorClasses(type) {
@@ -1234,7 +1624,23 @@ function onGroundChanged(newGroundId) {
   if (opt) {
     const sportBadge = document.getElementById('ground-sport-badge');
     if (sportBadge && opt.dataset.sport) sportBadge.textContent = opt.dataset.sport;
+
+    const ratingBadge = document.getElementById('ground-rating-badge');
+    if (ratingBadge) {
+      const avg = parseFloat(opt.dataset.rating) || 0;
+      const revs = parseInt(opt.dataset.reviews) || 0;
+      if (revs > 0) {
+        ratingBadge.className = 'flex items-center gap-1 text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-1.5 rounded-lg shadow-2xs';
+        ratingBadge.innerHTML = `<span class="text-amber-500">★</span> <span>${avg.toFixed(1)}</span> <span class="text-[10px] text-slate-400 font-normal">(${revs} reviews)</span>`;
+      } else {
+        ratingBadge.className = 'flex items-center gap-1 text-xs font-semibold text-slate-500 bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-lg shadow-2xs';
+        ratingBadge.innerHTML = `<span class="text-amber-500">★</span> <span>New</span>`;
+      }
+    }
   }
+
+  // Update venue photo, description and reviews showcase
+  updateVenueShowcase(currentGroundId);
 
   // Update URL seamlessly
   history.pushState(null, '', `book_slot.php?ground=${currentGroundId}&date=${currentDate}`);

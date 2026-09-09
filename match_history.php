@@ -13,10 +13,12 @@ try {
     $available_balance = floatval($wallet['available_balance'] ?? 0);
 } catch (Exception $e) { $available_balance = 0.00; }
 
+require_once 'rating_helper.php';
+
 // Fetch real bookings from DB
 try {
     $stmt = $pdo->prepare("
-        SELECT b.id, b.slot_date, b.slot_hour, b.price, b.amount_paid,
+        SELECT b.id, b.ground_id, b.slot_date, b.slot_hour, b.price, b.amount_paid,
                b.booking_type, b.status, b.challenger_team_name, b.opponent_id,
                b.challenge_message, b.created_at,
                g.title AS ground_title, g.sport_type, g.address
@@ -32,7 +34,7 @@ try {
 // Fetch challenges where this user is the OPPONENT (accepted challenges OR incoming team challenges)
 try {
     $stmt = $pdo->prepare("
-        SELECT b.id, b.slot_date, b.slot_hour, b.price, b.amount_paid,
+        SELECT b.id, b.ground_id, b.slot_date, b.slot_hour, b.price, b.amount_paid,
                b.booking_type, b.status, b.challenger_team_name, b.challenged_user_id,
                b.challenge_message, b.created_at,
                g.title AS ground_title, g.sport_type, g.address,
@@ -63,6 +65,10 @@ foreach ($accepted_challenges as $b) {
 
 // Sort by date desc
 usort($all_bookings, fn($a,$b) => strcmp($b['slot_date'].$b['slot_hour'], $a['slot_date'].$a['slot_hour']));
+
+// Fetch submitted ratings for these bookings
+$booking_ids = array_column($all_bookings, 'id');
+$user_ratings = getUserRatingsMap($pdo, $user_id, $booking_ids);
 
 // Stats
 $total      = count($all_bookings);
@@ -124,20 +130,24 @@ body { font-family: 'Inter', sans-serif; background: #f8fafc; }
 }
 #mh-toast.show { transform:translateX(0); }
 
-/* Modals (Cancel & Accept) */
-#cancel-overlay, #accept-overlay {
+/* Modals (Cancel, Accept, & Rating) */
+#cancel-overlay, #accept-overlay, #rating-overlay {
     position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);
     z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px;
     opacity:0;pointer-events:none;transition:opacity .2s ease;
 }
-#cancel-overlay.open, #accept-overlay.open { opacity:1;pointer-events:all; }
-#cancel-modal, #accept-modal {
+#cancel-overlay.open, #accept-overlay.open, #rating-overlay.open { opacity:1;pointer-events:all; }
+#cancel-modal, #accept-modal, #rating-modal {
     background:white;border-radius:20px;box-shadow:0 25px 80px rgba(0,0,0,.3);
     max-width:460px;width:100%;transform:scale(0.92) translateY(20px);
     transition:transform .25s cubic-bezier(.34,1.56,.64,1),opacity .2s ease;
     opacity:0;overflow:hidden;
 }
-#cancel-overlay.open #cancel-modal, #accept-overlay.open #accept-modal { transform:scale(1) translateY(0);opacity:1; }
+#cancel-overlay.open #cancel-modal, #accept-overlay.open #accept-modal, #rating-overlay.open #rating-modal { transform:scale(1) translateY(0);opacity:1; }
+
+.star-btn { transition: transform 0.15s ease; cursor: pointer; }
+.star-btn:hover { transform: scale(1.15); }
+.star-btn svg { transition: fill 0.15s ease, stroke 0.15s ease; }
 </style>
     <?php
     $page_description = 'View your complete match history on ArenaReserve. Track your wins, bookings, and ground performance over time.';
@@ -411,6 +421,49 @@ body { font-family: 'Inter', sans-serif; background: #f8fafc; }
               ⚡ Accept Challenge
             </button>
             <?php endif; ?>
+            <?php
+              $slot_end_time = $slot_start_time + 3600;
+              $slot_ended    = (time() >= $slot_end_time);
+              $is_played     = in_array($bk['status'], ['confirmed', 'challenge_accepted']);
+              $existing_rev  = $user_ratings[$bk['id']] ?? null;
+            ?>
+            <?php if ($is_played && $slot_ended): ?>
+              <?php if ($existing_rev): ?>
+              <button
+                onclick="openRatingModal(<?php echo htmlspecialchars(json_encode([
+                  'bookingId'   => $bk['id'],
+                  'groundId'    => $bk['ground_id'],
+                  'groundTitle' => $bk['ground_title'],
+                  'slotDate'    => date('D, d M Y', strtotime($bk['slot_date'])),
+                  'slotTime'    => $timeLabel,
+                  'rating'      => intval($existing_rev['rating']),
+                  'review'      => $existing_rev['review'] ?? ''
+                ]), ENT_QUOTES, 'UTF-8'); ?>)"
+                class="text-[11px] font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 shadow-2xs"
+                id="rate-btn-<?php echo $bk['id']; ?>">
+                ★ <?php echo intval($existing_rev['rating']); ?>/5 Rated <span class="text-[10px] font-normal text-amber-600 underline ml-0.5">Edit</span>
+              </button>
+              <?php else: ?>
+              <button
+                onclick="openRatingModal(<?php echo htmlspecialchars(json_encode([
+                  'bookingId'   => $bk['id'],
+                  'groundId'    => $bk['ground_id'],
+                  'groundTitle' => $bk['ground_title'],
+                  'slotDate'    => date('D, d M Y', strtotime($bk['slot_date'])),
+                  'slotTime'    => $timeLabel,
+                  'rating'      => 0,
+                  'review'      => ''
+                ]), ENT_QUOTES, 'UTF-8'); ?>)"
+                class="text-[11px] font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 shadow-2xs"
+                id="rate-btn-<?php echo $bk['id']; ?>">
+                ⭐ Rate Ground
+              </button>
+              <?php endif; ?>
+            <?php elseif ($is_played && !$slot_ended): ?>
+            <span class="text-[10px] font-medium text-slate-400 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-md" title="Rating unlocks right after your match slot ends">
+              🕒 Rate after match
+            </span>
+            <?php endif; ?>
           </div>
         </div>
         <?php endforeach; ?>
@@ -558,6 +611,78 @@ body { font-family: 'Inter', sans-serif; background: #f8fafc; }
           ⚡ Pay 25% & Accept Challenge
         </button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     GROUND RATING MODAL
+============================================================ -->
+<div id="rating-overlay">
+  <div id="rating-modal">
+    <!-- Header -->
+    <div class="bg-gradient-to-r from-emerald-600 to-teal-700 px-6 pt-6 pb-5 text-white">
+      <div class="flex items-center justify-between">
+        <div>
+          <div class="text-xs font-semibold opacity-80 mb-0.5">Rate Your Experience</div>
+          <h2 class="text-xl font-extrabold leading-tight" id="rm-ground">Ground Name</h2>
+          <p class="text-xs opacity-80 mt-0.5" id="rm-slot-info">Date &bull; Time</p>
+        </div>
+        <button onclick="closeRatingModal()" class="w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors">
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Body -->
+    <div class="p-6">
+      <form id="groundRatingForm" onsubmit="handleRatingSubmit(event)">
+        <input type="hidden" id="rm-booking-id" name="booking_id" value="">
+        <input type="hidden" id="rm-rating-val" name="rating" value="0">
+
+        <!-- Star selector -->
+        <div class="text-center mb-5">
+          <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Overall Venue & Match Quality</label>
+          <div class="flex items-center justify-center gap-1.5 py-1" id="rm-stars-container">
+            <?php for ($i = 1; $i <= 5; $i++): ?>
+            <button type="button" class="star-btn p-1 focus:outline-none"
+                    onclick="selectStarRating(<?php echo $i; ?>)"
+                    onmouseenter="hoverStarRating(<?php echo $i; ?>)"
+                    onmouseleave="resetStarRating()">
+              <svg class="w-9 h-9 text-slate-300" data-star="<?php echo $i; ?>" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+              </svg>
+            </button>
+            <?php endfor; ?>
+          </div>
+          <div class="text-xs font-bold text-slate-700 mt-1 h-5" id="rm-rating-text">Tap a star to rate</div>
+        </div>
+
+        <!-- Review comment -->
+        <div class="mb-5">
+          <label for="rm-review" class="block text-xs font-semibold text-slate-700 mb-1.5">
+            Player Review <span class="font-normal text-slate-400">(Optional)</span>
+          </label>
+          <textarea id="rm-review" name="review" rows="3" maxlength="1000"
+                    placeholder="How was the turf pitch, floodlighting, boundary netting, and ground staff?"
+                    class="w-full text-xs sm:text-sm border border-slate-300 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 placeholder-slate-400"></textarea>
+          <div class="flex justify-between text-[10px] text-slate-400 mt-1">
+            <span>Verified player review &bull; visible on ground card</span>
+            <span id="rm-char-count">0/1000</span>
+          </div>
+        </div>
+
+        <!-- Action buttons -->
+        <div class="flex gap-3">
+          <button type="button" onclick="closeRatingModal()" class="flex-1 border border-slate-200 text-slate-600 font-semibold py-2.5 rounded-xl text-xs sm:text-sm hover:bg-slate-50 transition-all">
+            Cancel
+          </button>
+          <button type="submit" id="rm-submit-btn" disabled
+                  class="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-2.5 rounded-xl text-xs sm:text-sm transition-all shadow-md flex items-center justify-center gap-1.5">
+            <span id="rm-btn-text">Submit Review</span>
+          </button>
+        </div>
+      </form>
     </div>
   </div>
 </div>
@@ -770,10 +895,143 @@ function showToast(message, type) {
 
 function formatNum(n) { return Math.round(n).toLocaleString('en-PK'); }
 
+// ---- Ground Rating Modal Logic ----
+let currentRatingData = null;
+let selectedRating = 0;
+const ratingLabels = ['', '1 - Poor 👎', '2 - Fair 😐', '3 - Good 👍', '4 - Very Good! 🔥', '5 - Outstanding! ⭐'];
+
+function openRatingModal(data) {
+  currentRatingData = data;
+  selectedRating = parseInt(data.rating) || 0;
+
+  document.getElementById('rm-booking-id').value = data.bookingId;
+  document.getElementById('rm-ground').textContent = data.groundTitle;
+  document.getElementById('rm-slot-info').textContent = data.slotDate + ' • ' + data.slotTime;
+  document.getElementById('rm-review').value = data.review || '';
+  document.getElementById('rm-char-count').textContent = (data.review ? data.review.length : 0) + '/1000';
+
+  updateStarDisplay(selectedRating);
+  document.getElementById('rm-submit-btn').disabled = (selectedRating === 0);
+  document.getElementById('rm-btn-text').textContent = (selectedRating > 0 && data.rating > 0) ? 'Update Review' : 'Submit Review';
+
+  document.getElementById('rating-overlay').classList.add('open');
+}
+
+function closeRatingModal() {
+  document.getElementById('rating-overlay').classList.remove('open');
+  currentRatingData = null;
+}
+
+function selectStarRating(n) {
+  selectedRating = n;
+  document.getElementById('rm-rating-val').value = n;
+  updateStarDisplay(n);
+  document.getElementById('rm-submit-btn').disabled = false;
+}
+
+function hoverStarRating(n) {
+  updateStarDisplay(n);
+}
+
+function resetStarRating() {
+  updateStarDisplay(selectedRating);
+}
+
+function updateStarDisplay(n) {
+  const stars = document.querySelectorAll('#rm-stars-container [data-star]');
+  stars.forEach(s => {
+    const starVal = parseInt(s.getAttribute('data-star'));
+    if (starVal <= n) {
+      s.classList.remove('text-slate-300');
+      s.classList.add('text-amber-400');
+    } else {
+      s.classList.remove('text-amber-400');
+      s.classList.add('text-slate-300');
+    }
+  });
+
+  const labelEl = document.getElementById('rm-rating-text');
+  if (labelEl) {
+    if (n > 0) {
+      labelEl.textContent = ratingLabels[n] || '';
+      labelEl.className = 'text-xs font-bold text-amber-600 mt-1 h-5';
+    } else {
+      labelEl.textContent = 'Tap a star to rate';
+      labelEl.className = 'text-xs font-medium text-slate-400 mt-1 h-5';
+    }
+  }
+}
+
+document.getElementById('rm-review')?.addEventListener('input', function() {
+  document.getElementById('rm-char-count').textContent = this.value.length + '/1000';
+});
+
+function handleRatingSubmit(e) {
+  e.preventDefault();
+  if (selectedRating < 1 || selectedRating > 5) {
+    showToast('⚠️ Please select a rating between 1 and 5 stars.', 'error');
+    return;
+  }
+
+  const bookingId = document.getElementById('rm-booking-id').value;
+  const reviewText = document.getElementById('rm-review').value;
+  const submitBtn = document.getElementById('rm-submit-btn');
+  const btnText = document.getElementById('rm-btn-text');
+
+  submitBtn.disabled = true;
+  btnText.textContent = 'Saving...';
+
+  fetch('submit_rating.php', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Accept': 'application/json'
+    },
+    body: new URLSearchParams({
+      booking_id: bookingId,
+      rating: selectedRating,
+      review: reviewText
+    })
+  })
+  .then(r => r.json())
+  .then(res => {
+    if (res.success) {
+      showToast('⭐ ' + res.message, 'success');
+      const rateBtn = document.getElementById('rate-btn-' + bookingId);
+      if (rateBtn && currentRatingData) {
+        currentRatingData.rating = selectedRating;
+        currentRatingData.review = reviewText;
+        rateBtn.className = 'text-[11px] font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 shadow-2xs';
+        rateBtn.innerHTML = `★ ${selectedRating}/5 Rated <span class="text-[10px] font-normal text-amber-600 underline ml-0.5">Edit</span>`;
+        rateBtn.setAttribute('onclick', `openRatingModal(${JSON.stringify(currentRatingData)})`);
+      }
+      closeRatingModal();
+    } else {
+      showToast('❌ ' + (res.message || 'Unable to save review.'), 'error');
+      submitBtn.disabled = false;
+      btnText.textContent = 'Try Again';
+    }
+  })
+  .catch(() => {
+    showToast('❌ Network error. Please try again.', 'error');
+    submitBtn.disabled = false;
+    btnText.textContent = 'Try Again';
+  });
+}
+
 document.getElementById('cancel-overlay').addEventListener('click', function(e) {
   if (e.target === this) closeCancelModal();
 });
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeCancelModal(); });
+document.getElementById('rating-overlay')?.addEventListener('click', function(e) {
+  if (e.target === this) closeRatingModal();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    closeCancelModal();
+    closeAcceptModal();
+    closeRatingModal();
+  }
+});
 
 // ---- Profile Dropdown ----
 function toggleProfileDropdown() {

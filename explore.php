@@ -50,10 +50,19 @@ $sport_filter = $_GET['sport_type'] ?? 'All';
 $sort_by = $_GET['sort_by'] ?? 'proximity';
 $radius_km = $_GET['radius_km'] ?? 'any'; // 'any', '5', '10', '25', '50'
 
-// Build SQL query for verified grounds
+// Build SQL query for verified grounds with real aggregated ratings
 $sql = "SELECT g.*, 
+        COALESCE(gr.avg_rating, 0.0) AS avg_rating,
+        COALESCE(gr.total_reviews, 0) AS total_reviews,
         (6371 * acos(cos(radians(:player_lat1)) * cos(radians(g.latitude)) * cos(radians(g.longitude) - radians(:player_lng)) + sin(radians(:player_lat2)) * sin(radians(g.latitude)))) AS distance 
         FROM grounds g 
+        LEFT JOIN (
+            SELECT ground_id, 
+                   ROUND(AVG(rating), 1) AS avg_rating, 
+                   COUNT(*) AS total_reviews 
+            FROM ground_ratings 
+            GROUP BY ground_id
+        ) gr ON gr.ground_id = g.id
         WHERE g.is_verified = 1
         AND (g.ground_status IS NULL OR g.ground_status = 'Active')";
 
@@ -73,6 +82,8 @@ if ($sort_by === 'price_asc') {
     $sql .= " ORDER BY g.base_price ASC";
 } else if ($sort_by === 'price_desc') {
     $sql .= " ORDER BY g.base_price DESC";
+} else if ($sort_by === 'rating_desc') {
+    $sql .= " ORDER BY avg_rating DESC, total_reviews DESC, distance ASC";
 } else {
     // Default proximity sort
     $sql .= " ORDER BY distance ASC";
@@ -370,6 +381,7 @@ try {
                             <select id="sort_by" name="sort_by" onchange="this.form.submit()"
                                     class="text-xs border border-slate-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 bg-white flex-1 lg:flex-initial w-full lg:w-auto">
                                 <option value="proximity" <?php echo ($sort_by === 'proximity') ? 'selected' : ''; ?>>Nearby Proximity</option>
+                                <option value="rating_desc" <?php echo ($sort_by === 'rating_desc') ? 'selected' : ''; ?>>Top Rated ⭐</option>
                                 <option value="price_asc" <?php echo ($sort_by === 'price_asc') ? 'selected' : ''; ?>>Price: Low to High</option>
                                 <option value="price_desc" <?php echo ($sort_by === 'price_desc') ? 'selected' : ''; ?>>Price: High to Low</option>
                             </select>
@@ -429,9 +441,17 @@ try {
                                     <h3 class="font-bold text-slate-900 text-sm hover:text-emerald-600 transition-colors">
                                         <?php echo htmlspecialchars($ground['title']); ?>
                                     </h3>
-                                    <!-- Star rating -->
-                                    <div class="flex items-center text-xs font-semibold text-amber-500 bg-amber-50 px-1.5 py-0.5 rounded">
-                                        ★ 4.8
+                                    <!-- Real Star rating -->
+                                    <?php 
+                                        $avgRate = floatval($ground['avg_rating'] ?? 0);
+                                        $totalRev = intval($ground['total_reviews'] ?? 0);
+                                    ?>
+                                    <div class="flex items-center gap-1 text-xs font-semibold <?php echo ($totalRev > 0) ? 'text-amber-700 bg-amber-50 border border-amber-200/80' : 'text-slate-500 bg-slate-50 border border-slate-200'; ?> px-2 py-0.5 rounded-md shadow-2xs" title="<?php echo ($totalRev > 0) ? number_format($avgRate, 1) . ' out of 5 stars based on ' . $totalRev . ' review(s)' : 'No player ratings yet'; ?>">
+                                        <span class="text-amber-500">★</span>
+                                        <span><?php echo ($totalRev > 0) ? number_format($avgRate, 1) : 'New'; ?></span>
+                                        <?php if ($totalRev > 0): ?>
+                                        <span class="text-[10px] text-slate-400 font-normal">(<?php echo $totalRev; ?>)</span>
+                                        <?php endif; ?>
                                     </div>
                                 </div>
 
