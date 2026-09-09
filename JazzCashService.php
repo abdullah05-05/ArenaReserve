@@ -230,6 +230,8 @@ class JazzCashService {
             'Content-Type: application/json',
             'Accept: application/json'
         ]);
+        // Set standard browser User-Agent and headers
+        curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
         // 75 seconds timeout for USSD MPIN entry on customer phone
         curl_setopt($ch, CURLOPT_TIMEOUT, 75);
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 15);
@@ -252,6 +254,21 @@ class JazzCashService {
 
         $data = json_decode($response, true);
         if (!$data || !is_array($data)) {
+            // Check if JazzCash F5 BIG-IP WAF rejected the connection
+            if (stripos($response, 'The requested URL was rejected') !== false || stripos($response, 'support ID is:') !== false) {
+                $supportId = '';
+                if (preg_match('/support ID is:\s*([0-9]+)/i', $response, $m)) {
+                    $supportId = $m[1];
+                }
+                return [
+                    'success'       => false,
+                    'response_code' => 'WAF_REJECTED',
+                    'message'       => 'JazzCash Firewall rejected the server connection (Server IP whitelisting required by JazzCash).' . ($supportId ? " Support ID: $supportId" : ''),
+                    'http_code'     => $httpCode,
+                    'raw'           => $response
+                ];
+            }
+
             return [
                 'success'       => false,
                 'response_code' => 'INVALID_RESP',
