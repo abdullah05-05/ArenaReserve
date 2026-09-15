@@ -288,6 +288,21 @@ try {
                 'message'      => 'Payment approved successfully!'
             ]);
             exit;
+        } elseif (in_array($mwalletRes['response_code'] ?? '', ['124', '157'])) {
+            // Official JazzCash Pending response codes (124: Pending customer authorization, 157: In-process)
+            $redirectUrl = 'jazzcash_return.php?orderId=' . urlencode($orderId) . '&status=pending&pp_ResponseCode=' . urlencode($mwalletRes['response_code']) . '&pp_TxnRefNo=' . urlencode($txnRefNo);
+
+            header('Content-Type: application/json');
+            echo json_encode([
+                'success'      => false,
+                'is_pending'   => true,
+                'is_mwallet'   => true,
+                'orderId'      => $orderId,
+                'txnRefNo'     => $txnRefNo,
+                'redirect_url' => $redirectUrl,
+                'message'      => 'Transaction is currently pending authorization.'
+            ]);
+            exit;
         } else {
             // Mark payment as failed in database
             $pdo->prepare("UPDATE payment_transactions SET status = 'failed', raw_callback = ? WHERE id = ?")

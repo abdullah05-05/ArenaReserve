@@ -73,6 +73,9 @@ if ($transaction) {
         $isSuccess = $fulfillResult['success'] || ($transaction['status'] === 'success');
     } elseif ($transaction['status'] === 'success') {
         $isSuccess = true;
+    } elseif (in_array($responseCode, ['124', '157'])) {
+        // Official JazzCash Pending response codes (124: Pending customer authorization, 157: In-process)
+        $isPending = true;
     } elseif ($responseCode === '' && $transaction['status'] === 'pending') {
         // Direct arrival / checking status: Query Status API if available
         if (!empty($transaction['session_id']) && !empty($jazzCash->getMerchantId())) {

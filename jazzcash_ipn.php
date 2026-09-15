@@ -59,6 +59,9 @@ try {
         $reference = $retrievalRef ?: $txnRefNo;
         $res = fulfillPaymentTransaction($pdo, $orderId, $reference, $rawBody ?: json_encode($_POST), $authCode);
         log_jazzcash_ipn('IPN Fulfilled', ['orderId' => $orderId, 'result' => $res]);
+    } elseif (in_array($responseCode, ['124', '157'])) {
+        // Pending state: do not mark failed, keep pending for subsequent callback or inquiry
+        log_jazzcash_ipn('IPN Pending', ['orderId' => $orderId, 'code' => $responseCode]);
     } else {
         // Mark failed
         $pdo->prepare("
