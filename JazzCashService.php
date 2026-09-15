@@ -331,6 +331,18 @@ class JazzCashService {
         $err = curl_error($ch);
         curl_close($ch);
 
+        // Audit Logging for Status Inquiry
+        $logDir = __DIR__ . '/logs';
+        if (!file_exists($logDir)) {
+            @mkdir($logDir, 0775, true);
+        }
+        $logEntry = "[" . date('Y-m-d H:i:s') . "] Status Inquiry for {$txnRefNo}\n"
+                  . "  REQUEST: " . json_encode($params) . "\n"
+                  . "  HTTP CODE: {$httpCode}\n"
+                  . "  RESPONSE: {$response}\n"
+                  . "------------------------------------------------------------\n";
+        @file_put_contents($logDir . '/jazzcash_status_inquiry.log', $logEntry, FILE_APPEND);
+
         if ($err) {
             return ['success' => false, 'error' => $err];
         }
