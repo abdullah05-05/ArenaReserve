@@ -43,6 +43,11 @@ $customerEmail = trim($_POST['email'] ?? ($user['email'] ?? ''));
 $customerName  = trim($_POST['name'] ?? ($user['name'] ?? ''));
 $mwalletMobile = trim($_POST['mwallet_mobile'] ?? ($_POST['phone'] ?? $customerPhone));
 $mwalletCnic   = trim($_POST['mwallet_cnic'] ?? ($_POST['cnic'] ?? ''));
+$format        = trim($_POST['format'] ?? '');
+
+$isJson = ($format === 'json')
+    || (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false)
+    || (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest');
 
 // Clean customer phone (ensure e.g. 03001234567 format)
 $customerPhone = preg_replace('/[^0-9]/', '', $customerPhone);
@@ -257,7 +262,7 @@ try {
             $successRedirect
         );
 
-        if ($format === 'json') {
+        if ($isJson) {
             header('Content-Type: application/json');
             echo json_encode([
                 'success'      => true,

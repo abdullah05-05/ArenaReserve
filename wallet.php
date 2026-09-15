@@ -724,7 +724,7 @@ if (isset($_SESSION['payment_error'])) {
             .then(res => res.json())
             .then(data => {
                 if (data.success && data.redirect_url) {
-                    btnText.textContent = '✅ Approved! Updating balance…';
+                    btnText.textContent = (jcCurrentSubMethod === 'swich') ? '⚡ Transferring to Swich Pay…' : '✅ Approved! Updating balance…';
                     window.location.href = data.redirect_url;
                 } else if (data.success && data.post_url && data.params) {
                     btnText.textContent = 'Redirecting to JazzCash...';
@@ -746,7 +746,9 @@ if (isset($_SESSION['payment_error'])) {
                     btn.disabled = false;
                     btn.classList.remove('opacity-75', 'cursor-not-allowed');
                     if (waitingBox) waitingBox.classList.add('hidden');
-                    btnText.textContent = (jcCurrentSubMethod === 'mwallet') ? '⚡ Deposit via JazzCash Mobile (MPIN)' : '💳 Proceed to Card Payment';
+                    btnText.textContent = (jcCurrentSubMethod === 'mwallet')
+                        ? '⚡ Deposit via JazzCash Mobile (MPIN)'
+                        : (jcCurrentSubMethod === 'swich' ? '⚡ Proceed to Swich Pay (EasyPaisa / Bank / Card)' : '💳 Proceed to Card Payment');
                     errBox.textContent = data.message || 'Unable to complete payment. Please check your details or try again.';
                     errBox.classList.remove('hidden');
                 }
@@ -755,7 +757,9 @@ if (isset($_SESSION['payment_error'])) {
                 btn.disabled = false;
                 btn.classList.remove('opacity-75', 'cursor-not-allowed');
                 if (waitingBox) waitingBox.classList.add('hidden');
-                btnText.textContent = (jcCurrentSubMethod === 'mwallet') ? '⚡ Deposit via JazzCash Mobile (MPIN)' : '💳 Proceed to Card Payment';
+                btnText.textContent = (jcCurrentSubMethod === 'mwallet')
+                    ? '⚡ Deposit via JazzCash Mobile (MPIN)'
+                    : (jcCurrentSubMethod === 'swich' ? '⚡ Proceed to Swich Pay (EasyPaisa / Bank / Card)' : '💳 Proceed to Card Payment');
                 errBox.textContent = 'Network or server error. Please try again.';
                 errBox.classList.remove('hidden');
             });
