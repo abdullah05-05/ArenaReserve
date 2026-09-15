@@ -384,4 +384,12 @@ class JazzCashService {
     public function getPostUrl(): string {
         return $this->postUrl;
     }
+
+    public function getEnvironment(): string {
+        return $this->environment;
+    }
+
+    public function isProduction(): bool {
+        return $this->environment === 'production';
+    }
 }
