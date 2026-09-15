@@ -10,6 +10,7 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/JazzCashService.php';
+require_once __DIR__ . '/SwichService.php';
 require_once __DIR__ . '/payment_fulfill_helper.php';
 
 // Ensure user is authenticated
@@ -206,8 +207,72 @@ try {
         throw new Exception('Unsupported checkout purpose.');
     }
 
-    // Generate unique compliant Order ID and TxnRefNo
+    // Generate unique compliant Order ID
     $orderId = 'AR' . date('ymd') . strtoupper(substr(uniqid(), -6));
+
+    $normalizedMethod = strtolower($paymentMethod);
+    $isSwich   = in_array($normalizedMethod, ['swich', 'swich_pwa', 'swichpay', 'swich_pay']);
+    $isMWallet = in_array($normalizedMethod, ['mwallet', 'jazzcash_mwallet', 'm_wallet', 'jazzcash_wallet']);
+
+    if ($isSwich) {
+        if ($amount < 10.00) {
+            throw new Exception('Minimum amount for Swich Pay is 10 PKR.');
+        }
+
+        $swich = new SwichService();
+        $customerTxnId = SwichService::generateTransactionId('SW');
+
+        // Insert pending payment record for Swich
+        $insStmt = $pdo->prepare("
+            INSERT INTO payment_transactions 
+            (user_id, order_id, session_id, amount, purpose, payment_method, meta_data, status) 
+            VALUES (?, ?, ?, ?, ?, 'SWICH', ?, 'pending')
+        ");
+        $insStmt->execute([
+            $user_id,
+            $orderId,
+            $customerTxnId,
+            $amount,
+            $purpose,
+            json_encode($metaData)
+        ]);
+
+        // Support local development return bridge if needed
+        $currentHost = strtolower(explode(':', $_SERVER['HTTP_HOST'] ?? '')[0]);
+        $isLocal = in_array($currentHost, ['localhost', '127.0.0.1', '::1']);
+        $successRedirect = null;
+        if ($isLocal) {
+            $proto = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https://' : 'http://';
+            $successRedirect = $proto . $_SERVER['HTTP_HOST'] . rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\') . '/swich_return.php';
+        }
+
+        $pwaUrl = $swich->buildPwaCheckoutUrl(
+            $amount,
+            $customerTxnId,
+            $customerName,
+            $customerEmail,
+            $customerPhone,
+            $description,
+            'ArenaReserve',
+            $successRedirect
+        );
+
+        if ($format === 'json') {
+            header('Content-Type: application/json');
+            echo json_encode([
+                'success'      => true,
+                'is_swich'     => true,
+                'orderId'      => $orderId,
+                'txnRefNo'     => $customerTxnId,
+                'redirect_url' => $pwaUrl
+            ]);
+            exit;
+        }
+
+        header("Location: " . $pwaUrl);
+        exit;
+    }
+
     $txnRefNo = JazzCashService::generateTxnRefNo('TRN');
 
     $jc = new JazzCashService();
@@ -216,9 +281,6 @@ try {
     if (empty($jc->getMerchantId())) {
         throw new Exception('JazzCash Merchant ID is not configured.');
     }
-
-    $normalizedMethod = strtolower($paymentMethod);
-    $isMWallet = in_array($normalizedMethod, ['mwallet', 'jazzcash_mwallet', 'm_wallet', 'jazzcash_wallet']);
 
     if ($isMWallet) {
         // Clean and validate mobile number

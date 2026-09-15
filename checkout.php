@@ -464,7 +464,7 @@ $challenge_advance_amount = round($total_full_price * 0.25, 2);
                 <div class="pt-2">
                     <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-2.5">Select Payment Method</label>
                     
-                    <div class="grid grid-cols-3 gap-2 mb-4">
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
                         <!-- Wallet Option -->
                         <div id="btn-method-wallet" onclick="selectPayMethod('wallet')" class="pay-method-card selected p-2 rounded-xl border text-center cursor-pointer transition-all">
                             <div class="text-base mb-0.5">💳</div>
@@ -489,6 +489,15 @@ $challenge_advance_amount = round($total_full_price * 0.25, 2);
                             <div class="font-bold text-xs text-slate-900 leading-tight">Card</div>
                             <div class="text-[10px] text-slate-500 truncate mt-0.5">
                                 Visa / Master
+                            </div>
+                        </div>
+
+                        <!-- Swich Pay Multi-Channel Option -->
+                        <div id="btn-method-swich" onclick="selectPayMethod('swich')" class="pay-method-card p-2 rounded-xl border text-center cursor-pointer transition-all">
+                            <div class="text-base mb-0.5">⚡</div>
+                            <div class="font-bold text-xs text-slate-900 leading-tight">Swich Pay</div>
+                            <div class="text-[10px] text-blue-600 font-semibold truncate mt-0.5">
+                                EasyPaisa / Bank
                             </div>
                         </div>
                     </div>
@@ -589,6 +598,29 @@ $challenge_advance_amount = round($total_full_price * 0.25, 2);
                         </button>
                     </div>
 
+                    <!-- Panel 4: Swich Pay (PWA Multi-Channel) -->
+                    <div id="checkout-panel-swich" class="hidden space-y-3">
+                        <div class="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-3 text-xs space-y-2">
+                            <div class="flex items-center justify-between">
+                                <span class="font-bold text-slate-900 flex items-center gap-1.5">
+                                    <span>⚡</span> Swich Multi-Payment Gateway
+                                </span>
+                                <div class="flex items-center gap-1">
+                                    <span class="px-1.5 py-0.5 bg-white border border-green-300 text-[9px] font-bold text-green-700 rounded">EasyPaisa</span>
+                                    <span class="px-1.5 py-0.5 bg-white border border-blue-300 text-[9px] font-bold text-blue-700 rounded">Bank / Raast</span>
+                                    <span class="px-1.5 py-0.5 bg-white border border-purple-300 text-[9px] font-bold text-purple-700 rounded">Card</span>
+                                </div>
+                            </div>
+                            <p class="text-[11px] text-slate-600">Pay securely via EasyPaisa, All Pakistani Banks, Raast QR, or Cards on Swich's official portal.</p>
+                        </div>
+
+                        <button type="button" id="pay-swich-submit-btn" onclick="executeSwichPayment()"
+                                class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-extrabold py-3.5 px-4 rounded-xl text-sm transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 cursor-pointer">
+                            <span>⚡</span>
+                            <span id="pay-swich-btn-text">Pay <?php echo number_format($direct_advance_amount, 0); ?> PKR via Swich</span>
+                        </button>
+                    </div>
+
                 </div>
 
                 <!-- Trust Badges -->
@@ -635,18 +667,22 @@ function selectPayMethod(method) {
     const wCard   = document.getElementById('btn-method-wallet');
     const mwCard  = document.getElementById('btn-method-mwallet');
     const cCard   = document.getElementById('btn-method-card');
+    const swCard  = document.getElementById('btn-method-swich');
 
     const wPanel  = document.getElementById('checkout-panel-wallet');
     const mwPanel = document.getElementById('checkout-panel-mwallet');
     const cPanel  = document.getElementById('checkout-panel-card');
+    const swPanel = document.getElementById('checkout-panel-swich');
 
     if (wCard)  wCard.classList.toggle('selected', method === 'wallet');
     if (mwCard) mwCard.classList.toggle('selected', method === 'mwallet');
     if (cCard)  cCard.classList.toggle('selected', method === 'card');
+    if (swCard) swCard.classList.toggle('selected', method === 'swich');
 
     if (wPanel)  wPanel.classList.toggle('hidden', method !== 'wallet');
     if (mwPanel) mwPanel.classList.toggle('hidden', method !== 'mwallet');
     if (cPanel)  cPanel.classList.toggle('hidden', method !== 'card');
+    if (swPanel) swPanel.classList.toggle('hidden', method !== 'swich');
 }
 
 // ---- Recalculate Totals ----
@@ -695,12 +731,16 @@ function recalculatePrices() {
     const wBtnText = document.getElementById('pay-wallet-btn-text');
     const mwBtnText = document.getElementById('pay-mwallet-btn-text');
     const cBtnText  = document.getElementById('pay-card-btn-text');
+    const swBtnText = document.getElementById('pay-swich-btn-text');
 
     if (mwBtnText) {
         mwBtnText.textContent = `📱 Pay ${formatNum(advanceAmount)} PKR via JazzCash Mobile`;
     }
     if (cBtnText) {
         cBtnText.textContent = `💳 Proceed to Card Payment (${formatNum(advanceAmount)} PKR)`;
+    }
+    if (swBtnText) {
+        swBtnText.textContent = `Pay ${formatNum(advanceAmount)} PKR via Swich`;
     }
 
     if (userBalance < advanceAmount) {
@@ -979,6 +1019,71 @@ function executeCardPayment() {
     })
     .catch(() => {
         showToast('❌ Network error while connecting to payment gateway.', 'error');
+        if (btn) btn.disabled = false;
+        recalculatePrices();
+    });
+}
+
+// ---- Execute Swich Multi-Payment (PWA Redirection) ----
+function executeSwichPayment() {
+    const btn = document.getElementById('pay-swich-submit-btn');
+    const btnText = document.getElementById('pay-swich-btn-text');
+
+    const teamName         = (document.getElementById('challenger-team-name')?.value || '').trim();
+    const challengedUserId = parseInt(document.getElementById('challenged-user-id')?.value || '0', 10);
+    const challengeMsg     = (document.getElementById('challenge-message')?.value || '').trim();
+
+    if (selectedType === 'team_challenge') {
+        if (!teamName) {
+            showToast('⚠️ Please enter your team name.', 'error');
+            return;
+        }
+        if (!challengedUserId || challengedUserId <= 0) {
+            showToast('⚠️ Please select an opponent squad to challenge.', 'error');
+            return;
+        }
+    }
+
+    if (btn) btn.disabled = true;
+    if (btnText) btnText.textContent = 'Connecting to Swich Payment Portal…';
+
+    const params = {
+        purpose:              'slot_booking',
+        format:               'json',
+        ground_id:            groundId,
+        slot_date:            slotDate,
+        slot_hours:           JSON.stringify(slotHours),
+        booking_type:         selectedType,
+        payment_method:       'swich',
+        challenger_team_name: teamName,
+        challenged_user_id:   challengedUserId,
+        challenge_message:    challengeMsg
+    };
+
+    fetch('initiate_checkout.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Accept': 'application/json'
+        },
+        body: new URLSearchParams(params)
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (res.success && res.redirect_url) {
+            if (btnText) btnText.textContent = 'Transferring to Swich…';
+            showToast('Transferring to Swich Pay…', 'info');
+            setTimeout(() => {
+                window.location.href = res.redirect_url;
+            }, 500);
+        } else {
+            showToast('❌ ' + (res.message || 'Unable to connect to Swich.'), 'error');
+            if (btn) btn.disabled = false;
+            recalculatePrices();
+        }
+    })
+    .catch(() => {
+        showToast('⚠️ Connection error. Please check your internet.', 'error');
         if (btn) btn.disabled = false;
         recalculatePrices();
     });
