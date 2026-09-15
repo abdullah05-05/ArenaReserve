@@ -336,16 +336,21 @@ if (isset($_SESSION['payment_error'])) {
                             </div>
 
                             <!-- Sub-method selector -->
-                            <div class="grid grid-cols-2 gap-3 mb-2">
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mb-2">
                                 <button type="button" id="jc_sub_mwallet_btn" onclick="setJazzCashSubMethod('mwallet')"
                                         class="py-2.5 px-3 rounded-xl border-2 border-red-500 bg-red-50 text-red-800 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer">
                                     <span>📱</span>
-                                    <span>JazzCash Mobile Account</span>
+                                    <span>JazzCash Mobile</span>
                                 </button>
                                 <button type="button" id="jc_sub_card_btn" onclick="setJazzCashSubMethod('card')"
                                         class="py-2.5 px-3 rounded-xl border-2 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer">
                                     <span>💳</span>
                                     <span>Debit / Credit Card</span>
+                                </button>
+                                <button type="button" id="jc_sub_swich_btn" onclick="setJazzCashSubMethod('swich')"
+                                        class="py-2.5 px-3 rounded-xl border-2 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer">
+                                    <span>⚡</span>
+                                    <span>Swich (EasyPaisa/Bank)</span>
                                 </button>
                             </div>
 
@@ -623,6 +628,7 @@ if (isset($_SESSION['payment_error'])) {
             jcCurrentSubMethod = method;
             const mwalletBtn = document.getElementById('jc_sub_mwallet_btn');
             const cardBtn    = document.getElementById('jc_sub_card_btn');
+            const swichBtn   = document.getElementById('jc_sub_swich_btn');
             const mwalletFields = document.getElementById('jc_mwallet_fields');
             const cardFields    = document.getElementById('jc_card_fields');
             const hiddenMethod  = document.getElementById('jc_payment_method');
@@ -631,16 +637,25 @@ if (isset($_SESSION['payment_error'])) {
 
             if (hiddenMethod) hiddenMethod.value = method;
 
+            // Reset button styles
+            mwalletBtn.className = 'py-2.5 px-3 rounded-xl border-2 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer';
+            cardBtn.className    = 'py-2.5 px-3 rounded-xl border-2 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer';
+            if (swichBtn) swichBtn.className = 'py-2.5 px-3 rounded-xl border-2 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer';
+
             if (method === 'mwallet') {
                 mwalletBtn.className = 'py-2.5 px-3 rounded-xl border-2 border-red-500 bg-red-50 text-red-800 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer';
-                cardBtn.className = 'py-2.5 px-3 rounded-xl border-2 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer';
                 mwalletFields.classList.remove('hidden');
                 cardFields.classList.add('hidden');
                 if (btnText) btnText.textContent = '⚡ Deposit via JazzCash Mobile (MPIN)';
                 if (descEl) descEl.textContent = 'Instant online deposit • Authorize with your 4-digit JazzCash MPIN.';
+            } else if (method === 'swich') {
+                if (swichBtn) swichBtn.className = 'py-2.5 px-3 rounded-xl border-2 border-blue-600 bg-blue-50 text-blue-800 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer';
+                cardFields.classList.remove('hidden');
+                mwalletFields.classList.add('hidden');
+                if (btnText) btnText.textContent = '⚡ Proceed to Swich Pay (EasyPaisa / Bank / Card)';
+                if (descEl) descEl.textContent = 'Deposit securely via EasyPaisa, All Pakistani Banks, Raast QR, or Cards on Swich portal.';
             } else {
                 cardBtn.className = 'py-2.5 px-3 rounded-xl border-2 border-slate-800 bg-slate-900 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer';
-                mwalletBtn.className = 'py-2.5 px-3 rounded-xl border-2 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer';
                 cardFields.classList.remove('hidden');
                 mwalletFields.classList.add('hidden');
                 if (btnText) btnText.textContent = '💳 Proceed to Card Payment';
@@ -662,8 +677,11 @@ if (isset($_SESSION['payment_error'])) {
             if (waitingBox) waitingBox.classList.add('hidden');
 
             const amount = parseFloat(document.getElementById('jc_amount').value || 0);
-            if (amount < 1) {
-                errBox.textContent = 'Please enter a valid amount (minimum 1 PKR).';
+            const minAmount = (jcCurrentSubMethod === 'swich') ? 10 : 1;
+            if (amount < minAmount) {
+                errBox.textContent = (jcCurrentSubMethod === 'swich') 
+                    ? 'Please enter a valid amount (minimum 10 PKR for Swich Pay).'
+                    : 'Please enter a valid amount (minimum 1 PKR).';
                 errBox.classList.remove('hidden');
                 return;
             }
