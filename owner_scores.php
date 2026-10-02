@@ -525,6 +525,8 @@ $sport_icons = [
     </main>
 </div>
 
+<?php include __DIR__ . '/footer.php'; ?>
+
 <!-- ── Score Modal ─────────────────────────────────────────────────────────── -->
 <div id="scoreModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden">
     <div class="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-sm w-full p-6 mx-4">

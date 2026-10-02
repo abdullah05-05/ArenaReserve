@@ -332,64 +332,8 @@ $active_policy = 'cancellation';
         </div>
     </main>
 
-    <!-- ============================================================
-         FOOTER
-    ============================================================ -->
-    <footer class="bg-slate-900 text-slate-400 py-16 border-t border-slate-800 mt-12">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="grid grid-cols-1 md:grid-cols-12 gap-10">
-                <!-- Col 1: Brand & Contact -->
-                <div class="md:col-span-5">
-                    <a href="landing.php" class="flex items-center gap-2.5">
-                        <div class="w-9 h-9 rounded-xl bg-emerald-600 flex items-center justify-center text-white">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 14l9-5-9-5-9 5 9 5z" />
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 14l4-2.5V20l-4 2.5L8 20v-8.5l4 2.5z" />
-                            </svg>
-                        </div>
-                        <span class="text-xl font-black text-white tracking-tight">Arena<span class="text-emerald-500">Reserve</span></span>
-                    </a>
-                    <p class="mt-4 text-sm text-slate-400 leading-relaxed max-w-sm">
-                        Pakistan's premier sports ground booking network. Empowering players, teams, and venue owners with instantaneous digital reservations.
-                    </p>
-                    <div class="mt-4 text-xs text-slate-400 space-y-1">
-                        <div>📍 Address: 17-km Sheikhupura Road, Shah Zaman Park near Mughal Steel, Lahore</div>
-                        <div>📞 Phone / WhatsApp: <a href="tel:03137970801" class="text-emerald-400 font-bold hover:underline">03137970801</a></div>
-                        <div>✉️ Support Email: <a href="mailto:abdullahtariq0505@gmail.com" class="text-emerald-400 font-bold hover:underline">abdullahtariq0505@gmail.com</a></div>
-                    </div>
-                    <div class="mt-6 text-xs text-slate-500">
-                        &copy; 2026 ArenaReserve. All rights reserved.
-                    </div>
-                </div>
-
-                <!-- Col 2: Legal Policies -->
-                <div class="md:col-span-3">
-                    <h4 class="text-xs font-bold text-slate-200 uppercase tracking-wider mb-4">Compliance Policies</h4>
-                    <ul class="space-y-2.5 text-sm">
-                        <li><a href="terms.php" class="hover:text-emerald-400 transition-colors">Terms & Conditions</a></li>
-                        <li><a href="privacy.php" class="hover:text-emerald-400 transition-colors">Privacy Policy</a></li>
-                        <li><a href="refund-policy.php" class="hover:text-emerald-400 transition-colors">Refund Policy</a></li>
-                        <li><a href="cancellation-policy.php" class="text-emerald-400 font-semibold hover:underline">Cancellation Policy</a></li>
-                        <li><a href="contact.php" class="hover:text-emerald-400 transition-colors">Contact & Support</a></li>
-                    </ul>
-                </div>
-
-                <!-- Col 3: Navigation & Auth -->
-                <div class="md:col-span-4">
-                    <h4 class="text-xs font-bold text-slate-200 uppercase tracking-wider mb-4">Account & Access</h4>
-                    <div class="flex flex-col gap-2.5">
-                        <a href="login.php" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-semibold text-center transition-colors">
-                            Player & Owner Login
-                        </a>
-                        <a href="signup.php" class="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold text-center transition-colors">
-                            Create New Account
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </footer>
+    <!-- Universal Footer -->
+    <?php include __DIR__ . '/footer.php'; ?>
 
 </body>
 </html>
