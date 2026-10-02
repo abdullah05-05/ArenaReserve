@@ -638,6 +638,9 @@ try {
     <!-- Toast -->
     <div id="exp-toast" style="position:fixed;top:20px;right:20px;z-index:9999;padding:12px 20px;border-radius:12px;font-size:14px;font-weight:500;box-shadow:0 8px 30px rgba(0,0,0,.3);transform:translateX(120%);transition:transform .3s cubic-bezier(.34,1.56,.64,1);display:flex;align-items:center;gap:8px;max-width:360px;color:white;"></div>
 
+    <!-- Universal Footer -->
+    <?php include __DIR__ . '/footer.php'; ?>
+
     <!-- Client-side real-time filter script -->
     <script>
         const searchInput = document.getElementById('searchInput');

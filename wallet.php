@@ -592,6 +592,9 @@ if (isset($_SESSION['payment_error'])) {
         </main>
     </div>
 
+    <!-- Universal Footer -->
+    <?php include __DIR__ . '/footer.php'; ?>
+
     <script>
         // ---- Top-up Tabs ----
         function switchTopupTab(tab) {

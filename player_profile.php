@@ -416,6 +416,8 @@ $name_initials = strtoupper(substr($user['name'], 0, 1));
         </main>
     </div>
 
+    <?php include __DIR__ . '/footer.php'; ?>
+
     <!-- ══ Cropper Modal ═════════════════════════════════════════════════ -->
     <div id="cropperModal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
         <div class="bg-white rounded-2xl max-w-md w-full overflow-hidden shadow-2xl border border-slate-100 animate-[fadeIn_0.2s_ease-out]">

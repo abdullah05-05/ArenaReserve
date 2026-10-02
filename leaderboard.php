@@ -400,6 +400,10 @@ body { font-family:'Inter',sans-serif; background:#f8fafc; }
     <?php endif; ?>
   </main>
 </div>
+
+<!-- Universal Footer -->
+<?php include __DIR__ . '/footer.php'; ?>
+
 </body>
 <script>
 function toggleProfileDropdown() {

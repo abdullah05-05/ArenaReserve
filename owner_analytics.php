@@ -775,6 +775,9 @@ try {
             </div>
         </main>
     </div>
+
+    <?php include __DIR__ . '/footer.php'; ?>
+
 <script>
 function toggleProfileDropdown() {
     const menu = document.getElementById('profileDropdownMenu');

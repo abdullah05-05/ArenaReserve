@@ -473,6 +473,9 @@ body { font-family: 'Inter', sans-serif; background: #f8fafc; }
   </main>
 </div>
 
+<!-- Universal Footer -->
+<?php include __DIR__ . '/footer.php'; ?>
+
 <!-- ============================================================
      CANCELLATION CONFIRMATION MODAL
 ============================================================ -->
