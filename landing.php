@@ -1,3 +1,46 @@
+<?php
+// ── Fetch real grounds from DB for carousel ──────────────────────────────────
+$carousel_grounds = [];
+try {
+    require_once __DIR__ . '/db.php';
+    $stmt = $pdo->prepare("
+        SELECT g.id, g.title, g.address, g.sport_type, g.base_price, g.image_path,
+               COALESCE(gr.avg_rating, 0) AS avg_rating,
+               COALESCE(gr.total_reviews, 0) AS total_reviews
+        FROM grounds g
+        LEFT JOIN (
+            SELECT ground_id, ROUND(AVG(rating),1) AS avg_rating, COUNT(*) AS total_reviews
+            FROM ground_ratings GROUP BY ground_id
+        ) gr ON gr.ground_id = g.id
+        WHERE g.is_verified = 1
+          AND (g.ground_status IS NULL OR g.ground_status = 'Active')
+        ORDER BY avg_rating DESC, total_reviews DESC, g.id ASC
+        LIMIT 12
+    ");
+    $stmt->execute();
+    $carousel_grounds = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    $carousel_grounds = [];
+}
+
+// Helper: resolve ground image src
+function getGroundImgSrc(array $g): string {
+    if (!empty($g['image_path']) && file_exists(__DIR__ . '/' . $g['image_path'])) {
+        return htmlspecialchars($g['image_path']);
+    }
+    $t  = strtolower($g['title'] ?? '');
+    $st = strtolower($g['sport_type'] ?? '');
+    if (str_contains($t,'basketball') || str_contains($st,'basketball')) return 'assets/images/basketball.png';
+    if (str_contains($t,'cricket')    || str_contains($st,'cricket'))    return 'assets/images/cricket.png';
+    return 'assets/images/football.png';
+}
+
+// Sport emoji map
+function sportEmoji(string $s): string {
+    $map = ['Cricket'=>'🏏','Football'=>'⚽','Basketball'=>'🏀','Futsal'=>'🏟️','Badminton'=>'🏸'];
+    return $map[$s] ?? '🏆';
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -126,6 +169,47 @@
             overflow: visible;
             pointer-events: auto;
         }
+
+        /* ── Ground Carousel ── */
+        .ground-carousel-wrapper {
+            position: relative;
+            overflow: hidden;
+        }
+        .ground-carousel-slide {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            transition: opacity 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+            pointer-events: none;
+        }
+        .ground-carousel-slide.active {
+            opacity: 1;
+            position: relative;
+            pointer-events: auto;
+        }
+        .carousel-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 999px;
+            background: rgba(255,255,255,0.4);
+            transition: all 0.35s ease;
+            cursor: pointer;
+        }
+        .carousel-dot.active {
+            background: #10b981;
+            width: 22px;
+        }
+
+        /* ── Featured Grounds Section ── */
+        .ground-card-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.5s ease;
+        }
+        .featured-ground-card:hover .ground-card-img {
+            transform: scale(1.05);
+        }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 antialiased overflow-x-hidden selection:bg-emerald-500 selection:text-white">
@@ -155,6 +239,7 @@
                     <a href="#about" class="hover:text-emerald-600 transition-colors py-1">About Us</a>
                     <a href="#mission" class="hover:text-emerald-600 transition-colors py-1">Our Mission</a>
                     <a href="#features" class="hover:text-emerald-600 transition-colors py-1">Features</a>
+                    <a href="#featured-grounds" class="hover:text-emerald-600 transition-colors py-1">Grounds</a>
                     <a href="#how-it-works" class="hover:text-emerald-600 transition-colors py-1">How It Works</a>
                     <a href="#venues" class="hover:text-emerald-600 transition-colors py-1">Sports</a>
                     <a href="#contact" class="hover:text-emerald-600 transition-colors py-1">Contact Us</a>
@@ -185,6 +270,7 @@
             <a href="#about" onclick="closeMobileMenu()" class="block px-3 py-2.5 rounded-lg text-base font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-600">About Us</a>
             <a href="#mission" onclick="closeMobileMenu()" class="block px-3 py-2.5 rounded-lg text-base font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-600">Our Mission</a>
             <a href="#features" onclick="closeMobileMenu()" class="block px-3 py-2.5 rounded-lg text-base font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-600">Features</a>
+            <a href="#featured-grounds" onclick="closeMobileMenu()" class="block px-3 py-2.5 rounded-lg text-base font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-600">Grounds</a>
             <a href="#how-it-works" onclick="closeMobileMenu()" class="block px-3 py-2.5 rounded-lg text-base font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-600">How It Works</a>
             <a href="#venues" onclick="closeMobileMenu()" class="block px-3 py-2.5 rounded-lg text-base font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-600">Sports</a>
             <a href="#contact" onclick="closeMobileMenu()" class="block px-3 py-2.5 rounded-lg text-base font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-600">Contact Us</a>
@@ -255,7 +341,7 @@
                     </div>
                 </div>
 
-                <!-- Right Visual: Mock Interactive Dashboard & Arena Cards -->
+                <!-- Right Visual: Live Grounds Carousel -->
                 <div class="lg:col-span-5 relative">
                     <!-- Floating Badge Top-Left -->
                     <div class="hidden sm:flex animate-float-slow absolute -top-8 -left-8 z-20 glass-card p-4 rounded-2xl shadow-xl flex items-center gap-3.5 border border-emerald-100">
@@ -268,59 +354,87 @@
                         </div>
                     </div>
 
-                    <!-- Main Showcase Card -->
+                    <!-- Main Showcase Card: Live Grounds Carousel -->
                     <div class="reveal-on-scroll glass-card rounded-3xl p-6 sm:p-7 shadow-2xl border border-white/60 relative z-10">
-                        <div class="relative h-52 sm:h-60 rounded-2xl overflow-hidden mb-5 bg-slate-900 group">
-                            <!-- Background preview gradient / visual -->
-                            <div class="absolute inset-0 bg-gradient-to-tr from-slate-950 via-slate-900 to-emerald-950 opacity-90"></div>
-                            
-                            <!-- Sports Field Graphic Mockup -->
-                            <div class="absolute inset-0 flex items-center justify-center opacity-25">
-                                <svg class="w-3/4 h-3/4 text-emerald-400" viewBox="0 0 100 60" fill="none" stroke="currentColor" stroke-width="1.5">
-                                    <rect x="5" y="5" width="90" height="50" rx="3"/>
-                                    <line x1="50" y1="5" x2="50" y2="55"/>
-                                    <circle cx="50" cy="30" r="10"/>
-                                    <rect x="5" y="18" width="15" height="24"/>
-                                    <rect x="80" y="18" width="15" height="24"/>
-                                </svg>
-                            </div>
 
-                            <div class="absolute top-3.5 left-3.5 flex items-center gap-2">
-                                <span class="bg-emerald-500 text-white text-[11px] font-extrabold uppercase px-3 py-1 rounded-full tracking-wider shadow">
-                                    Featured Arena
-                                </span>
-                                <span class="bg-slate-900/80 text-amber-400 text-xs font-bold px-2.5 py-1 rounded-full backdrop-blur-md">
-                                    ★ 4.9 (128 reviews)
-                                </span>
-                            </div>
+                        <!-- Carousel Image Area -->
+                        <div class="ground-carousel-wrapper relative h-52 sm:h-60 rounded-2xl overflow-hidden mb-5 bg-slate-900" id="heroCarouselWrapper">
 
-                            <div class="absolute bottom-4 left-4 right-4 text-white">
-                                <h3 class="text-xl font-bold tracking-tight">National Sports Complex</h3>
-                                <p class="text-xs text-slate-300 flex items-center gap-1 mt-0.5">
-                                    <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                                    Gulberg III, Main Boulevard
-                                </p>
-                            </div>
+                            <?php if (!empty($carousel_grounds)): ?>
+                                <?php foreach ($carousel_grounds as $idx => $cg): ?>
+                                    <div class="ground-carousel-slide <?= $idx === 0 ? 'active' : '' ?>" data-slide="<?= $idx ?>">
+                                        <!-- Background image -->
+                                        <img src="<?= getGroundImgSrc($cg) ?>"
+                                             alt="<?= htmlspecialchars($cg['title']) ?>"
+                                             class="w-full h-full object-cover"
+                                             onerror="this.onerror=null;this.src='assets/images/football.png'">
+                                        <!-- Dark overlay -->
+                                        <div class="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-900/40 to-transparent"></div>
+
+                                        <!-- Badges top -->
+                                        <div class="absolute top-3.5 left-3.5 flex items-center gap-2">
+                                            <span class="bg-emerald-500 text-white text-[11px] font-extrabold uppercase px-3 py-1 rounded-full tracking-wider shadow">
+                                                <?= htmlspecialchars($cg['sport_type']) ?>
+                                            </span>
+                                            <?php if ($cg['total_reviews'] > 0): ?>
+                                                <span class="bg-slate-900/80 text-amber-400 text-xs font-bold px-2.5 py-1 rounded-full backdrop-blur-md">
+                                                    ★ <?= number_format((float)$cg['avg_rating'], 1) ?> (<?= $cg['total_reviews'] ?>)
+                                                </span>
+                                            <?php else: ?>
+                                                <span class="bg-slate-900/80 text-emerald-400 text-xs font-bold px-2.5 py-1 rounded-full backdrop-blur-md">
+                                                    ✦ New Venue
+                                                </span>
+                                            <?php endif; ?>
+                                        </div>
+
+                                        <!-- Ground name & address -->
+                                        <div class="absolute bottom-4 left-4 right-4 text-white">
+                                            <h3 class="text-xl font-bold tracking-tight leading-tight"><?= htmlspecialchars($cg['title']) ?></h3>
+                                            <p class="text-xs text-slate-300 flex items-center gap-1 mt-0.5">
+                                                <svg class="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                                                <span class="truncate"><?= htmlspecialchars($cg['address']) ?></span>
+                                            </p>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+
+                                <!-- Dot indicators -->
+                                <div class="absolute bottom-3 right-4 flex items-center gap-1.5 z-10" id="carouselDots">
+                                    <?php foreach ($carousel_grounds as $idx => $cg): ?>
+                                        <div class="carousel-dot <?= $idx === 0 ? 'active' : '' ?>" onclick="heroCarouselGoTo(<?= $idx ?>)"></div>
+                                    <?php endforeach; ?>
+                                </div>
+
+                            <?php else: ?>
+                                <!-- Fallback: no grounds yet -->
+                                <div class="absolute inset-0 bg-gradient-to-tr from-slate-950 via-slate-900 to-emerald-950 opacity-90"></div>
+                                <div class="absolute inset-0 flex flex-col items-center justify-center text-white text-center px-4">
+                                    <span class="text-4xl mb-3">🏟️</span>
+                                    <h3 class="text-xl font-bold">Grounds Coming Soon</h3>
+                                    <p class="text-xs text-slate-400 mt-1">Be among the first owners to list your venue!</p>
+                                </div>
+                            <?php endif; ?>
                         </div>
 
-                        <!-- Real-time interactive slot selector simulation -->
+                        <!-- Price + CTA row -->
                         <div class="space-y-4">
                             <div class="flex items-center justify-between text-xs font-semibold text-slate-600">
-                                <span>Select Game Hour:</span>
-                                <span class="text-emerald-600 font-bold">Today, Available</span>
-                            </div>
-                            
-                            <div class="grid grid-cols-4 gap-2">
-                                <div class="py-2 text-center rounded-xl bg-slate-100 text-slate-400 text-xs font-medium line-through">06:00 PM</div>
-                                <div class="py-2 text-center rounded-xl bg-emerald-600 text-white text-xs font-bold shadow-md shadow-emerald-500/20">07:00 PM ✓</div>
-                                <div class="py-2 text-center rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold">08:00 PM</div>
-                                <div class="py-2 text-center rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold">09:00 PM</div>
+                                <span id="carouselGroundLabel">
+                                    <?= !empty($carousel_grounds) ? htmlspecialchars($carousel_grounds[0]['title']) : 'ArenaReserve Grounds' ?>
+                                </span>
+                                <span class="text-emerald-600 font-bold"><?= count($carousel_grounds) ?> Verified Arenas</span>
                             </div>
 
                             <div class="pt-3 border-t border-slate-100 flex items-center justify-between">
                                 <div>
-                                    <div class="text-[10px] uppercase font-bold text-slate-400">Total Slot Price</div>
-                                    <div class="text-xl font-black text-slate-900">3,500 <span class="text-xs font-medium text-slate-500">PKR</span></div>
+                                    <div class="text-[10px] uppercase font-bold text-slate-400">Starting From</div>
+                                    <div class="text-xl font-black text-slate-900" id="carouselGroundPrice">
+                                        <?php if (!empty($carousel_grounds)): ?>
+                                            <?= number_format($carousel_grounds[0]['base_price']) ?> <span class="text-xs font-medium text-slate-500">PKR/hr</span>
+                                        <?php else: ?>
+                                            — <span class="text-xs font-medium text-slate-500">PKR/hr</span>
+                                        <?php endif; ?>
+                                    </div>
                                 </div>
                                 <a href="signup.php" class="px-5 py-2.5 bg-slate-900 hover:bg-emerald-600 text-white text-xs font-bold rounded-xl transition-colors shadow">
                                     Instant Book
@@ -559,6 +673,102 @@
             </div>
         </div>
     </section>
+
+    <!-- ============================================================
+         FEATURED GROUNDS SECTION (Real DB data)
+    ============================================================ -->
+    <?php if (!empty($carousel_grounds)): ?>
+    <section id="featured-grounds" class="py-24 bg-white relative">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center max-w-3xl mx-auto">
+                <span class="reveal-on-scroll text-xs font-extrabold uppercase tracking-widest text-emerald-600 bg-emerald-100/80 px-3.5 py-1.5 rounded-lg">Live on ArenaReserve</span>
+                <h2 class="reveal-on-scroll delay-100 text-3xl sm:text-4xl lg:text-5xl font-black text-slate-900 mt-4 tracking-tight">
+                    Browse Our Verified Grounds
+                </h2>
+                <p class="reveal-on-scroll delay-200 mt-4 text-slate-600 text-sm sm:text-base leading-relaxed">
+                    Real sports venues, real-time slot availability. Instant confirmed bookings — no phone calls needed.
+                </p>
+            </div>
+
+            <div class="mt-14 grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                <?php foreach ($carousel_grounds as $idx => $cg):
+                    $delays = ['delay-100','delay-200','delay-300'];
+                    $delay = $delays[$idx % 3];
+                    $imgSrc = getGroundImgSrc($cg);
+                    $hasRating = $cg['total_reviews'] > 0;
+                    $sportColors = [
+                        'Cricket'    => ['bg-emerald-100','text-emerald-700','bg-emerald-600'],
+                        'Football'   => ['bg-teal-100','text-teal-700','bg-teal-600'],
+                        'Basketball' => ['bg-amber-100','text-amber-700','bg-amber-600'],
+                        'Futsal'     => ['bg-violet-100','text-violet-700','bg-violet-600'],
+                        'Badminton'  => ['bg-blue-100','text-blue-700','bg-blue-600'],
+                    ];
+                    $sc = $sportColors[$cg['sport_type']] ?? ['bg-slate-100','text-slate-700','bg-slate-600'];
+                ?>
+                <div class="reveal-on-scroll <?= $delay ?> featured-ground-card interactive-card bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-sm group">
+                    <!-- Image -->
+                    <div class="relative h-48 overflow-hidden bg-slate-900">
+                        <img src="<?= $imgSrc ?>"
+                             alt="<?= htmlspecialchars($cg['title']) ?>"
+                             class="ground-card-img"
+                             onerror="this.onerror=null;this.src='assets/images/football.png'">
+                        <div class="absolute inset-0 bg-gradient-to-t from-slate-900/60 to-transparent"></div>
+                        <!-- Sport type badge -->
+                        <div class="absolute top-3 left-3">
+                            <span class="<?= $sc[2] ?> text-white text-[11px] font-extrabold uppercase px-2.5 py-1 rounded-full shadow tracking-wider">
+                                <?= sportEmoji($cg['sport_type']) ?> <?= htmlspecialchars($cg['sport_type']) ?>
+                            </span>
+                        </div>
+                        <!-- Rating badge -->
+                        <?php if ($hasRating): ?>
+                        <div class="absolute top-3 right-3">
+                            <span class="bg-slate-900/80 text-amber-400 text-xs font-bold px-2 py-1 rounded-full backdrop-blur-md">
+                                ★ <?= number_format((float)$cg['avg_rating'], 1) ?>
+                                <span class="text-slate-400 font-normal">(<?= $cg['total_reviews'] ?>)</span>
+                            </span>
+                        </div>
+                        <?php else: ?>
+                        <div class="absolute top-3 right-3">
+                            <span class="bg-emerald-600/90 text-white text-[10px] font-bold px-2 py-1 rounded-full">New</span>
+                        </div>
+                        <?php endif; ?>
+                    </div>
+
+                    <!-- Card Details -->
+                    <div class="p-5">
+                        <h3 class="font-black text-slate-900 text-base mb-1 leading-tight group-hover:text-emerald-600 transition-colors">
+                            <?= htmlspecialchars($cg['title']) ?>
+                        </h3>
+                        <p class="text-xs text-slate-500 flex items-center gap-1 mb-4">
+                            <svg class="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                            <span class="truncate"><?= htmlspecialchars($cg['address']) ?></span>
+                        </p>
+                        <div class="flex items-center justify-between border-t border-slate-100 pt-3">
+                            <div>
+                                <div class="text-[10px] uppercase font-bold text-slate-400">Hourly Rate</div>
+                                <div class="font-black text-slate-900 text-base">
+                                    <?= number_format($cg['base_price']) ?> <span class="text-xs font-normal text-slate-500">PKR/hr</span>
+                                </div>
+                            </div>
+                            <a href="signup.php" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition-colors shadow-sm">
+                                Book Now
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <?php endforeach; ?>
+            </div>
+
+            <!-- CTA to see all -->
+            <div class="mt-12 text-center">
+                <a href="signup.php" class="btn-glow inline-flex items-center gap-2 px-8 py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-2xl">
+                    <span>View All Grounds & Book Instantly</span>
+                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+                </a>
+            </div>
+        </div>
+    </section>
+    <?php endif; ?>
 
     <!-- ============================================================
          SUPPORTED SPORTS SECTION
@@ -940,6 +1150,73 @@
 
             form.reset();
         }
+
+        // ── Hero Grounds Carousel ──────────────────────────────────────────────
+        (function() {
+            const slides = document.querySelectorAll('#heroCarouselWrapper .ground-carousel-slide');
+            const dots   = document.querySelectorAll('#carouselDots .carousel-dot');
+            const labelEl = document.getElementById('carouselGroundLabel');
+            const priceEl = document.getElementById('carouselGroundPrice');
+
+            if (!slides || slides.length < 2) return; // nothing to auto-rotate
+
+            // Embed ground data from PHP for JS to use
+            const groundData = <?= json_encode(array_map(function($g) {
+                return [
+                    'title'    => $g['title'],
+                    'price'    => number_format($g['base_price']),
+                ];
+            }, $carousel_grounds), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP) ?>;
+
+            let current = 0;
+            let autoTimer = null;
+
+            function goTo(idx) {
+                if (idx < 0) idx = slides.length - 1;
+                if (idx >= slides.length) idx = 0;
+
+                // Remove active from current
+                slides[current].classList.remove('active');
+                if (dots[current]) dots[current].classList.remove('active');
+
+                current = idx;
+
+                slides[current].classList.add('active');
+                if (dots[current]) dots[current].classList.add('active');
+
+                // Update label & price
+                if (labelEl && groundData[current]) {
+                    labelEl.textContent = groundData[current].title;
+                }
+                if (priceEl && groundData[current]) {
+                    priceEl.innerHTML = groundData[current].price + ' <span style="font-size:0.75rem;font-weight:500;color:#94a3b8">PKR/hr</span>';
+                }
+            }
+
+            function startAuto() {
+                autoTimer = setInterval(() => goTo(current + 1), 5000);
+            }
+
+            function resetAuto() {
+                clearInterval(autoTimer);
+                startAuto();
+            }
+
+            // Expose goTo for dot click handlers
+            window.heroCarouselGoTo = function(idx) {
+                goTo(idx);
+                resetAuto();
+            };
+
+            // Pause on hover
+            const wrapper = document.getElementById('heroCarouselWrapper');
+            if (wrapper) {
+                wrapper.addEventListener('mouseenter', () => clearInterval(autoTimer));
+                wrapper.addEventListener('mouseleave', startAuto);
+            }
+
+            startAuto();
+        })();
     </script>
 </body>
 </html>
