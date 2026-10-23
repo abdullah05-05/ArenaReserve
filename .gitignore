@@ -3,7 +3,7 @@ config.local.php
 
 
 # Logs
-*.log
+.env.example
 
 # Windows
 Thumbs.db
