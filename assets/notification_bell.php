@@ -248,6 +248,38 @@
 </style>
 
 <!-- ════════════════════════════════
+     SUPPORT ICON
+════════════════════════════════ -->
+<a href="contact.php"
+   id="support-icon-btn"
+   title="Support &amp; Help"
+   aria-label="Support and Help"
+   style="
+       position: relative;
+       display: flex;
+       align-items: center;
+       justify-content: center;
+       width: 38px;
+       height: 38px;
+       border-radius: 50%;
+       background: transparent;
+       border: none;
+       cursor: pointer;
+       color: #64748b;
+       text-decoration: none;
+       flex-shrink: 0;
+       transition: background 0.18s, color 0.18s;
+   "
+   onmouseover="this.style.background='#f1f5f9';this.style.color='#10b981';"
+   onmouseout="this.style.background='transparent';this.style.color='#64748b';">
+    <svg style="width:22px;height:22px;transition:transform 0.3s cubic-bezier(.34,1.56,.64,1);"
+         fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round"
+              d="M18.364 5.636a9 9 0 010 12.728M15.536 8.464a5 5 0 010 7.072M6.343 17.657a9 9 0 010-12.728M8.464 15.536a5 5 0 010-7.072M12 12h.01"/>
+    </svg>
+</a>
+
+<!-- ════════════════════════════════
      BELL BUTTON + DROPDOWN
 ════════════════════════════════ -->
 <div class="relative" id="notif-wrapper">
