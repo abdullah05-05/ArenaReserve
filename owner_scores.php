@@ -71,6 +71,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
 
             $ground_owner_id = intval($bk['ground_owner_id']);
 
+            // ── Authorization: only the owner of THIS ground may enter scores ──
+            $is_admin_post = (($_SESSION['current_role'] ?? '') === 'Admin');
+            if (!$is_admin_post && $user_id !== $ground_owner_id) {
+                throw new Exception('You are not authorised to enter scores for this booking. Only the venue owner can record match results.');
+            }
+
             // Verify slot has ended
             $slot_end_ts = strtotime($bk['slot_date'] . ' ' . sprintf('%02d:00:00', $bk['slot_hour'] + 1));
             if (time() < $slot_end_ts) {
@@ -151,8 +157,8 @@ try {
     $stmt_check->execute([$user_id]);
     $my_grounds_count = $stmt_check->fetchColumn();
 
-    if ($is_admin || $my_grounds_count == 0) {
-        // Admin or owner without specific registered grounds: fetch bookings
+    if ($is_admin) {
+        // Admin sees all bookings across every ground
         $stmt = $pdo->prepare("
             SELECT
                 b.id            AS booking_id,
@@ -184,7 +190,7 @@ try {
         ");
         $stmt->execute();
     } else {
-        // Fetch bookings for grounds owned by this user
+        // Ground owner: only see bookings for grounds they personally own
         $stmt = $pdo->prepare("
             SELECT
                 b.id            AS booking_id,
