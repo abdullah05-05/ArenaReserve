@@ -258,24 +258,28 @@ body { background: #f5f6fa; }
 
 .slot-card { border-radius: 10px; padding: 12px; transition: all 0.18s ease; }
 
-/* Modal */
+/* Bottom Sheet */
 #booking-modal-overlay {
     position: fixed; inset: 0; background: rgba(0,0,0,0.55); backdrop-filter: blur(4px);
-    z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 16px;
-    opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
+    z-index: 1000; display: flex; align-items: flex-end; justify-content: center;
+    opacity: 0; pointer-events: none; transition: opacity 0.25s ease;
 }
 #booking-modal-overlay.open { opacity: 1; pointer-events: all; }
 #booking-modal {
-    background: white; border-radius: 20px; box-shadow: 0 25px 80px rgba(0,0,0,0.3);
-    max-width: 520px; width: 100%; max-height: 90vh; display: flex; flex-direction: column;
-    transform: scale(0.92) translateY(20px);
-    transition: transform 0.25s cubic-bezier(.34,1.56,.64,1), opacity 0.2s ease;
-    opacity: 0; overflow: hidden;
+    background: white; border-radius: 24px 24px 0 0; box-shadow: 0 -10px 60px rgba(0,0,0,0.25);
+    width: 100%; max-width: 640px; max-height: 85vh; display: flex; flex-direction: column;
+    transform: translateY(100%);
+    transition: transform 0.35s cubic-bezier(.32,1,.23,1);
+    overflow: hidden;
 }
 #booking-modal > div:not(:first-child) {
     overflow-y: auto;
 }
-#booking-modal-overlay.open #booking-modal { transform: scale(1) translateY(0); opacity: 1; }
+#booking-modal-overlay.open #booking-modal { transform: translateY(0); }
+/* Bottom sheet drag handle */
+.bottom-sheet-handle {
+    width: 40px; height: 5px; background: #cbd5e1; border-radius: 3px; margin: 10px auto 0;
+}
 
 /* Hold timer */
 .hold-timer-bar {
@@ -782,8 +786,8 @@ body { background: #f5f6fa; }
     <button onclick="clearAllSelections()" class="text-xs text-white/80 hover:text-white px-3 py-2 rounded-xl transition-colors font-medium bg-white/10 hover:bg-white/20 cursor-pointer">
       Clear
     </button>
-    <button onclick="goToCheckoutPage()" class="bg-white hover:bg-slate-50 text-emerald-700 text-xs font-extrabold px-4 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer">
-      <span>Proceed to Checkout</span>
+    <button onclick="openModal()" class="bg-white hover:bg-slate-50 text-emerald-700 text-xs font-extrabold px-4 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer">
+      <span>Continue</span>
       <svg class="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
     </button>
   </div>
@@ -794,6 +798,9 @@ body { background: #f5f6fa; }
 ============================================================ -->
 <div id="booking-modal-overlay">
   <div id="booking-modal">
+
+    <!-- Bottom Sheet Drag Handle -->
+    <div class="bottom-sheet-handle"></div>
 
     <!-- Modal Header -->
     <div class="bg-gradient-to-r from-emerald-600 to-teal-600 px-6 pt-6 pb-5 text-white">
@@ -834,61 +841,86 @@ body { background: #f5f6fa; }
     </div>
 
     <!-- Step 1: Choose booking type -->
-    <div id="step-1" class="p-6">
-      <p class="text-sm font-semibold text-slate-700 mb-3">How would you like to book the selected slot(s)?</p>
+    <div id="step-1" class="p-5 sm:p-6 space-y-4">
       
-      <div class="space-y-3">
-        <!-- Direct Booking -->
-        <div class="choice-card" onclick="selectBookingType('direct', this)">
-          <div class="flex items-start gap-3">
-            <div class="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center flex-shrink-0">
-              <svg class="h-5 w-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-            </div>
-            <div class="flex-1">
-              <div class="font-bold text-slate-800 text-sm">Direct Booking</div>
-              <div class="text-xs text-slate-500 mt-0.5">Reserve exclusively. Pay 50% advance now, remaining 50% at the venue.</div>
-              <div class="mt-1.5 text-xs font-bold text-emerald-600" id="direct-price-label">Advance: -- PKR (50%)</div>
+      <!-- Selected Slots Itemized Box -->
+      <div class="bg-slate-50 border border-slate-200/90 rounded-2xl p-3.5 sm:p-4">
+        <div class="flex items-center justify-between mb-2.5 pb-2 border-b border-slate-200/80">
+          <span class="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+            <span>🕒</span> Selected Slot(s) (<span id="step1-slots-count">1</span>)
+          </span>
+          <span class="text-xs font-extrabold text-emerald-700" id="step1-total-price">-- PKR</span>
+        </div>
+        <div id="step1-slots-list" class="space-y-1.5 max-h-36 overflow-y-auto pr-0.5">
+          <!-- Itemized slots rendered dynamically in openModal() -->
+        </div>
+      </div>
+
+      <div>
+        <p class="text-xs font-bold uppercase tracking-wider text-slate-600 mb-2.5">Choose Booking Type</p>
+        <div class="space-y-2.5">
+          <!-- Direct Booking -->
+          <div class="choice-card" onclick="selectBookingType('direct', this)">
+            <div class="flex items-start gap-3">
+              <div class="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                <svg class="h-5 w-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              </div>
+              <div class="flex-1">
+                <div class="flex items-center justify-between">
+                  <span class="font-bold text-slate-800 text-sm">Direct Booking</span>
+                  <span class="text-xs font-bold text-emerald-600">50% Advance</span>
+                </div>
+                <div class="text-xs text-slate-500 mt-0.5">Reserve exclusively for your squad. Pay 50% advance now, remaining 50% at the venue.</div>
+                <div class="mt-1.5 text-xs font-bold text-emerald-600" id="direct-price-label">Advance: -- PKR (50%)</div>
+              </div>
             </div>
           </div>
-        </div>
 
-        <!-- Open Challenge -->
-        <div class="choice-card" onclick="selectBookingType('open_challenge', this)">
-          <div class="flex items-start gap-3">
-            <div class="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center flex-shrink-0">
-              <svg class="h-5 w-5 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-            </div>
-            <div class="flex-1">
-              <div class="font-bold text-slate-800 text-sm">Open Challenge</div>
-              <div class="text-xs text-slate-500 mt-0.5">Post an open match. Pay 25% now, opponent pays 25%, remaining 50% at venue.</div>
-              <div class="mt-1.5 text-xs font-bold text-violet-600" id="open-price-label">Pay now: -- PKR (25%)</div>
+          <!-- Open Challenge -->
+          <div class="choice-card" onclick="selectBookingType('open_challenge', this)">
+            <div class="flex items-start gap-3">
+              <div class="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center flex-shrink-0">
+                <svg class="h-5 w-5 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+              </div>
+              <div class="flex-1">
+                <div class="flex items-center justify-between">
+                  <span class="font-bold text-slate-800 text-sm">Open Challenge</span>
+                  <span class="text-xs font-bold text-violet-600">25% Advance</span>
+                </div>
+                <div class="text-xs text-slate-500 mt-0.5">Post an open match. Pay 25% now, opponent pays 25%, remaining 50% at venue.</div>
+                <div class="mt-1.5 text-xs font-bold text-violet-600" id="open-price-label">Pay now: -- PKR (25%)</div>
+              </div>
             </div>
           </div>
-        </div>
 
-        <!-- Challenge a Specific Team -->
-        <div class="choice-card" onclick="selectBookingType('team_challenge', this)">
-          <div class="flex items-start gap-3">
-            <div class="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center flex-shrink-0">
-              <svg class="h-5 w-5 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-            </div>
-            <div class="flex-1">
-              <div class="font-bold text-slate-800 text-sm">Challenge a Specific Team</div>
-              <div class="text-xs text-slate-500 mt-0.5">Search and invite a team. You each pay 25% advance now, remaining 50% at venue.</div>
-              <div class="mt-1.5 text-xs font-bold text-orange-600" id="team-price-label">Your share: -- PKR (25%)</div>
+          <!-- Challenge a Specific Team -->
+          <div class="choice-card" onclick="selectBookingType('team_challenge', this)">
+            <div class="flex items-start gap-3">
+              <div class="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center flex-shrink-0">
+                <svg class="h-5 w-5 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+              </div>
+              <div class="flex-1">
+                <div class="flex items-center justify-between">
+                  <span class="font-bold text-slate-800 text-sm">Challenge a Specific Team</span>
+                  <span class="text-xs font-bold text-orange-600">25% Advance</span>
+                </div>
+                <div class="text-xs text-slate-500 mt-0.5">Search and invite a squad. You each pay 25% advance now, remaining 50% at venue.</div>
+                <div class="mt-1.5 text-xs font-bold text-orange-600" id="team-price-label">Your share: -- PKR (25%)</div>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      <button onclick="proceedToStep2()"
-              class="mt-5 w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl text-sm transition-all shadow-md hover:shadow-lg disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+      <button onclick="goToCheckoutPage()"
+              class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-3.5 px-4 rounded-xl text-sm transition-all shadow-md hover:shadow-lg disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
               id="step1-next-btn" disabled>
-        Continue →
+        <span>Select Booking Type to Proceed</span>
+        <svg class="w-4 h-4 ml-1 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
       </button>
     </div>
 
-    <!-- Step 2: Confirmation & Payment Selection -->
+    <!-- Step 2: Booking Summary & Proceed to Checkout -->
     <div id="step-2-checkout" class="p-6 hidden">
       <button onclick="backToStep1()" class="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 mb-3 font-medium cursor-pointer">
         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
@@ -896,7 +928,7 @@ body { background: #f5f6fa; }
       </button>
 
       <h3 class="text-base font-bold text-slate-800" id="s2-title">Confirm Booking</h3>
-      <p class="text-xs text-slate-500 mb-3" id="s2-subtitle">Review booking summary and choose your payment method.</p>
+      <p class="text-xs text-slate-500 mb-3" id="s2-subtitle">Review booking summary, then proceed to checkout to pay.</p>
 
       <!-- Slot Details Summary -->
       <div class="bg-slate-50 rounded-xl p-4 mb-4 space-y-2 text-xs border border-slate-200">
@@ -923,91 +955,12 @@ body { background: #f5f6fa; }
         </div>
       </div>
 
-      <!-- Payment Method Switcher -->
-      <div class="mb-4">
-        <label class="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-2">Choose How to Pay Advance</label>
-        <div class="grid grid-cols-2 gap-2.5">
-          <!-- Wallet Card Option -->
-          <div id="payopt-wallet" onclick="selectPaymentMethod('wallet')" class="pay-method-card selected">
-            <div class="flex items-center gap-1.5 mb-1">
-              <span class="text-base">💳</span>
-              <span class="font-bold text-xs text-slate-800">Pay with Wallet</span>
-            </div>
-            <div class="text-[10px] text-slate-500">Balance: <span class="font-bold text-slate-700" id="s2-wallet-bal">-- PKR</span></div>
-          </div>
-
-          <!-- JazzCash Card Option -->
-          <div id="payopt-jazzcash" onclick="selectPaymentMethod('jazzcash')" class="pay-method-card">
-            <div class="flex items-center gap-1.5 mb-1">
-              <span class="text-base">⚡</span>
-              <span class="font-bold text-xs text-slate-800">JazzCash Online</span>
-            </div>
-            <div class="text-[10px] text-red-600 font-semibold truncate">Mobile · Cards · Voucher</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Panel 1: Wallet Payment -->
-      <div id="panel-wallet" class="space-y-3">
-        <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs space-y-1.5">
-          <div class="flex justify-between text-slate-500">
-            <span>Available Balance:</span>
-            <span class="font-semibold text-slate-700" id="pw-balance">-- PKR</span>
-          </div>
-          <div class="flex justify-between text-slate-500">
-            <span>Balance After Advance:</span>
-            <span class="font-bold" id="pw-after">-- PKR</span>
-          </div>
-        </div>
-
-        <div id="pw-insufficient-alert" class="hidden bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800">
-          <div class="font-bold mb-1 flex items-center gap-1">
-            <span>⚠️ Insufficient Wallet Balance</span>
-          </div>
-          <p class="text-[11px]">Your wallet balance is less than the advance fee. You can pay instantly online via JazzCash!</p>
-          <button type="button" onclick="selectPaymentMethod('jazzcash')" class="mt-2 text-xs font-bold text-red-700 bg-red-100 hover:bg-red-200 px-3 py-1.5 rounded-lg transition-colors inline-flex items-center gap-1 cursor-pointer">
-            ⚡ Switch to JazzCash Online Checkout →
-          </button>
-        </div>
-
-        <button type="button" id="wallet-pay-btn" onclick="submitWalletBooking()"
-                class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl text-sm transition-all shadow-md cursor-pointer">
-          ✅ Pay Advance from Wallet
-        </button>
-      </div>
-
-      <!-- Panel 2: JazzCash Online Checkout -->
-      <div id="panel-jazzcash" class="hidden space-y-3">
-        <div class="bg-gradient-to-r from-red-50 to-amber-50 border border-red-200 rounded-xl p-3 text-xs space-y-2">
-          <div class="flex items-center justify-between">
-            <span class="font-bold text-slate-800">⚡ JazzCash Online Checkout</span>
-            <div class="flex items-center gap-1">
-              <span class="px-1.5 py-0.5 bg-white border border-red-200 text-[10px] font-bold text-red-700 rounded shadow-2xs">JazzCash</span>
-              <span class="px-1.5 py-0.5 bg-white border border-red-200 text-[10px] font-bold text-red-700 rounded shadow-2xs">Cards</span>
-            </div>
-          </div>
-          <p class="text-[11px] text-slate-600">Pay your advance fee securely via JazzCash. You will be redirected to the secure payment page.</p>
-        </div>
-
-        <div class="grid grid-cols-2 gap-2 text-xs">
-          <div>
-            <label class="block text-[11px] font-semibold text-slate-700 mb-1">Mobile Number</label>
-            <input type="text" id="jc-booking-phone" value="<?php echo htmlspecialchars($currentUser['phone'] ?? ''); ?>" placeholder="03001234567"
-                   class="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:ring-1 focus:ring-emerald-400 focus:outline-none">
-          </div>
-          <div>
-            <label class="block text-[11px] font-semibold text-slate-700 mb-1">Email Address</label>
-            <input type="email" id="jc-booking-email" value="<?php echo htmlspecialchars($currentUser['email'] ?? ''); ?>" placeholder="player@example.com"
-                   class="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:ring-1 focus:ring-emerald-400 focus:outline-none">
-          </div>
-        </div>
-
-        <button type="button" id="jazzcash-pay-btn" onclick="submitJazzCashBooking()"
-                class="w-full bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-700 hover:to-amber-700 text-white font-bold py-3 rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer">
-          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-          <span id="jc-booking-btn-text">⚡ Proceed to JazzCash Checkout</span>
-        </button>
-      </div>
+      <button onclick="goToCheckoutPage()"
+              class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl text-sm transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2 cursor-pointer">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+        <span>Proceed to Checkout</span>
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+      </button>
     </div>
 
     <!-- Step 2c: Challenge Team – redirect info -->
@@ -1058,7 +1011,6 @@ let livePollInterval    = null;
 let holdSeconds         = 600;
 let selectedType        = null;
 let isModalOpen         = false;
-let currentPaymentMethod = 'wallet';
 
 // Grounds Data & Reviews Maps
 const groundsDataMap   = <?php echo json_encode($grounds_js_map); ?>;
@@ -1525,6 +1477,30 @@ function openModal() {
     `).join('');
   }
 
+  // Render itemized slots in Step 1
+  const sList = document.getElementById('step1-slots-list');
+  const sCount = document.getElementById('step1-slots-count');
+  const sTotal = document.getElementById('step1-total-price');
+  if (sCount) sCount.textContent = count;
+  if (sTotal) sTotal.textContent = `${formatNum(totalPrice)} PKR`;
+  if (sList) {
+    sList.innerHTML = sorted.map(s => `
+      <div class="flex items-center justify-between py-2 px-3 bg-white rounded-xl border border-slate-200 text-xs shadow-2xs">
+        <div class="flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+          <span class="font-semibold text-slate-800">${escHtml(s.time)}</span>
+        </div>
+        <span class="font-bold text-slate-900">${formatNum(s.price)} PKR</span>
+      </div>
+    `).join('');
+  }
+
+  const nextBtn = document.getElementById('step1-next-btn');
+  if (nextBtn) {
+    nextBtn.disabled = true;
+    nextBtn.innerHTML = `<span>Select Booking Type to Proceed</span> <svg class="w-4 h-4 ml-1 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>`;
+  }
+
   const directHalf = Math.round(totalPrice * 0.5);
   const quarter    = Math.round(totalPrice * 0.25);
   document.getElementById('direct-price-label').textContent = 'Advance: ' + formatNum(directHalf) + ' PKR (50%)';
@@ -1665,27 +1641,6 @@ function onDateChanged(newDate) {
   fetchSlotsLive(currentGroundId, currentDate, true);
 }
 
-// ---- Payment Method State in Modal ----
-function selectPaymentMethod(method) {
-  currentPaymentMethod = method;
-  const wCard = document.getElementById('payopt-wallet');
-  const jcCard = document.getElementById('payopt-jazzcash');
-  const wPanel = document.getElementById('panel-wallet');
-  const jcPanel = document.getElementById('panel-jazzcash');
-
-  if (method === 'wallet') {
-    if (wCard) { wCard.className = 'pay-method-card selected'; }
-    if (jcCard) { jcCard.className = 'pay-method-card'; }
-    if (wPanel) { wPanel.classList.remove('hidden'); }
-    if (jcPanel) { jcPanel.classList.add('hidden'); }
-  } else {
-    if (wCard) { wCard.className = 'pay-method-card'; }
-    if (jcCard) { jcCard.className = 'pay-method-card selected'; }
-    if (wPanel) { wPanel.classList.add('hidden'); }
-    if (jcPanel) { jcPanel.classList.remove('hidden'); }
-  }
-}
-
 // ---- Step Navigation in Booking Modal ----
 function showStep(n) {
   ['step-1','step-2-checkout','step-2-team'].forEach(id => {
@@ -1755,8 +1710,6 @@ function showStep(n) {
   }
 
   document.getElementById('s2-full-price').textContent = formatNum(totalPrice) + ' PKR';
-  document.getElementById('s2-wallet-bal').textContent  = formatNum(balance) + ' PKR';
-  document.getElementById('pw-balance').textContent     = formatNum(balance) + ' PKR';
 
   const isDirect = (selectedType === 'direct');
   const advanceAmount = isDirect ? directHalf : quarter;
@@ -1766,8 +1719,8 @@ function showStep(n) {
     : (count > 1 ? `Post Open Challenge (${count} Slots)` : 'Post Open Challenge');
 
   document.getElementById('s2-subtitle').textContent = isDirect 
-    ? `Pay 50% advance now (${formatNum(advanceAmount)} PKR), remaining 50% at venue.`
-    : `Pay 25% share now (${formatNum(advanceAmount)} PKR), opponent pays 25%, remaining 50% at venue.`;
+    ? `Pay 50% advance (${formatNum(advanceAmount)} PKR) on next page, remaining 50% at venue.`
+    : `Pay 25% share (${formatNum(advanceAmount)} PKR) on next page, opponent pays 25%, remaining 50% at venue.`;
 
   document.getElementById('s2-advance-label').textContent = isDirect ? 'Advance Payment (50%):' : 'You Pay Now (25% Advance):';
   document.getElementById('s2-advance-price').textContent = formatNum(advanceAmount) + ' PKR';
@@ -1784,115 +1737,23 @@ function showStep(n) {
 
   const venueDue = isDirect ? (totalPrice - directHalf) : (totalPrice - (quarter * 2));
   document.getElementById('s2-venue-due').textContent = formatNum(venueDue) + ' PKR';
-
-  // Balance calculation
-  const after = balance - advanceAmount;
-  const afterEl = document.getElementById('pw-after');
-  if (afterEl) {
-    afterEl.textContent = formatNum(after) + ' PKR';
-    afterEl.className = 'font-bold ' + (after >= 0 ? 'text-emerald-600' : 'text-red-600');
-  }
-
-  const walletBtn = document.getElementById('wallet-pay-btn');
-  const alertBox  = document.getElementById('pw-insufficient-alert');
-  const jcBtnText = document.getElementById('jc-booking-btn-text');
-
-  if (jcBtnText) {
-    jcBtnText.textContent = `⚡ Pay ${formatNum(advanceAmount)} PKR via JazzCash`;
-  }
-
-  if (balance < advanceAmount) {
-    if (walletBtn) {
-      walletBtn.disabled = true;
-      walletBtn.textContent = '❌ Insufficient Wallet Balance';
-      walletBtn.className = 'w-full bg-slate-300 text-slate-500 font-bold py-3 rounded-xl text-sm cursor-not-allowed';
-    }
-    if (alertBox) alertBox.classList.remove('hidden');
-    selectPaymentMethod('jazzcash');
-  } else {
-    if (walletBtn) {
-      walletBtn.disabled = false;
-      walletBtn.textContent = `✅ Pay ${formatNum(advanceAmount)} PKR from Wallet`;
-      walletBtn.className = 'w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl text-sm transition-all shadow-md cursor-pointer';
-    }
-    if (alertBox) alertBox.classList.add('hidden');
-    selectPaymentMethod('wallet');
-  }
 }
 
 function selectBookingType(type, el) {
   selectedType = type;
   document.querySelectorAll('.choice-card').forEach(c => c.classList.remove('selected'));
   el.classList.add('selected');
-  document.getElementById('step1-next-btn').disabled = false;
+  const btn = document.getElementById('step1-next-btn');
+  if (btn) {
+    btn.disabled = false;
+    let typeName = 'Direct Booking';
+    if (type === 'open_challenge') typeName = 'Open Challenge';
+    if (type === 'team_challenge') typeName = 'Team Challenge';
+    btn.innerHTML = `<span>Proceed to Checkout (${typeName})</span> <svg class="w-4 h-4 ml-1.5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>`;
+  }
 }
 function proceedToStep2() { if (!selectedType) return; showStep(2); }
 function backToStep1()    { showStep(1); }
-
-// ---- Submit Wallet Booking ----
-function submitWalletBooking() {
-  submitBooking(selectedType);
-}
-
-// ---- Submit JazzCash Online Checkout Booking ----
-function submitJazzCashBooking() {
-  if (selectedSlots.size === 0) return;
-  const hours = Array.from(selectedSlots.keys());
-  const url = `checkout.php?ground_id=${currentGroundId}&date=${currentDate}&hours=${encodeURIComponent(JSON.stringify(hours))}&type=${selectedType || 'direct'}&method=mwallet`;
-  window.location.href = url;
-}
-
-// ---- Submit Booking via Wallet ----
-function submitBooking(type) {
-  if (selectedSlots.size === 0) return;
-
-  const btn = document.getElementById('wallet-pay-btn');
-  if (btn) { btn.disabled = true; btn.textContent = 'Processing payment…'; }
-
-  const hours = Array.from(selectedSlots.keys());
-
-  fetch('process_booking.php', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-    body: new URLSearchParams({
-      ground_id:    currentGroundId,
-      slot_date:    currentDate,
-      slot_hours:   JSON.stringify(hours),
-      booking_type: type
-    })
-  })
-  .then(r => r.json())
-  .then(res => {
-    if (res.success) {
-      selectedSlots.clear();
-      updateMultiSlotBar();
-      closeModal();
-      showToast(res.message, 'success');
-
-      // Deduct wallet balance locally in real time
-      if (res.amount_paid !== undefined) {
-        currentWalletBalance = Math.max(0, currentWalletBalance - parseFloat(res.amount_paid));
-        updateWalletNavbar(currentWalletBalance);
-      }
-
-      // Fetch fresh slots live
-      fetchSlotsLive(currentGroundId, currentDate, false);
-    } else {
-      showToast('❌ ' + res.message, 'error');
-      if (btn) {
-        btn.disabled    = false;
-        let totalP = 0;
-        selectedSlots.forEach(s => totalP += s.price);
-        const advAmt = (type === 'direct') ? Math.round(totalP * 0.5) : Math.round(totalP * 0.25);
-        btn.textContent = `✅ Pay ${formatNum(advAmt)} PKR from Wallet`;
-      }
-    }
-  })
-  .catch(() => {
-    showToast('❌ Network error.', 'error');
-    if (btn) btn.disabled = false;
-  });
-}
 
 // ---- Go to Dedicated Checkout Page ----
 function goToCheckoutPage() {
@@ -1901,7 +1762,8 @@ function goToCheckoutPage() {
     return;
   }
   const hours = Array.from(selectedSlots.keys());
-  window.location.href = `checkout.php?ground_id=${currentGroundId}&date=${currentDate}&hours=${hours.join(',')}`;
+  const type = selectedType || 'direct';
+  window.location.href = `checkout.php?ground_id=${currentGroundId}&date=${currentDate}&hours=${hours.join(',')}&type=${type}`;
 }
 
 // ---- Go to Challenge Team Page ----
