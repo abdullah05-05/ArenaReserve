@@ -157,7 +157,7 @@ body { font-family:'Inter',sans-serif; background:#f8fafc; }
     include 'logo_head.php';
     ?>
 </head>
-<body>
+<body class="bg-slate-50 min-h-screen flex flex-col">
 <!-- Toast -->
 <div id="ct-toast"></div>
 
@@ -247,7 +247,7 @@ body { font-family:'Inter',sans-serif; background:#f8fafc; }
   </div>
 </header>
 
-<div class="flex max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 gap-6">
+<div class="flex-1 flex max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 gap-6">
   <!-- Sidebar -->
   <aside class="hidden lg:block w-64 flex-shrink-0">
     <nav class="space-y-1 bg-white rounded-xl border border-slate-200 p-3 shadow-sm">
@@ -372,6 +372,8 @@ body { font-family:'Inter',sans-serif; background:#f8fafc; }
     <?php endif; ?>
   </main>
 </div>
+
+<?php include __DIR__ . '/footer.php'; ?>
 
 <!-- ============================================================
      CHALLENGE PAYMENT MODAL
