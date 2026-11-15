@@ -1,4 +1,5 @@
 <?php
+require_once 'session_config.php';
 session_start();
 require_once 'db.php';
 require_once 'logo_helper.php';
@@ -39,6 +40,8 @@ if (empty($token)) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $user) {
+    require_once 'csrf_helper.php';
+    csrf_require();
     $password = $_POST['password'] ?? '';
     $confirm_password = $_POST['confirm_password'] ?? '';
 
@@ -126,6 +129,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $user) {
             <?php if ($user): ?>
                 <form id="resetForm" class="space-y-6" action="reset-password.php" method="POST" novalidate>
                     <input type="hidden" name="token" value="<?php echo htmlspecialchars($token); ?>">
+                    <?php echo csrf_field(); ?>
                     
                     <!-- New Password -->
                     <div>
@@ -163,6 +167,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $user) {
                 </a>
             </div>
 
+            <?php
+$reset_config = require __DIR__ . '/config_constants.php';
+$support = $reset_config['support'];
+?>
             <div class="mt-6 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-center gap-3 text-xs text-slate-400">
                 <a href="terms.php" class="hover:text-emerald-600 transition-colors">Terms</a>
                 <span>•</span>
@@ -172,7 +180,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $user) {
                 <span>•</span>
                 <a href="cancellation-policy.php" class="hover:text-emerald-600 transition-colors">Cancellation</a>
                 <span>•</span>
-                <a href="contact.php" class="hover:text-emerald-600 transition-colors">Support (03137970801)</a>
+                <a href="contact.php" class="hover:text-emerald-600 transition-colors">Support (<?php echo htmlspecialchars($support['phone']); ?>)</a>
             </div>
         </div>
     </div>

@@ -1,4 +1,5 @@
 <?php
+require_once 'session_config.php';
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'db.php';
 require_once 'logo_helper.php';

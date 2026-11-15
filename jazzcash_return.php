@@ -1,4 +1,5 @@
 <?php
+require_once 'session_config.php';
 /**
  * jazzcash_return.php
  * Landing page when user returns from JazzCash Hosted Checkout.

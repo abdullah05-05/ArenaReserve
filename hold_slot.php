@@ -1,4 +1,5 @@
 <?php
+require_once 'session_config.php';
 /**
  * hold_slot.php — AJAX endpoint to place, refresh, or release a 10-minute hold on one or multiple slots.
  * Uses MySQL NOW() exclusively to avoid PHP ↔ MySQL timezone mismatches.
@@ -7,9 +8,13 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 require_once 'db.php';
+require_once 'csrf_helper.php';
 if (!headers_sent()) {
     header('Content-Type: application/json');
 }
+
+// CSRF protection for AJAX
+csrf_require();
 
 if (!isset($_SESSION['user_id'])) {
     echo json_encode(['success' => false, 'message' => 'Not authenticated.']);

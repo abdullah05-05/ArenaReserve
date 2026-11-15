@@ -1,4 +1,5 @@
 <?php
+require_once 'session_config.php';
 /**
  * process_booking.php — AJAX endpoint to process a booking payment for one or multiple slots.
  * POST params: ground_id, slot_date, slot_hours (or slot_hour), booking_type, challenger_team_name (optional), ch_message (optional)
@@ -9,9 +10,13 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 require_once 'db.php';
 require_once 'notifications.php';
+require_once 'csrf_helper.php';
 if (!headers_sent()) {
     header('Content-Type: application/json');
 }
+
+// CSRF protection for AJAX
+csrf_require();
 
 if (!isset($_SESSION['user_id'])) {
     echo json_encode(['success' => false, 'message' => 'Not authenticated.']);
@@ -111,6 +116,8 @@ try {
     $stmt->execute(array_merge([$ground_id], $slot_hours));
     $slotPriceRows = $stmt->fetchAll();
     
+    require_once __DIR__ . '/MoneyHelper.php';
+
     $slotPrices = [];
     foreach ($slotPriceRows as $sp) {
         $slotPrices[intval($sp['hour'])] = floatval($sp['price']);
@@ -127,8 +134,8 @@ try {
             exit;
         }
         $full_price = $slotPrices[$h];
-        $advance = ($booking_type === 'direct') ? round($full_price * 0.50, 2) : round($full_price * 0.25, 2);
-        
+        $advance = MoneyHelper::calculateAdvance($full_price, $booking_type);
+
         $total_full_price += $full_price;
         $total_amount_to_charge += $advance;
 

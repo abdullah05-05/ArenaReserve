@@ -889,6 +889,12 @@ function sportEmoji(string $s): string {
                 </p>
             </div>
 
+<?php
+$landing_config = require __DIR__ . '/config_constants.php';
+$support = $landing_config['support'];
+$platform = $landing_config['platform'];
+?>
+
             <div class="grid lg:grid-cols-12 gap-10 lg:gap-12 items-start">
                 <!-- Left: Contact Information Cards -->
                 <div class="lg:col-span-5 space-y-6">
@@ -899,8 +905,8 @@ function sportEmoji(string $s): string {
                         </div>
                         <div>
                             <div class="text-xs font-bold uppercase tracking-wider text-slate-400">Phone & WhatsApp Support</div>
-                            <a href="tel:03137970801" class="text-base font-extrabold text-slate-900 hover:text-emerald-600 transition-colors block mt-1">
-                                03137970801
+                            <a href="tel:<?php echo htmlspecialchars($support['phone']); ?>" class="text-base font-extrabold text-slate-900 hover:text-emerald-600 transition-colors block mt-1">
+                                <?php echo htmlspecialchars($support['phone']); ?>
                             </a>
                             <div class="text-xs text-slate-500 mt-0.5 font-medium">Mon – Sun: 9:00 AM – 11:00 PM PKT</div>
                         </div>
@@ -913,10 +919,10 @@ function sportEmoji(string $s): string {
                         </div>
                         <div>
                             <div class="text-xs font-bold uppercase tracking-wider text-slate-400">Email Inquiries</div>
-                            <a href="mailto:abdullahtariq0505@gmail.com" class="text-base font-extrabold text-slate-900 hover:text-emerald-600 transition-colors block mt-1">
-                                abdullahtariq0505@gmail.com
+                            <a href="mailto:<?php echo htmlspecialchars($support['email']); ?>" class="text-base font-extrabold text-slate-900 hover:text-emerald-600 transition-colors block mt-1">
+                                <?php echo htmlspecialchars($support['email']); ?>
                             </a>
-                            <div class="text-xs text-slate-500 mt-0.5 font-medium">Operations & Support: <a href="mailto:abdullahtariq0505@gmail.com" class="text-emerald-600 hover:underline">abdullahtariq0505@gmail.com</a></div>
+                            <div class="text-xs text-slate-500 mt-0.5 font-medium">Operations & Support: <a href="mailto:<?php echo htmlspecialchars($support['email']); ?>" class="text-emerald-600 hover:underline"><?php echo htmlspecialchars($support['email']); ?></a></div>
                         </div>
                     </div>
 
@@ -928,10 +934,10 @@ function sportEmoji(string $s): string {
                         <div>
                             <div class="text-xs font-bold uppercase tracking-wider text-slate-400">Head Office</div>
                             <div class="text-sm font-bold text-slate-900 mt-1 leading-snug">
-                                ArenaReserve Sports Tech HQ
+                                <?php echo $platform['name']; ?> Sports Tech HQ
                             </div>
                             <div class="text-xs text-slate-500 mt-0.5 leading-relaxed">
-                                17-km Sheikhupura Road, Shah Zaman Park near Mughal Steel, Lahore, Pakistan
+                                <?php echo htmlspecialchars($support['address']); ?>
                             </div>
                         </div>
                     </div>

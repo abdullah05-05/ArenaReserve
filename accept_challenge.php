@@ -1,4 +1,5 @@
 <?php
+require_once 'session_config.php';
 /**
  * accept_challenge.php — AJAX endpoint to accept an open challenge
  * POST params: booking_id
@@ -7,7 +8,12 @@
 session_start();
 require_once 'db.php';
 require_once 'notifications.php';
+require_once 'MoneyHelper.php';
+require_once 'csrf_helper.php';
 header('Content-Type: application/json');
+
+// CSRF protection for AJAX
+csrf_require();
 
 if (!isset($_SESSION['user_id'])) {
     echo json_encode(['success' => false, 'message' => 'Not authenticated.']);
@@ -53,7 +59,7 @@ try {
     }
 
     // 2. Calculate opponent's 25% payment (remaining 50% paid at venue)
-    $amount_to_charge = round(floatval($booking['price']) * 0.25, 2);
+    $amount_to_charge = MoneyHelper::calculateAdvance(floatval($booking['price']), 'team_challenge');
 
     // 3. Check opponent wallet
     $stmt = $pdo->prepare("SELECT id, available_balance FROM wallets WHERE user_id = ? FOR UPDATE");

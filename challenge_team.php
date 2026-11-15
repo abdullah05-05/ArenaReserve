@@ -1,4 +1,5 @@
 <?php
+require_once 'session_config.php';
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'db.php';
 require_once 'logo_helper.php';
@@ -321,7 +322,7 @@ body { font-family:'Inter',sans-serif; background:#f8fafc; }
       <div class="team-card flex flex-col justify-between"
            data-name="<?php echo htmlspecialchars(strtolower($team['name']), ENT_QUOTES, 'UTF-8'); ?>"
            data-city="<?php echo htmlspecialchars(strtolower($team['city']), ENT_QUOTES, 'UTF-8'); ?>"
-           onclick="openChallengeModal(<?php echo $team['id']; ?>, '<?php echo htmlspecialchars(addslashes($team['name']), ENT_QUOTES, 'UTF-8'); ?>', '<?php echo htmlspecialchars(addslashes($team['city']), ENT_QUOTES, 'UTF-8'); ?>')">
+           onclick="openChallengeModal(<?php echo $team['id']; ?>, <?php echo json_encode($team['name']); ?>, <?php echo json_encode($team['city']); ?>)">
 
         <div>
           <!-- Player Info (Rating removed) -->
@@ -362,7 +363,7 @@ body { font-family:'Inter',sans-serif; background:#f8fafc; }
         <!-- Action: Challenge Button (Football badge removed) -->
         <div>
           <button class="w-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 active:from-orange-700 active:to-amber-700 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5"
-                  onclick="event.stopPropagation();openChallengeModal(<?php echo $team['id']; ?>,'<?php echo htmlspecialchars(addslashes($team['name']), ENT_QUOTES, 'UTF-8'); ?>','<?php echo htmlspecialchars(addslashes($team['city']), ENT_QUOTES, 'UTF-8'); ?>')">
+                  onclick="event.stopPropagation();openChallengeModal(<?php echo $team['id']; ?>, <?php echo json_encode($team['name']); ?>, <?php echo json_encode($team['city']); ?>)">
             ⚡ Challenge Player
           </button>
         </div>

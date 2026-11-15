@@ -1,7 +1,9 @@
 <?php
+require_once 'session_config.php';
 session_start();
 require_once 'db.php';
 require_once 'logo_helper.php';
+require_once 'MoneyHelper.php';
 
 if (!isset($_SESSION['user_id'])) {
     header("Location: login.php");
@@ -96,8 +98,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
             // 5% platform commission on total slot price deducted from online advance payment
             $slot_full_price = floatval($bk['price'] > 0 ? $bk['price'] : floatval($bk['amount_paid']) * 2);
             $online_paid     = floatval($bk['amount_paid']);
-            $platform_fee    = round($slot_full_price * 0.05, 2);
-            $owner_payout    = max(0, round($online_paid - $platform_fee, 2));
+
+            // Use MoneyHelper for consistent calculation
+            $payoutCalc = MoneyHelper::calculateMatchPayout($slot_full_price, $online_paid);
+            $platform_fee  = $payoutCalc['platform_fee'];
+            $owner_payout  = $payoutCalc['owner_payout'];
 
             // Insert into match_scores
             $stmt3 = $pdo->prepare("

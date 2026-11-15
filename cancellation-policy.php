@@ -1,4 +1,5 @@
 <?php
+require_once 'session_config.php';
 session_start();
 require_once 'db.php';
 require_once 'logo_helper.php';
@@ -166,10 +167,14 @@ $active_policy = 'cancellation';
                             <a href="#support-help" class="block hover:text-emerald-600 transition-colors py-1">6. Support Assistance</a>
                         </nav>
 
+                        <?php
+$cancel_config = require __DIR__ . '/config_constants.php';
+$support = $cancel_config['support'];
+?>
                         <div class="mt-6 pt-6 border-t border-slate-100">
                             <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Need Urgent Cancellation?</div>
-                            <a href="tel:03137970801" class="text-sm font-bold text-emerald-600 hover:underline block">📞 03137970801</a>
-                            <a href="mailto:abdullahtariq0505@gmail.com" class="text-xs text-slate-500 hover:text-emerald-600 break-all block mt-1">✉️ abdullahtariq0505@gmail.com</a>
+                            <a href="tel:<?php echo htmlspecialchars($support['phone']); ?>" class="text-sm font-bold text-emerald-600 hover:underline block">📞 <?php echo htmlspecialchars($support['phone']); ?></a>
+                            <a href="mailto:<?php echo htmlspecialchars($support['email']); ?>" class="text-xs text-slate-500 hover:text-emerald-600 break-all block mt-1">✉️ <?php echo htmlspecialchars($support['email']); ?></a>
                         </div>
                     </div>
                 </aside>
@@ -304,6 +309,10 @@ $active_policy = 'cancellation';
                         </ul>
                     </section>
 
+                    <?php
+$cancel_config2 = require __DIR__ . '/config_constants.php';
+$support2 = $cancel_config2['support'];
+?>
                     <!-- Section 6: Support -->
                     <section id="support-help" class="rounded-2xl bg-gradient-to-r from-emerald-800 to-teal-900 p-6 sm:p-8 text-white shadow-lg">
                         <div class="flex items-start gap-4">
@@ -316,11 +325,11 @@ $active_policy = 'cancellation';
                                     Our live operations desk is available 7 days a week from 9:00 AM to 11:00 PM PKT for emergency match cancellations or challenge reconciliations.
                                 </p>
                                 <div class="mt-4 flex flex-wrap items-center gap-4 text-sm font-semibold">
-                                    <a href="tel:03137970801" class="px-4 py-2 rounded-xl bg-white text-emerald-900 hover:bg-emerald-50 transition-colors flex items-center gap-2">
-                                        <span>📞 03137970801</span>
+                                    <a href="tel:<?php echo htmlspecialchars($support2['phone']); ?>" class="px-4 py-2 rounded-xl bg-white text-emerald-900 hover:bg-emerald-50 transition-colors flex items-center gap-2">
+                                        <span>📞 <?php echo htmlspecialchars($support2['phone']); ?></span>
                                     </a>
-                                    <a href="mailto:abdullahtariq0505@gmail.com" class="px-4 py-2 rounded-xl bg-emerald-700/80 hover:bg-emerald-700 text-white border border-emerald-500/50 transition-colors flex items-center gap-2">
-                                        <span>✉️ abdullahtariq0505@gmail.com</span>
+                                    <a href="mailto:<?php echo htmlspecialchars($support2['email']); ?>" class="px-4 py-2 rounded-xl bg-emerald-700/80 hover:bg-emerald-700 text-white border border-emerald-500/50 transition-colors flex items-center gap-2">
+                                        <span>✉️ <?php echo htmlspecialchars($support2['email']); ?></span>
                                     </a>
                                 </div>
                             </div>

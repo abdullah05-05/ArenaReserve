@@ -10,6 +10,7 @@ require_once __DIR__ . '/notifications.php';
 require_once __DIR__ . '/mail_config.php';
 require_once __DIR__ . '/JazzCashService.php';
 require_once __DIR__ . '/payment_fulfill_helper.php';
+require_once __DIR__ . '/rate_limiter.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -26,6 +27,9 @@ function log_jazzcash_ipn(string $msg, array $context = []): void {
 // Receive raw body (JSON) or form-data
 $rawBody = file_get_contents('php://input');
 $payload = json_decode($rawBody, true) ?: $_POST;
+
+// Rate limit IPN endpoint
+rate_limit_ipn();
 
 log_jazzcash_ipn('Incoming JazzCash IPN', ['body' => $rawBody, 'post' => $_POST]);
 

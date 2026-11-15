@@ -1,4 +1,5 @@
 <?php
+require_once 'session_config.php';
 /**
  * mark_notifications_read.php
  * AJAX endpoint — marks notifications as read.

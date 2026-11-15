@@ -1,0 +1,6 @@
+# Deny all access to certificates directory
+Order Allow,Deny
+Deny from all
+
+# Prevent directory listing
+Options -Indexes

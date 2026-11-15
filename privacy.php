@@ -1,4 +1,5 @@
 <?php
+require_once 'session_config.php';
 session_start();
 require_once 'db.php';
 require_once 'logo_helper.php';
@@ -169,10 +170,14 @@ $active_policy = 'privacy';
                             <a href="#privacy-contact" class="block hover:text-emerald-600 transition-colors py-1">9. Privacy Contact Office</a>
                         </nav>
 
+                        <?php
+$privacy_config = require __DIR__ . '/config_constants.php';
+$support = $privacy_config['support'];
+?>
                         <div class="mt-6 pt-6 border-t border-slate-100">
                             <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Privacy Questions?</div>
-                            <a href="mailto:abdullahtariq0505@gmail.com" class="text-xs font-bold text-emerald-600 break-all block hover:underline">✉️ abdullahtariq0505@gmail.com</a>
-                            <a href="tel:03137970801" class="text-xs text-slate-500 hover:text-emerald-600 block mt-1">📞 03137970801</a>
+                            <a href="mailto:<?php echo htmlspecialchars($support['email']); ?>" class="text-xs font-bold text-emerald-600 break-all block hover:underline">✉️ <?php echo htmlspecialchars($support['email']); ?></a>
+                            <a href="tel:<?php echo htmlspecialchars($support['phone']); ?>" class="text-xs text-slate-500 hover:text-emerald-600 block mt-1">📞 <?php echo htmlspecialchars($support['phone']); ?></a>
                         </div>
                     </div>
                 </aside>
@@ -310,6 +315,10 @@ $active_policy = 'privacy';
                         </p>
                     </section>
 
+                    <?php
+$privacy_config2 = require __DIR__ . '/config_constants.php';
+$support2 = $privacy_config2['support'];
+?>
                     <!-- Section 9: Contact -->
                     <section id="privacy-contact" class="rounded-2xl bg-gradient-to-r from-emerald-800 to-teal-900 p-6 sm:p-8 text-white shadow-lg">
                         <div class="flex items-start gap-4">
@@ -322,11 +331,11 @@ $active_policy = 'privacy';
                                     For data access requests, privacy concerns, or account removal inquiries, reach out directly to our designated data officer:
                                 </p>
                                 <div class="mt-4 flex flex-wrap items-center gap-4 text-sm font-semibold">
-                                    <a href="mailto:abdullahtariq0505@gmail.com" class="px-4 py-2 rounded-xl bg-white text-emerald-900 hover:bg-emerald-50 transition-colors flex items-center gap-2">
-                                        <span>✉️ abdullahtariq0505@gmail.com</span>
+                                    <a href="mailto:<?php echo htmlspecialchars($support2['email']); ?>" class="px-4 py-2 rounded-xl bg-white text-emerald-900 hover:bg-emerald-50 transition-colors flex items-center gap-2">
+                                        <span>✉️ <?php echo htmlspecialchars($support2['email']); ?></span>
                                     </a>
-                                    <a href="tel:03137970801" class="px-4 py-2 rounded-xl bg-emerald-700/80 hover:bg-emerald-700 text-white border border-emerald-500/50 transition-colors flex items-center gap-2">
-                                        <span>📞 03137970801</span>
+                                    <a href="tel:<?php echo htmlspecialchars($support2['phone']); ?>" class="px-4 py-2 rounded-xl bg-emerald-700/80 hover:bg-emerald-700 text-white border border-emerald-500/50 transition-colors flex items-center gap-2">
+                                        <span>📞 <?php echo htmlspecialchars($support2['phone']); ?></span>
                                     </a>
                                 </div>
                             </div>
