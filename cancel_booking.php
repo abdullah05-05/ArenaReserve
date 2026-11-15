@@ -1,4 +1,5 @@
 <?php
+require_once 'session_config.php';
 /**
  * cancel_booking.php — AJAX endpoint to cancel a booking and issue a refund.
  *
@@ -15,7 +16,12 @@
 session_start();
 require_once 'db.php';
 require_once 'notifications.php';
+require_once 'MoneyHelper.php';
+require_once 'csrf_helper.php';
 header('Content-Type: application/json');
+
+// CSRF protection for AJAX
+csrf_require();
 
 if (!isset($_SESSION['user_id'])) {
     echo json_encode(['success' => false, 'message' => 'Not authenticated.']);
@@ -82,37 +88,29 @@ try {
         }
     } catch (Exception $e) {}
 
-    // 5. Calculate refund amount and owner compensation
-    $amount_paid   = floatval($booking['amount_paid']);
-    $refund_amount = 0.0;
-    $owner_payout  = 0.0;
-    $platform_fee  = 0.0;
-    $refund_note   = '';
+    // 5. Calculate refund amount and owner compensation using MoneyHelper
+    $amount_paid = floatval($booking['amount_paid']);
 
+    // Get hours until slot
+    $check = $pdo->prepare("
+        SELECT TIMESTAMPDIFF(HOUR, NOW(), CONCAT(?, ' ', LPAD(?, 2, '0'), ':00:00')) AS hours_until
+    ");
+    $check->execute([$booking['slot_date'], $booking['slot_hour']]);
+    $hours_until_slot = intval($check->fetch()['hours_until'] ?? 0);
+
+    $calc = MoneyHelper::calculateCancellationRefund($amount_paid, $booking['status'], $hours_until_slot);
+    $refund_amount = $calc['refund'];
+    $owner_payout  = $calc['owner_payout'];
+    $platform_fee  = $calc['platform_fee'];
+
+    // Generate refund note
     if (in_array($booking['status'], ['challenge_open', 'challenge_pending'])) {
-        // Full refund — no opponent committed any payment
-        $refund_amount = $amount_paid;
-        $refund_note   = 'Full refund (no opponent committed).';
+        $refund_note = 'Full refund (no opponent committed).';
     } elseif ($booking['status'] === 'confirmed') {
-        // Check if slot is > 24 hours away using MySQL
-        $check = $pdo->prepare("
-            SELECT TIMESTAMPDIFF(HOUR, NOW(), CONCAT(?, ' ', LPAD(?, 2, '0'), ':00:00')) AS hours_until
-        ");
-        $check->execute([$booking['slot_date'], $booking['slot_hour']]);
-        $hours_until_slot = intval($check->fetch()['hours_until'] ?? 0);
-
         if ($hours_until_slot > 24) {
-            $refund_amount = $amount_paid;
-            $refund_note   = 'Full refund (cancelled more than 24 hours before slot).';
+            $refund_note = 'Full refund (cancelled more than 24 hours before slot).';
         } else {
-            // Late cancellation within 24 hours: 50% refunded to player, 50% retained
-            $refund_amount = round($amount_paid * 0.5, 2);
-            $retained_fee  = round($amount_paid - $refund_amount, 2);
-            // 5% platform commission on retained fee
-            $platform_fee  = round($retained_fee * 0.05, 2);
-            // Remaining 95% sent to ground owner's wallet
-            $owner_payout  = max(0, round($retained_fee - $platform_fee, 2));
-            $refund_note   = '50% refund (cancelled within 24 hours of slot). PKR ' . number_format($owner_payout, 2) . ' credited to venue owner.';
+            $refund_note = '50% refund (cancelled within 24 hours of slot). PKR ' . MoneyHelper::format($owner_payout) . ' credited to venue owner.';
         }
     }
 

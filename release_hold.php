@@ -1,4 +1,5 @@
 <?php
+require_once 'session_config.php';
 /**
  * release_hold.php — AJAX endpoint to release a hold on a slot placed by the current user
  * POST params: ground_id (int), slot_date (string), slot_hour (int)
@@ -6,7 +7,11 @@
  */
 session_start();
 require_once 'db.php';
+require_once 'csrf_helper.php';
 header('Content-Type: application/json');
+
+// CSRF protection for AJAX
+csrf_require();
 
 if (!isset($_SESSION['user_id'])) {
     echo json_encode(['success' => false, 'message' => 'Not authenticated.']);

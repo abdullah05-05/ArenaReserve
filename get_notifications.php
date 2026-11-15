@@ -1,4 +1,5 @@
 <?php
+require_once 'session_config.php';
 /**
  * get_notifications.php
  * AJAX endpoint — returns current user's recent notifications + unread count.

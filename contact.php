@@ -1,4 +1,5 @@
 <?php
+require_once 'session_config.php';
 session_start();
 require_once 'db.php';
 require_once 'logo_helper.php';
@@ -139,13 +140,19 @@ $active_policy = 'contact';
         </div>
     </div>
 
+<?php
+$contact_config = require __DIR__ . '/config_constants.php';
+$support = $contact_config['support'];
+$platform = $contact_config['platform'];
+?>
+
     <!-- ============================================================
          MAIN CONTACT & INQUIRY SECTION
     ============================================================ -->
     <main class="flex-grow py-12 sm:py-16">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="grid lg:grid-cols-12 gap-10 lg:gap-12 items-start">
-                
+
                 <!-- Left: Contact Details Cards -->
                 <div class="lg:col-span-5 space-y-6">
                     <!-- Card 1: Phone / WhatsApp -->
@@ -155,8 +162,8 @@ $active_policy = 'contact';
                         </div>
                         <div>
                             <div class="text-xs font-bold uppercase tracking-wider text-slate-400">Phone & WhatsApp Support</div>
-                            <a href="tel:03137970801" class="text-lg font-black text-slate-900 hover:text-emerald-600 transition-colors block mt-1">
-                                03137970801
+                            <a href="tel:<?php echo htmlspecialchars($support['phone']); ?>" class="text-lg font-black text-slate-900 hover:text-emerald-600 transition-colors block mt-1">
+                                <?php echo htmlspecialchars($support['phone']); ?>
                             </a>
                             <div class="text-xs text-slate-500 mt-1 font-medium">Mon – Sun: 9:00 AM – 11:00 PM PKT</div>
                         </div>
@@ -169,8 +176,8 @@ $active_policy = 'contact';
                         </div>
                         <div>
                             <div class="text-xs font-bold uppercase tracking-wider text-slate-400">Direct Support Email</div>
-                            <a href="mailto:abdullahtariq0505@gmail.com" class="text-base font-black text-slate-900 hover:text-emerald-600 transition-colors block mt-1 break-all">
-                                abdullahtariq0505@gmail.com
+                            <a href="mailto:<?php echo htmlspecialchars($support['email']); ?>" class="text-base font-black text-slate-900 hover:text-emerald-600 transition-colors block mt-1 break-all">
+                                <?php echo htmlspecialchars($support['email']); ?>
                             </a>
                             <div class="text-xs text-slate-500 mt-1 font-medium">Average Response: Under 2 Hours</div>
                         </div>
@@ -184,10 +191,10 @@ $active_policy = 'contact';
                         <div>
                             <div class="text-xs font-bold uppercase tracking-wider text-slate-400">Head Office</div>
                             <div class="text-sm font-bold text-slate-900 mt-1 leading-snug">
-                                ArenaReserve Sports Tech HQ
+                                <?php echo $platform['name']; ?> Sports Tech HQ
                             </div>
                             <div class="text-xs text-slate-500 mt-0.5 leading-relaxed">
-                                17-km Sheikhupura Road, Shah Zaman Park near Mughal Steel, Lahore, Pakistan
+                                <?php echo htmlspecialchars($support['address']); ?>
                             </div>
                         </div>
                     </div>
@@ -199,7 +206,7 @@ $active_policy = 'contact';
                             <div>
                                 <h4 class="text-base font-black">Ground Owner Onboarding Hotline</h4>
                                 <p class="text-xs text-emerald-100 mt-1 leading-relaxed">
-                                    Want to list your sports ground, cricket turf, or futsal arena? Reach out via WhatsApp at <strong class="text-white">03137970801</strong> for rapid onboarding.
+                                    Want to list your sports ground, cricket turf, or futsal arena? Reach out via WhatsApp at <strong class="text-white"><?php echo htmlspecialchars($support['phone']); ?></strong> for rapid onboarding.
                                 </p>
                             </div>
                         </div>

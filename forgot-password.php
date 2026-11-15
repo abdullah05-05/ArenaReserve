@@ -1,8 +1,11 @@
 <?php
+require_once 'session_config.php';
 session_start();
 require_once 'db.php';
 require_once 'logo_helper.php';
 require_once 'mail_config.php';
+require_once 'rate_limiter.php';
+require_once 'csrf_helper.php';
 
 // Redirect if already logged in
 if (isset($_SESSION['user_id'])) {
@@ -20,7 +23,11 @@ $error = '';
 $success = '';
 $emailError = '';
 
+// Rate limit forgot password attempts
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    rate_limit_forgot_password();
+    require_once 'csrf_helper.php';
+    csrf_require();
     $email = trim($_POST['email'] ?? '');
 
     if ($email === '') {
@@ -116,6 +123,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             <?php if (empty($success)): ?>
                 <form id="forgotForm" class="space-y-6" action="forgot-password.php" method="POST" novalidate>
+                    <?php echo csrf_field(); ?>
                     <!-- Email Address -->
                     <div>
                         <label for="email" class="block text-sm font-medium text-slate-700">Email Address</label>
@@ -143,6 +151,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </a>
             </div>
 
+            <?php
+$forgot_config = require __DIR__ . '/config_constants.php';
+$support = $forgot_config['support'];
+?>
             <div class="mt-6 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-center gap-3 text-xs text-slate-400">
                 <a href="terms.php" class="hover:text-emerald-600 transition-colors">Terms</a>
                 <span>•</span>
@@ -152,7 +164,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <span>•</span>
                 <a href="cancellation-policy.php" class="hover:text-emerald-600 transition-colors">Cancellation</a>
                 <span>•</span>
-                <a href="contact.php" class="hover:text-emerald-600 transition-colors">Support (03137970801)</a>
+                <a href="contact.php" class="hover:text-emerald-600 transition-colors">Support (<?php echo htmlspecialchars($support['phone']); ?>)</a>
             </div>
         </div>
     </div>

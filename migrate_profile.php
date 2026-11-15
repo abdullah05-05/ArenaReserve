@@ -2,7 +2,9 @@
 /**
  * Migration: Add profile_picture column to users table
  * Run once: http://localhost/GHR/a1/migrate_profile.php
+ * NOTE: Move to scripts/ and run via CLI in production.
  */
+require_once 'session_config.php';
 session_start();
 require_once 'db.php';
 

@@ -3,7 +3,9 @@
  * migrate_notifications.php
  * Run once to create the notifications table.
  * Access via browser: http://localhost/GHR/a1/migrate_notifications.php
+ * NOTE: Move to scripts/ and run via CLI in production.
  */
+require_once 'session_config.php';
 session_start();
 require_once 'db.php';
 

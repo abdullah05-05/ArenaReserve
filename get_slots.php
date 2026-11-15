@@ -1,4 +1,5 @@
 <?php
+require_once 'session_config.php';
 /**
  * get_slots.php — AJAX endpoint to fetch real-time slots data for a ground and date
  * GET / POST params: ground_id (int), slot_date (string 'YYYY-MM-DD')

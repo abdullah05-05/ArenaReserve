@@ -1,4 +1,5 @@
 <?php
+require_once 'session_config.php';
 /**
  * initiate_checkout.php
  * Endpoint to initiate a JazzCash Payment Gateway Hosted Checkout session (v1.1).
@@ -11,6 +12,8 @@ if (session_status() === PHP_SESSION_NONE) {
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/JazzCashService.php';
 require_once __DIR__ . '/payment_fulfill_helper.php';
+require_once __DIR__ . '/MoneyHelper.php';
+require_once __DIR__ . '/csrf_helper.php';
 
 // Ensure user is authenticated
 if (!isset($_SESSION['user_id'])) {
@@ -168,7 +171,7 @@ try {
                 throw new Exception("Slot configuration for hour {$h}:00 not found.");
             }
             $fp = $slotPrices[$h];
-            $adv = ($booking_type === 'direct') ? round($fp * 0.50, 2) : round($fp * 0.25, 2);
+            $adv = MoneyHelper::calculateAdvance($fp, $booking_type);
             $total_full_price += $fp;
             $total_advance += $adv;
             $items[$h] = ['full_price' => $fp, 'advance' => $adv];
@@ -200,7 +203,7 @@ try {
             throw new Exception('Challenge booking not found or already accepted.');
         }
 
-        $amount = round(floatval($booking['price']) * 0.25, 2);
+        $amount = MoneyHelper::calculateAdvance(floatval($booking['price']), 'team_challenge');
         $description = 'Challenge Share Payment';
         $metaData = [
             'type'       => 'accept_challenge',

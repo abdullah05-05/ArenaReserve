@@ -1,4 +1,5 @@
 <?php
+require_once 'session_config.php';
 /**
  * checkout.php — Dedicated, modern, responsive multi-slot booking checkout page.
  * Supports both Wallet and JazzCash Online checkout flows with live hold countdown.

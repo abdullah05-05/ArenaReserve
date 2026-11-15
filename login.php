@@ -1,7 +1,10 @@
 <?php
+require_once 'session_config.php';
 session_start();
 require_once 'db.php';
 require_once 'logo_helper.php';
+require_once 'rate_limiter.php';
+require_once 'csrf_helper.php';
 $config = file_exists(__DIR__ . '/config.local.php') ? require __DIR__ . '/config.local.php' : [];
 $google_client_id = $config['google_client_id']
     ?? getenv('GOOGLE_CLIENT_ID')
@@ -26,7 +29,14 @@ if (isset($_GET['registered'])) {
     $success = 'Account created successfully! Please log in.';
 }
 
+// Rate limit login attempts
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    rate_limit_login();
+    // CSRF protection (skip for Google OAuth which uses its own token)
+    if (!isset($_POST['google_credential'])) {
+        require_once 'csrf_helper.php';
+        csrf_require();
+    }
     // ── Google Sign-In verification ──────────────────────────────────────────
     if (isset($_POST['google_credential'])) {
         $id_token = $_POST['google_credential'];
@@ -280,6 +290,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <?php endif; ?>
 
             <form id="loginForm" class="space-y-6" action="login.php" method="POST" novalidate>
+                <?php echo csrf_field(); ?>
                 <div id="live-login-summary" class="hidden mb-4 rounded-md bg-red-50 border border-red-200 p-4 text-sm text-red-700"></div>
                 <!-- Email Address -->
                 <div>
@@ -367,24 +378,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             <!-- Hidden Google Form -->
             <form id="googleLoginForm" action="login.php" method="POST" class="hidden">
+                <?php echo csrf_field(); ?>
                 <input type="hidden" id="googleCredential" name="google_credential" value="">
             </form>
 
-            <div class="mt-6 text-center">
-                <span class="text-sm text-slate-600">Don't have an account?</span>
-                <a href="signup.php" class="font-medium text-emerald-600 hover:text-emerald-500 text-sm ml-1">Sign up</a>
+            <div class="text-center text-sm text-slate-500">
+                <a href="signup.php" class="font-medium text-emerald-600 hover:text-emerald-600 underline">Create account</a>
             </div>
 
-            <div class="mt-6 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-center gap-3 text-xs text-slate-400">
+            <?php
+$login_config = require __DIR__ . '/config_constants.php';
+$support = $login_config['support'];
+?>
+            <div class="mt-4 pt-3 border-t border-slate-200 flex flex-wrap items-center justify-center gap-2 text-xs text-slate-500">
                 <a href="terms.php" class="hover:text-emerald-600 transition-colors">Terms</a>
-                <span>•</span>
+                <span>·</span>
                 <a href="privacy.php" class="hover:text-emerald-600 transition-colors">Privacy</a>
-                <span>•</span>
+                <span>·</span>
                 <a href="refund-policy.php" class="hover:text-emerald-600 transition-colors">Refunds</a>
-                <span>•</span>
+                <span>·</span>
                 <a href="cancellation-policy.php" class="hover:text-emerald-600 transition-colors">Cancellation</a>
-                <span>•</span>
-                <a href="contact.php" class="hover:text-emerald-600 transition-colors">Support (03137970801)</a>
+                <span>·</span>
+                <a href="contact.php" class="hover:text-emerald-600 transition-colors">Contact</a>
             </div>
         </div>
     </div>

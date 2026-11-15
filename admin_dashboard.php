@@ -1,8 +1,10 @@
 <?php
+require_once 'session_config.php';
 session_start();
 require_once 'db.php';
 require_once 'notifications.php';
 require_once 'logo_helper.php';
+require_once 'MoneyHelper.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['current_role'] !== 'Admin') {
     header("Location: login.php");

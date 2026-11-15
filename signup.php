@@ -1,8 +1,10 @@
 <?php
+require_once 'session_config.php';
 session_start();
 require_once 'db.php';
 require_once 'logo_helper.php';
 require_once 'mail_config.php';
+require_once 'csrf_helper.php';
 
 // Redirect if already logged in
 if (isset($_SESSION['user_id'])) {
@@ -21,6 +23,8 @@ $success = '';
 $fieldErrors = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    require_once 'csrf_helper.php';
+    csrf_require();
     $name = trim($_POST['name'] ?? '');
     $email = trim($_POST['email'] ?? '');
     $phone = trim($_POST['phone'] ?? '');
@@ -209,6 +213,7 @@ VALUES
             
 
             <form class="space-y-6" action="signup.php" method="POST" novalidate>
+                <?php echo csrf_field(); ?>
                 <div id="live-validation-summary" class="hidden mb-4 rounded-md bg-red-50 border border-red-200 p-4 text-sm text-red-700"></div>
                 <!-- Full Name -->
                 <div>
@@ -317,11 +322,14 @@ VALUES
                 </div>
             </form>
 
-            <div class="mt-6 text-center">
-                <span class="text-sm text-slate-600">Already have an account?</span>
-                <a href="login.php" class="font-medium text-emerald-600 hover:text-emerald-500 text-sm ml-1">Sign in</a>
+            <div class="text-center text-sm text-slate-500">
+                <a href="login.php" class="font-medium text-emerald-600 hover:text-emerald-600 underline">Sign in</a>
             </div>
 
+            <?php
+$signup_config = require __DIR__ . '/config_constants.php';
+$support = $signup_config['support'];
+?>
             <div class="mt-6 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-center gap-3 text-xs text-slate-400">
                 <a href="terms.php" class="hover:text-emerald-600 transition-colors">Terms</a>
                 <span>•</span>
@@ -331,7 +339,7 @@ VALUES
                 <span>•</span>
                 <a href="cancellation-policy.php" class="hover:text-emerald-600 transition-colors">Cancellation</a>
                 <span>•</span>
-                <a href="contact.php" class="hover:text-emerald-600 transition-colors">Support (03137970801)</a>
+                <a href="contact.php" class="hover:text-emerald-600 transition-colors">Support (<?php echo htmlspecialchars($support['phone']); ?>)</a>
             </div>
         </div>
     </div>

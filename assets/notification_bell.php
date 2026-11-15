@@ -485,12 +485,12 @@
 
         list.innerHTML = items.map(n => {
             const icon  = TYPE_ICONS[n.type] || TYPE_ICONS.default;
-            const tag   = n.link ? 'a' : 'div';
-            const href  = n.link ? `href="${escHtml(n.link)}"` : '';
             const unread = !n.is_read ? 'unread' : '';
+            // Use data-link for navigation instead of raw href to prevent attribute injection
+            const link = n.link ? escHtml(n.link) : '';
             return `
-            <${tag} class="notif-item ${unread}" ${href}
-                    onclick="markRead(${n.id}, this)" data-id="${n.id}">
+            <div class="notif-item ${unread}" data-id="${n.id}" data-link="${link}"
+                 onclick="handleNotifClick(this, ${n.id})">
                 <div class="notif-icon ${icon.cls}">${icon.emoji}</div>
                 <div class="notif-text">
                     <p class="notif-title">${escHtml(n.title)}</p>
@@ -498,7 +498,7 @@
                     <span class="notif-time">${escHtml(n.time_ago)}</span>
                 </div>
                 ${!n.is_read ? '<div class="notif-dot"></div>' : ''}
-            </${tag}>`;
+            </div>`;
         }).join('');
     }
 
@@ -508,7 +508,23 @@
         return div.innerHTML;
     }
 
-    // ── Mark single read ──────────────────────────────────
+    // ── Handle notification click (read + navigate) ─────────
+    window.handleNotifClick = function (el, id) {
+        // Mark as read visually
+        if (el.classList.contains('unread')) {
+            el.classList.remove('unread');
+            const dot = el.querySelector('.notif-dot');
+            if (dot) dot.remove();
+        }
+
+        // Navigate if link exists
+        const link = el.dataset.link;
+        if (link) {
+            window.location.href = link;
+        }
+    };
+
+    // ── Mark single read via API (no navigation) ────────────
     window.markRead = function (id, el) {
         if (el.classList.contains('unread')) {
             el.classList.remove('unread');

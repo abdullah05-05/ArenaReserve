@@ -4,6 +4,9 @@
  * Included across all public, player, and owner pages.
  */
 require_once __DIR__ . '/logo_helper.php';
+$config = require __DIR__ . '/config_constants.php';
+$support = $config['support'];
+$platform = $config['platform'];
 
 $current_page = basename($_SERVER['PHP_SELF'] ?? '');
 ?>
@@ -19,7 +22,7 @@ $current_page = basename($_SERVER['PHP_SELF'] ?? '');
                     <div class="w-9 h-9 rounded-xl bg-emerald-600 flex items-center justify-center text-white shadow-md shadow-emerald-600/30 group-hover:scale-105 transition-transform flex-shrink-0">
                         <?php echo get_logo_markup('h-5 w-5'); ?>
                     </div>
-                    <span class="text-xl font-black text-white tracking-tight">Arena<span class="text-emerald-500">Reserve</span></span>
+                    <span class="text-xl font-black text-white tracking-tight"><?php echo $platform['name']; ?></span>
                 </a>
                 <p class="mt-3.5 text-xs text-slate-400 leading-relaxed max-w-sm">
                     Pakistan's premier sports ground booking network. Empowering players, squads, and venue operators with verified real-time reservations.
@@ -27,16 +30,16 @@ $current_page = basename($_SERVER['PHP_SELF'] ?? '');
                 <div class="mt-4 text-xs text-slate-400 space-y-1.5 font-medium">
                     <div class="flex items-start gap-1.5">
                         <span class="text-emerald-400">📍</span>
-                        <span>17-km Sheikhupura Road, Shah Zaman Park near Mughal Steel, Lahore</span>
+                        <span><?php echo htmlspecialchars($support['address']); ?></span>
                     </div>
                     <div class="flex items-center gap-1.5">
                         <span class="text-emerald-400">📞</span>
-                        <a href="tel:03137970801" class="text-slate-300 hover:text-emerald-400 transition-colors font-bold">03137970801</a>
-                        <span class="text-[10px] text-slate-500">(Mon–Sun 9 AM–11 PM)</span>
+                        <a href="tel:<?php echo htmlspecialchars($support['phone']); ?>" class="text-slate-300 hover:text-emerald-400 transition-colors font-bold"><?php echo htmlspecialchars($support['phone']); ?></a>
+                        <span class="text-[10px] text-slate-500">(<?php echo htmlspecialchars($support['hours']); ?>)</span>
                     </div>
                     <div class="flex items-center gap-1.5">
                         <span class="text-emerald-400">✉️</span>
-                        <a href="mailto:abdullahtariq0505@gmail.com" class="text-slate-300 hover:text-emerald-400 transition-colors">abdullahtariq0505@gmail.com</a>
+                        <a href="mailto:<?php echo htmlspecialchars($support['email']); ?>" class="text-slate-300 hover:text-emerald-400 transition-colors"><?php echo htmlspecialchars($support['email']); ?></a>
                     </div>
                 </div>
 

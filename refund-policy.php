@@ -1,4 +1,5 @@
 <?php
+require_once 'session_config.php';
 session_start();
 require_once 'db.php';
 require_once 'logo_helper.php';
@@ -166,10 +167,14 @@ $active_policy = 'refund';
                             <a href="#disputes" class="block hover:text-emerald-600 transition-colors py-1">6. Filing a Refund Dispute</a>
                         </nav>
 
+                        <?php
+$refund_config = require __DIR__ . '/config_constants.php';
+$support = $refund_config['support'];
+?>
                         <div class="mt-6 pt-6 border-t border-slate-100">
                             <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Refund Help Desk</div>
-                            <a href="tel:03137970801" class="text-sm font-bold text-emerald-600 hover:underline block">📞 03137970801</a>
-                            <a href="mailto:abdullahtariq0505@gmail.com" class="text-xs text-slate-500 hover:text-emerald-600 break-all block mt-1">✉️ abdullahtariq0505@gmail.com</a>
+                            <a href="tel:<?php echo htmlspecialchars($support['phone']); ?>" class="text-sm font-bold text-emerald-600 hover:underline block">📞 <?php echo htmlspecialchars($support['phone']); ?></a>
+                            <a href="mailto:<?php echo htmlspecialchars($support['email']); ?>" class="text-xs text-slate-500 hover:text-emerald-600 break-all block mt-1">✉️ <?php echo htmlspecialchars($support['email']); ?></a>
                         </div>
                     </div>
                 </aside>
@@ -297,7 +302,11 @@ $active_policy = 'refund';
 
                     <!-- Section 6: Support Contact -->
                     <section id="disputes" class="rounded-2xl bg-gradient-to-r from-emerald-800 to-teal-900 p-6 sm:p-8 text-white shadow-lg">
-                        <div class="flex items-start gap-4">
+                        <?php
+$refund_config2 = require __DIR__ . '/config_constants.php';
+$support2 = $refund_config2['support'];
+?>
+                            <div class="flex items-start gap-4">
                             <div class="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center text-2xl flex-shrink-0">
                                 💬
                             </div>
@@ -307,11 +316,11 @@ $active_policy = 'refund';
                                     Provide your <strong>Booking ID</strong>, registered email, and match date to our dedicated billing and refund support desk:
                                 </p>
                                 <div class="mt-4 flex flex-wrap items-center gap-4 text-sm font-semibold">
-                                    <a href="tel:03137970801" class="px-4 py-2 rounded-xl bg-white text-emerald-900 hover:bg-emerald-50 transition-colors flex items-center gap-2">
-                                        <span>📞 03137970801</span>
+                                    <a href="tel:<?php echo htmlspecialchars($support2['phone']); ?>" class="px-4 py-2 rounded-xl bg-white text-emerald-900 hover:bg-emerald-50 transition-colors flex items-center gap-2">
+                                        <span>📞 <?php echo htmlspecialchars($support2['phone']); ?></span>
                                     </a>
-                                    <a href="mailto:abdullahtariq0505@gmail.com" class="px-4 py-2 rounded-xl bg-emerald-700/80 hover:bg-emerald-700 text-white border border-emerald-500/50 transition-colors flex items-center gap-2">
-                                        <span>✉️ abdullahtariq0505@gmail.com</span>
+                                    <a href="mailto:<?php echo htmlspecialchars($support2['email']); ?>" class="px-4 py-2 rounded-xl bg-emerald-700/80 hover:bg-emerald-700 text-white border border-emerald-500/50 transition-colors flex items-center gap-2">
+                                        <span>✉️ <?php echo htmlspecialchars($support2['email']); ?></span>
                                     </a>
                                 </div>
                             </div>

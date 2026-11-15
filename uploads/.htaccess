@@ -1,0 +1,19 @@
+# Security: Prevent script execution in uploads directory
+Options -ExecCGI
+AddHandler cgi-script .php .phtml .php3 .php4 .php5 .php7 .phps .pl .py .jsp .asp .htm .shtml .sh .cgi
+RemoveHandler .php .phtml .php3 .php4 .php5 .php7 .phps .pl .py .jsp .asp .htm .shtml .sh .cgi
+
+# Deny access to all files by default
+<FilesMatch ".*">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
+
+# Allow only specific safe file types
+<FilesMatch "\.(jpe?g|png|gif|webp|pdf|svg|ico|css|js|woff2?|ttf|eot)$">
+    Order Allow,Deny
+    Allow from all
+</FilesMatch>
+
+# Prevent directory listing
+Options -Indexes

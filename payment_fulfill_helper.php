@@ -8,6 +8,7 @@
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/notifications.php';
 require_once __DIR__ . '/mail_config.php';
+require_once __DIR__ . '/MoneyHelper.php';
 
 /**
  * Fulfills a payment transaction idempotently based on orderId.

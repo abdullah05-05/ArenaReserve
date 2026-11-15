@@ -1,4 +1,5 @@
 <?php
+require_once 'session_config.php';
 /**
  * get_grounds_by_proximity.php
  * 

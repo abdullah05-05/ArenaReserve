@@ -5,6 +5,7 @@
  * Strictly enforces that the booking slot time has ended.
  */
 
+require_once 'session_config.php';
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
