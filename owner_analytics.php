@@ -658,7 +658,7 @@ try {
                         
                         <?php if (empty($recent_transactions)): ?>
                             <div class="text-center py-10 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                                <div class="text-slate-300 text-3xl mb-2">📋</div>
+                                <div class="text-slate-300 text-3xl mb-2"></div>
                                 <p class="text-sm font-semibold text-slate-700">No transactions recorded yet</p>
                                 <p class="text-xs text-slate-400 mt-0.5">When players book slots at your venues, payments and payouts will appear here.</p>
                             </div>
@@ -761,7 +761,7 @@ try {
 
                             <?php if ($available_balance <= 0): ?>
                                 <p class="text-[11px] text-amber-600 bg-amber-50 p-2.5 rounded-lg border border-amber-200/60 leading-relaxed">
-                                    ℹ️ You currently have 0 PKR available balance for withdrawal. Payouts can be requested once players book your venues.
+                                    ℹ You currently have 0 PKR available balance for withdrawal. Payouts can be requested once players book your venues.
                                 </p>
                             <?php endif; ?>
 

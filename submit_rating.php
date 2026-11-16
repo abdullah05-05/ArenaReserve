@@ -101,7 +101,7 @@ try {
     // Notify venue owner of the review
     $ownerId = intval($booking['owner_id'] ?? 0);
     if ($ownerId > 0 && $ownerId !== $userId) {
-        $starIcons = str_repeat('★', $rating);
+        $starIcons = str_repeat('', $rating);
         $groundTitle = htmlspecialchars($booking['ground_title'] ?? 'your venue');
         createNotification(
             $pdo,

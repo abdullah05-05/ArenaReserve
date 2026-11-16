@@ -42,7 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $ownerInfo = $ownerStmt->fetch();
             if ($ownerInfo) {
                 createNotification($pdo, $ownerInfo['owner_id'], 'venue_approved',
-                    'Venue Approved! ✅',
+                    'Venue Approved! ',
                     "Your venue '{$ownerInfo['title']}' has been approved and is now live on ArenaReserve!",
                     'owner_dashboard.php'
                 );
@@ -125,7 +125,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $playerInfo = $playerStmt->fetch();
                 if ($playerInfo) {
                     createNotification($pdo, $req['player_id'], 'deposit_approved',
-                        'Wallet Top-Up Approved 💰',
+                        'Wallet Top-Up Approved ',
                         'PKR ' . number_format($req['amount'], 2) . ' has been added to your wallet balance.',
                         'wallet.php'
                     );
@@ -1195,10 +1195,10 @@ if ($active_page === 'audit') {
                     </label>
                     <select name="ground_id" onchange="this.form.submit()" 
                             class="w-full bg-white border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all">
-                        <option value="">🌐 All Grounds (Global Audit across entire network — <?php echo count($audit_all_grounds); ?> Venues)</option>
+                        <option value=""> All Grounds (Global Audit across entire network — <?php echo count($audit_all_grounds); ?> Venues)</option>
                         <?php foreach ($audit_all_grounds as $g): ?>
                             <option value="<?php echo $g['id']; ?>" <?php echo ($audit_ground_id === intval($g['id'])) ? 'selected' : ''; ?>>
-                                🏟️ <?php echo htmlspecialchars($g['title']); ?> (<?php echo htmlspecialchars($g['sport_type']); ?>) — Owner: <?php echo htmlspecialchars($g['owner_name']); ?> [Status: <?php echo htmlspecialchars($g['ground_status']); ?>]
+                                 <?php echo htmlspecialchars($g['title']); ?> (<?php echo htmlspecialchars($g['sport_type']); ?>) — Owner: <?php echo htmlspecialchars($g['owner_name']); ?> [Status: <?php echo htmlspecialchars($g['ground_status']); ?>]
                             </option>
                         <?php endforeach; ?>
                     </select>
@@ -1243,8 +1243,8 @@ if ($active_page === 'audit') {
                         <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Owner Score Entry</label>
                         <select name="score_status" class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-400">
                             <option value="">All (Marked &amp; Unmarked)</option>
-                            <option value="scored" <?php echo ($audit_score_filter === 'scored') ? 'selected' : ''; ?>>Score Marked ✅</option>
-                            <option value="unscored" <?php echo ($audit_score_filter === 'unscored') ? 'selected' : ''; ?>>Score Pending ⚠️</option>
+                            <option value="scored" <?php echo ($audit_score_filter === 'scored') ? 'selected' : ''; ?>>Score Marked </option>
+                            <option value="unscored" <?php echo ($audit_score_filter === 'unscored') ? 'selected' : ''; ?>>Score Pending </option>
                         </select>
                     </div>
 
@@ -1266,7 +1266,7 @@ if ($active_page === 'audit') {
         <div class="bg-gradient-to-r from-slate-900 via-slate-800 to-emerald-950 text-white rounded-2xl p-5 mb-6 shadow-md border border-slate-700/60 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div class="flex items-center gap-3.5">
                 <div class="w-12 h-12 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-2xl flex-shrink-0">
-                    🏟️
+                    
                 </div>
                 <div>
                     <div class="flex items-center gap-2">
@@ -1279,10 +1279,10 @@ if ($active_page === 'audit') {
                         </span>
                     </div>
                     <div class="text-xs text-slate-300 mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
-                        <span>👤 Owner: <strong><?php echo htmlspecialchars($selected_audit_ground['owner_name']); ?></strong></span>
-                        <span>✉️ <a href="mailto:<?php echo htmlspecialchars($selected_audit_ground['owner_email']); ?>" class="hover:underline text-emerald-300"><?php echo htmlspecialchars($selected_audit_ground['owner_email']); ?></a></span>
+                        <span> Owner: <strong><?php echo htmlspecialchars($selected_audit_ground['owner_name']); ?></strong></span>
+                        <span> <a href="mailto:<?php echo htmlspecialchars($selected_audit_ground['owner_email']); ?>" class="hover:underline text-emerald-300"><?php echo htmlspecialchars($selected_audit_ground['owner_email']); ?></a></span>
                         <?php if (!empty($selected_audit_ground['owner_phone'])): ?>
-                            <span>📞 <a href="tel:<?php echo htmlspecialchars($selected_audit_ground['owner_phone']); ?>" class="hover:underline text-emerald-300"><?php echo htmlspecialchars($selected_audit_ground['owner_phone']); ?></a></span>
+                            <span> <a href="tel:<?php echo htmlspecialchars($selected_audit_ground['owner_phone']); ?>" class="hover:underline text-emerald-300"><?php echo htmlspecialchars($selected_audit_ground['owner_phone']); ?></a></span>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -1305,7 +1305,7 @@ if ($active_page === 'audit') {
                     <span>From <?php echo $kpi_total_bookings; ?> total slots</span>
                 </div>
                 <div class="absolute -right-2 -bottom-2 w-10 h-10 bg-slate-50 rounded-full flex items-center justify-center text-lg text-slate-300 pointer-events-none">
-                    🏟️
+                    
                 </div>
             </div>
 
@@ -1319,7 +1319,7 @@ if ($active_page === 'audit') {
                     Via Gateway / Wallets
                 </div>
                 <div class="absolute -right-2 -bottom-2 w-10 h-10 bg-blue-50/60 rounded-full flex items-center justify-center text-lg text-blue-300 pointer-events-none">
-                    💳
+                    
                 </div>
             </div>
 
@@ -1336,7 +1336,7 @@ if ($active_page === 'audit') {
                     Platform Revenue Net
                 </div>
                 <div class="absolute -right-2 -bottom-2 w-10 h-10 bg-emerald-100/60 rounded-full flex items-center justify-center text-lg text-emerald-400 pointer-events-none">
-                    ⚡
+                    
                 </div>
             </div>
 
@@ -1350,7 +1350,7 @@ if ($active_page === 'audit') {
                     Credited from online fees
                 </div>
                 <div class="absolute -right-2 -bottom-2 w-10 h-10 bg-teal-50 rounded-full flex items-center justify-center text-lg text-teal-300 pointer-events-none">
-                    📈
+                    
                 </div>
             </div>
 
@@ -1364,7 +1364,7 @@ if ($active_page === 'audit') {
                     Total Payouts Cashed Out
                 </div>
                 <div class="absolute -right-2 -bottom-2 w-10 h-10 bg-amber-50 rounded-full flex items-center justify-center text-lg text-amber-300 pointer-events-none">
-                    📤
+                    
                 </div>
             </div>
 
@@ -1378,7 +1378,7 @@ if ($active_page === 'audit') {
                     Live Available Balance
                 </div>
                 <div class="absolute -right-2 -bottom-2 w-10 h-10 bg-violet-100/60 rounded-full flex items-center justify-center text-lg text-violet-400 pointer-events-none">
-                    🏦
+                    
                 </div>
             </div>
         </div>
@@ -1400,7 +1400,7 @@ if ($active_page === 'audit') {
             <?php if (empty($audit_records)): ?>
                 <div class="p-16 text-center">
                     <div class="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-2xl mx-auto mb-3">
-                        🔍
+                        
                     </div>
                     <h3 class="font-bold text-slate-800 text-base">No booking activities found</h3>
                     <p class="text-xs text-slate-400 mt-1 max-w-sm mx-auto">There are no bookings matching the selected ground or filters. Try resetting the filters above.</p>
@@ -1456,7 +1456,7 @@ if ($active_page === 'audit') {
                                 if ($bk['booking_type'] === 'direct') {
                                     $opp_display = '<span class="text-slate-400 font-medium italic">Solo Match</span>';
                                 } elseif ($bk['status'] === 'challenge_open') {
-                                    $opp_display = '<span class="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">⚡ Open Challenge</span>';
+                                    $opp_display = '<span class="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200"> Open Challenge</span>';
                                 } elseif (!empty($bk['opponent_name'])) {
                                     $opp_display = '<div class="font-bold text-slate-800">' . htmlspecialchars($bk['opponent_name']) . '</div>';
                                     if (!empty($bk['opponent_phone'])) {
@@ -1499,7 +1499,7 @@ if ($active_page === 'audit') {
                                         <span>#<?php echo $bk['booking_id']; ?></span>
                                     </div>
                                     <div class="text-[11px] text-slate-700 font-semibold mt-0.5">
-                                        📅 <?php echo date('d M Y', strtotime($bk['slot_date'])); ?>
+                                         <?php echo date('d M Y', strtotime($bk['slot_date'])); ?>
                                     </div>
                                     <div class="text-[10px] text-slate-400">
                                         ⏰ <?php echo $slot_time_str; ?>
@@ -1584,7 +1584,7 @@ if ($active_page === 'audit') {
                                     <?php if ($bk['score_id']): ?>
                                         <div class="inline-flex flex-col items-center">
                                             <span class="inline-flex items-center gap-1 bg-green-100 text-green-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-green-200">
-                                                ✓ Score Marked
+                                                 Score Marked
                                             </span>
                                             <span class="text-[10px] text-slate-500 font-semibold mt-0.5">
                                                 (<?php echo $bk['score_a']; ?> - <?php echo $bk['score_b']; ?>)
@@ -1598,7 +1598,7 @@ if ($active_page === 'audit') {
                                         </span>
                                     <?php else: ?>
                                         <span class="inline-flex items-center gap-1 bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-200" title="Match ended but owner has not entered the score">
-                                            ⚠️ Not Marked
+                                             Not Marked
                                         </span>
                                     <?php endif; ?>
                                 </td>
@@ -1608,7 +1608,7 @@ if ($active_page === 'audit') {
                                     <?php if ($bk['rating_id']): ?>
                                         <div class="inline-flex flex-col items-center" title="<?php echo htmlspecialchars($bk['rating_review'] ?? ''); ?>">
                                             <span class="inline-flex items-center gap-0.5 text-amber-600 font-black text-xs">
-                                                ★ <?php echo number_format($bk['rating'], 1); ?>
+                                                 <?php echo number_format($bk['rating'], 1); ?>
                                             </span>
                                             <?php if (!empty($bk['rating_review'])): ?>
                                                 <span class="text-[9px] text-slate-500 max-w-[90px] truncate">
@@ -1647,7 +1647,7 @@ if ($active_page === 'audit') {
                                                 'owner_pkr' => number_format($owner_pkr, 2),
                                                 'score_marked' => $bk['score_id'] ? 'Yes (Marked)' : ($bk['status'] === 'cancelled' ? 'Cancelled' : 'No (Pending)'),
                                                 'score_details' => $bk['score_id'] ? "Score A: {$bk['score_a']} | Score B: {$bk['score_b']} (Scored: " . date('d M Y, h:i A', strtotime($bk['scored_at'])) . ")" : 'None',
-                                                'feedback' => $bk['rating_id'] ? "★ {$bk['rating']} / 5 - \"{$bk['rating_review']}\"" : 'No player feedback recorded'
+                                                'feedback' => $bk['rating_id'] ? " {$bk['rating']} / 5 - \"{$bk['rating_review']}\"" : 'No player feedback recorded'
                                             ]), ENT_QUOTES, 'UTF-8'); ?>)"
                                             class="p-1.5 text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="View Detailed Audit Snapshot">
                                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
@@ -1704,7 +1704,7 @@ if ($active_page === 'audit') {
             <div class="bg-white rounded-2xl max-w-xl w-full shadow-2xl border border-slate-200 overflow-hidden transform transition-all">
                 <div class="p-5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
                     <div class="flex items-center gap-2">
-                        <span class="text-xl">📋</span>
+                        <span class="text-xl"></span>
                         <div>
                             <h3 class="font-black text-slate-900 text-base" id="modalAuditTitle">Booking Audit Snapshot</h3>
                             <p class="text-xs text-slate-500" id="modalAuditSubtitle">Transaction &amp; Activity Log</p>
@@ -1898,7 +1898,7 @@ if ($active_page === 'audit') {
                                     <?php if (!empty($doc)): ?>
                                     <a href="<?php echo htmlspecialchars($doc); ?>" target="_blank"
                                        class="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 hover:text-emerald-800 bg-emerald-50 border border-emerald-100 px-3 py-1.5 rounded-lg">
-                                        📄 View Verification Document →
+                                         View Verification Document →
                                     </a>
                                     <?php endif; ?>
                                 </div>
@@ -1908,13 +1908,13 @@ if ($active_page === 'audit') {
                                     <div class="flex justify-end gap-3">
                                         <button type="button" onclick="showInlineForm('reject-form-<?php echo $v['id']; ?>')"
                                                 class="px-4 py-2 border border-red-200 text-red-600 text-xs font-bold rounded-lg hover:bg-red-50 transition-colors">
-                                            ✕ Reject
+                                             Reject
                                         </button>
                                         <form method="POST" action="admin_dashboard.php?page=compliance" class="inline">
                                             <input type="hidden" name="action" value="approve_ground">
                                             <input type="hidden" name="target_id" value="<?php echo $v['id']; ?>">
                                             <button type="submit" class="px-5 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold rounded-lg shadow-sm transition-colors">
-                                                ✓ Approve &amp; Publish
+                                                 Approve &amp; Publish
                                             </button>
                                         </form>
                                     </div>
@@ -2091,7 +2091,7 @@ if ($active_page === 'audit') {
                                     <span class="text-slate-400">Ref: <strong class="text-slate-700"><?php echo htmlspecialchars($dep['reference_details']); ?></strong></span>
                                     <span class="text-slate-400">Submitted: <strong class="text-slate-700"><?php echo date('M d, Y H:i', strtotime($dep['created_at'])); ?></strong></span>
                                 </div>
-                                <a href="<?php echo htmlspecialchars($dep['receipt_path']); ?>" target="_blank" class="inline-block mt-2 text-xs font-semibold text-emerald-600 hover:underline">📄 Open Full Receipt →</a>
+                                <a href="<?php echo htmlspecialchars($dep['receipt_path']); ?>" target="_blank" class="inline-block mt-2 text-xs font-semibold text-emerald-600 hover:underline"> Open Full Receipt →</a>
                             </div>
 
                             <!-- Action Buttons -->
@@ -2099,13 +2099,13 @@ if ($active_page === 'audit') {
                                 <div class="flex gap-3 justify-end">
                                     <button type="button" onclick="showInlineForm('dep-reject-<?php echo $dep['id']; ?>')"
                                             class="px-4 py-2 border border-red-200 text-red-600 text-xs font-bold rounded-lg hover:bg-red-50 transition-colors">
-                                        ✕ Reject
+                                         Reject
                                     </button>
                                     <form method="POST" action="admin_dashboard.php?page=compliance" class="inline">
                                         <input type="hidden" name="action" value="approve_deposit">
                                         <input type="hidden" name="target_id" value="<?php echo $dep['id']; ?>">
                                         <button type="submit" class="px-5 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold rounded-lg shadow-sm transition-colors">
-                                            ✓ Confirm &amp; Credit Wallet
+                                             Confirm &amp; Credit Wallet
                                         </button>
                                     </form>
                                 </div>
@@ -2272,7 +2272,7 @@ function validateLogoSize(input) {
         // Max size: 2MB (2,097,152 bytes)
         const maxSize = 2 * 1024 * 1024;
         if (file.size > maxSize) {
-            errorDiv.textContent = '❌ Warning: The selected picture is ' + (file.size / (1024 * 1024)).toFixed(2) + 'MB, which is greater than the 2MB limit. Please select a smaller file.';
+            errorDiv.textContent = ' Warning: The selected picture is ' + (file.size / (1024 * 1024)).toFixed(2) + 'MB, which is greater than the 2MB limit. Please select a smaller file.';
             errorDiv.classList.remove('hidden');
             input.value = ''; // Reset file input
         } else {

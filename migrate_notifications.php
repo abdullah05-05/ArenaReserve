@@ -35,9 +35,9 @@ try {
             INDEX `idx_created_at` (`created_at`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     ");
-    $results[] = '✅ notifications table created (or already existed).';
+    $results[] = ' notifications table created (or already existed).';
 } catch (Exception $e) {
-    $results[] = '❌ Error: ' . $e->getMessage();
+    $results[] = ' Error: ' . $e->getMessage();
 }
 ?>
 <!DOCTYPE html>
@@ -56,9 +56,9 @@ try {
 </head>
 <body>
     <div class="card">
-        <h2>🗄️ Notification Migration</h2>
+        <h2> Notification Migration</h2>
         <?php foreach ($results as $r): ?>
-            <div class="item <?= strpos($r, '❌') !== false ? 'err' : '' ?>"><?= htmlspecialchars($r) ?></div>
+            <div class="item <?= strpos($r, '') !== false ? 'err' : '' ?>"><?= htmlspecialchars($r) ?></div>
         <?php endforeach; ?>
         <a href="admin_dashboard.php">← Back to Admin Dashboard</a>
     </div>

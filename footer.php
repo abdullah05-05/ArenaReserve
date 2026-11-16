@@ -28,26 +28,26 @@ $current_page = basename($_SERVER['PHP_SELF'] ?? '');
                     Pakistan's premier sports ground booking network. Empowering players, squads, and venue operators with verified real-time reservations.
                 </p>
                 <div class="mt-4 text-xs text-slate-400 space-y-1.5 font-medium">
-                    <div class="flex items-start gap-1.5">
-                        <span class="text-emerald-400">📍</span>
+                    <div class="flex items-start gap-2">
+                        <svg class="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                         <span><?php echo htmlspecialchars($support['address']); ?></span>
                     </div>
-                    <div class="flex items-center gap-1.5">
-                        <span class="text-emerald-400">📞</span>
+                    <div class="flex items-center gap-2">
+                        <svg class="w-4 h-4 text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
                         <a href="tel:<?php echo htmlspecialchars($support['phone']); ?>" class="text-slate-300 hover:text-emerald-400 transition-colors font-bold"><?php echo htmlspecialchars($support['phone']); ?></a>
                         <span class="text-[10px] text-slate-500">(<?php echo htmlspecialchars($support['hours']); ?>)</span>
                     </div>
-                    <div class="flex items-center gap-1.5">
-                        <span class="text-emerald-400">✉️</span>
+                    <div class="flex items-center gap-2">
+                        <svg class="w-4 h-4 text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
                         <a href="mailto:<?php echo htmlspecialchars($support['email']); ?>" class="text-slate-300 hover:text-emerald-400 transition-colors"><?php echo htmlspecialchars($support['email']); ?></a>
                     </div>
                 </div>
 
                 <!-- Trust Indicators -->
                 <div class="mt-5 pt-4 border-t border-slate-800/80 flex items-center gap-4 text-[11px] text-slate-500">
-                    <span class="flex items-center gap-1.5"><span class="text-emerald-400">🔒</span> 256-bit SSL Secure</span>
+                    <span class="flex items-center gap-1.5"><svg class="w-3.5 h-3.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg> 256-bit SSL Secure</span>
                     <span class="text-slate-700">•</span>
-                    <span class="flex items-center gap-1.5"><span class="text-amber-400">⚡</span> Instant Confirmation</span>
+                    <span class="flex items-center gap-1.5"><svg class="w-3.5 h-3.5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> Instant Confirmation</span>
                 </div>
             </div>
 
@@ -86,7 +86,7 @@ $current_page = basename($_SERVER['PHP_SELF'] ?? '');
         <!-- ── Sub-Footer Bar ── -->
         <div class="mt-12 pt-6 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
             <div>
-                &copy; <?php echo date('Y'); ?> <strong class="text-slate-400">ArenaReserve</strong>. All rights reserved. Built with passion for sports in Pakistan 🇵🇰
+                &copy; <?php echo date('Y'); ?> <strong class="text-slate-400">ArenaReserve</strong>. All rights reserved. Built with passion for sports in Pakistan.
             </div>
             <div class="flex items-center gap-2.5 text-[11px] flex-wrap">
                 <span class="text-slate-400 font-semibold">Payment Partners:</span>

@@ -37,8 +37,8 @@ function getGroundImgSrc(array $g): string {
 
 // Sport emoji map
 function sportEmoji(string $s): string {
-    $map = ['Cricket'=>'🏏','Football'=>'⚽','Basketball'=>'🏀','Futsal'=>'🏟️','Badminton'=>'🏸'];
-    return $map[$s] ?? '🏆';
+    $map = ['Cricket'=>'','Football'=>'','Basketball'=>'','Futsal'=>'','Badminton'=>''];
+    return $map[$s] ?? '';
 }
 ?>
 <!DOCTYPE html>
@@ -327,15 +327,15 @@ function sportEmoji(string $s): string {
                     <!-- Highlight Badges -->
                     <div class="reveal-on-scroll delay-400 mt-12 pt-8 border-t border-slate-200/80 flex flex-wrap items-center justify-center lg:justify-start gap-6 sm:gap-10 text-slate-500 text-sm font-medium">
                         <div class="flex items-center gap-2.5">
-                            <div class="w-6 h-6 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-xs font-bold">✓</div>
+                            <div class="w-6 h-6 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-xs font-bold"></div>
                             <span>Instant Slot Locking</span>
                         </div>
                         <div class="flex items-center gap-2.5">
-                            <div class="w-6 h-6 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-xs font-bold">✓</div>
+                            <div class="w-6 h-6 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-xs font-bold"></div>
                             <span>Split Match Challenges</span>
                         </div>
                         <div class="flex items-center gap-2.5">
-                            <div class="w-6 h-6 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-xs font-bold">✓</div>
+                            <div class="w-6 h-6 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-xs font-bold"></div>
                             <span>Verified Venues</span>
                         </div>
                     </div>
@@ -346,7 +346,7 @@ function sportEmoji(string $s): string {
                     <!-- Floating Badge Top-Left -->
                     <div class="hidden sm:flex animate-float-slow absolute -top-8 -left-8 z-20 glass-card p-4 rounded-2xl shadow-xl flex items-center gap-3.5 border border-emerald-100">
                         <div class="w-11 h-11 rounded-xl bg-emerald-500 text-white flex items-center justify-center text-xl shadow-md">
-                            ⚡
+                            
                         </div>
                         <div>
                             <div class="text-xs font-bold text-slate-900">Live Challenge Accepted!</div>
@@ -378,11 +378,11 @@ function sportEmoji(string $s): string {
                                             </span>
                                             <?php if ($cg['total_reviews'] > 0): ?>
                                                 <span class="bg-slate-900/80 text-amber-400 text-xs font-bold px-2.5 py-1 rounded-full backdrop-blur-md">
-                                                    ★ <?= number_format((float)$cg['avg_rating'], 1) ?> (<?= $cg['total_reviews'] ?>)
+                                                     <?= number_format((float)$cg['avg_rating'], 1) ?> (<?= $cg['total_reviews'] ?>)
                                                 </span>
                                             <?php else: ?>
                                                 <span class="bg-slate-900/80 text-emerald-400 text-xs font-bold px-2.5 py-1 rounded-full backdrop-blur-md">
-                                                    ✦ New Venue
+                                                     New Venue
                                                 </span>
                                             <?php endif; ?>
                                         </div>
@@ -409,7 +409,7 @@ function sportEmoji(string $s): string {
                                 <!-- Fallback: no grounds yet -->
                                 <div class="absolute inset-0 bg-gradient-to-tr from-slate-950 via-slate-900 to-emerald-950 opacity-90"></div>
                                 <div class="absolute inset-0 flex flex-col items-center justify-center text-white text-center px-4">
-                                    <span class="text-4xl mb-3">🏟️</span>
+                                    <span class="text-4xl mb-3"></span>
                                     <h3 class="text-xl font-bold">Grounds Coming Soon</h3>
                                     <p class="text-xs text-slate-400 mt-1">Be among the first owners to list your venue!</p>
                                 </div>
@@ -446,7 +446,7 @@ function sportEmoji(string $s): string {
                     <!-- Floating Badge Bottom-Right -->
                     <div class="hidden sm:flex animate-float-rev absolute -bottom-6 -right-6 z-20 glass-card p-4 rounded-2xl shadow-xl flex items-center gap-3.5 border border-emerald-100">
                         <div class="w-11 h-11 rounded-xl bg-violet-600 text-white flex items-center justify-center text-lg font-bold shadow-md">
-                            🏆
+                            
                         </div>
                         <div>
                             <div class="text-xs font-bold text-slate-900">Live Team Matchmaking</div>
@@ -469,7 +469,7 @@ function sportEmoji(string $s): string {
                     <div class="relative">
                         <div class="rounded-3xl bg-gradient-to-tr from-emerald-600 to-teal-500 p-8 sm:p-10 text-white shadow-2xl relative z-10 overflow-hidden">
                             <div class="w-16 h-16 rounded-2xl bg-white/15 backdrop-blur-md flex items-center justify-center text-3xl mb-6">
-                                🏟️
+                                
                             </div>
                             <h3 class="text-2xl sm:text-3xl font-black tracking-tight mb-4">Born from a passion for true sportsmanship</h3>
                             <p class="text-emerald-50 text-sm sm:text-base leading-relaxed opacity-95">
@@ -508,7 +508,7 @@ function sportEmoji(string $s): string {
                     <div class="reveal-on-scroll delay-200 mt-8 grid sm:grid-cols-2 gap-6">
                         <div class="flex items-start gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-100">
                             <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center flex-shrink-0 font-bold">
-                                👥
+                                
                             </div>
                             <div>
                                 <h4 class="text-sm font-bold text-slate-900">For Players & Squads</h4>
@@ -518,7 +518,7 @@ function sportEmoji(string $s): string {
 
                         <div class="flex items-start gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-100">
                             <div class="w-10 h-10 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center flex-shrink-0 font-bold">
-                                📈
+                                
                             </div>
                             <div>
                                 <h4 class="text-sm font-bold text-slate-900">For Ground Owners</h4>
@@ -555,7 +555,7 @@ function sportEmoji(string $s): string {
                 <!-- Pillar 1 -->
                 <div class="reveal-on-scroll delay-100 glass-dark-card rounded-3xl p-8 hover:border-emerald-500/50 transition-all duration-300 group">
                     <div class="w-14 h-14 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-2xl mb-6 group-hover:scale-110 transition-transform duration-300">
-                        ⚡
+                        
                     </div>
                     <h3 class="text-xl font-bold text-white mb-3">Unrivaled Convenience</h3>
                     <p class="text-sm text-slate-400 leading-relaxed">
@@ -566,7 +566,7 @@ function sportEmoji(string $s): string {
                 <!-- Pillar 2 -->
                 <div class="reveal-on-scroll delay-200 glass-dark-card rounded-3xl p-8 hover:border-emerald-500/50 transition-all duration-300 group">
                     <div class="w-14 h-14 rounded-2xl bg-teal-500/20 text-teal-400 flex items-center justify-center text-2xl mb-6 group-hover:scale-110 transition-transform duration-300">
-                        🤝
+                        
                     </div>
                     <h3 class="text-xl font-bold text-white mb-3">Thriving Community</h3>
                     <p class="text-sm text-slate-400 leading-relaxed">
@@ -577,7 +577,7 @@ function sportEmoji(string $s): string {
                 <!-- Pillar 3 -->
                 <div class="reveal-on-scroll delay-300 glass-dark-card rounded-3xl p-8 hover:border-emerald-500/50 transition-all duration-300 group">
                     <div class="w-14 h-14 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-2xl mb-6 group-hover:scale-110 transition-transform duration-300">
-                        🏆
+                        
                     </div>
                     <h3 class="text-xl font-bold text-white mb-3">Empowering Operators</h3>
                     <p class="text-sm text-slate-400 leading-relaxed">
@@ -608,7 +608,7 @@ function sportEmoji(string $s): string {
                 <!-- Feature 1 -->
                 <div class="reveal-on-scroll delay-100 interactive-card bg-slate-50 rounded-3xl p-8 border border-slate-100 shadow-sm relative overflow-hidden group">
                     <div class="w-14 h-14 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center text-2xl mb-6 group-hover:scale-110 transition-transform duration-300">
-                        ⚡
+                        
                     </div>
                     <h3 class="text-xl font-bold text-slate-900 mb-3">Live Slot Locking</h3>
                     <p class="text-sm text-slate-500 leading-relaxed">
@@ -619,7 +619,7 @@ function sportEmoji(string $s): string {
                 <!-- Feature 2 -->
                 <div class="reveal-on-scroll delay-200 interactive-card bg-slate-50 rounded-3xl p-8 border border-slate-100 shadow-sm relative overflow-hidden group">
                     <div class="w-14 h-14 rounded-2xl bg-violet-100 text-violet-700 flex items-center justify-center text-2xl mb-6 group-hover:scale-110 transition-transform duration-300">
-                        ⚔️
+                        
                     </div>
                     <h3 class="text-xl font-bold text-slate-900 mb-3">Team & Open Challenges</h3>
                     <p class="text-sm text-slate-500 leading-relaxed">
@@ -630,7 +630,7 @@ function sportEmoji(string $s): string {
                 <!-- Feature 3 -->
                 <div class="reveal-on-scroll delay-300 interactive-card bg-slate-50 rounded-3xl p-8 border border-slate-100 shadow-sm relative overflow-hidden group">
                     <div class="w-14 h-14 rounded-2xl bg-teal-100 text-teal-700 flex items-center justify-center text-2xl mb-6 group-hover:scale-110 transition-transform duration-300">
-                        💳
+                        
                     </div>
                     <h3 class="text-xl font-bold text-slate-900 mb-3">In-App Digital Wallet</h3>
                     <p class="text-sm text-slate-500 leading-relaxed">
@@ -641,7 +641,7 @@ function sportEmoji(string $s): string {
                 <!-- Feature 4 -->
                 <div class="reveal-on-scroll delay-100 interactive-card bg-slate-50 rounded-3xl p-8 border border-slate-100 shadow-sm relative overflow-hidden group">
                     <div class="w-14 h-14 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center text-2xl mb-6 group-hover:scale-110 transition-transform duration-300">
-                        📍
+                        
                     </div>
                     <h3 class="text-xl font-bold text-slate-900 mb-3">GPS Proximity Discovery</h3>
                     <p class="text-sm text-slate-500 leading-relaxed">
@@ -652,7 +652,7 @@ function sportEmoji(string $s): string {
                 <!-- Feature 5 -->
                 <div class="reveal-on-scroll delay-200 interactive-card bg-slate-50 rounded-3xl p-8 border border-slate-100 shadow-sm relative overflow-hidden group">
                     <div class="w-14 h-14 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center text-2xl mb-6 group-hover:scale-110 transition-transform duration-300">
-                        🏆
+                        
                     </div>
                     <h3 class="text-xl font-bold text-slate-900 mb-3">Match History & Rankings</h3>
                     <p class="text-sm text-slate-500 leading-relaxed">
@@ -663,7 +663,7 @@ function sportEmoji(string $s): string {
                 <!-- Feature 6 -->
                 <div class="reveal-on-scroll delay-300 interactive-card bg-slate-50 rounded-3xl p-8 border border-slate-100 shadow-sm relative overflow-hidden group">
                     <div class="w-14 h-14 rounded-2xl bg-blue-100 text-blue-700 flex items-center justify-center text-2xl mb-6 group-hover:scale-110 transition-transform duration-300">
-                        📊
+                        
                     </div>
                     <h3 class="text-xl font-bold text-slate-900 mb-3">Owner Business Suite</h3>
                     <p class="text-sm text-slate-500 leading-relaxed">
@@ -723,7 +723,7 @@ function sportEmoji(string $s): string {
                         <?php if ($hasRating): ?>
                         <div class="absolute top-3 right-3">
                             <span class="bg-slate-900/80 text-amber-400 text-xs font-bold px-2 py-1 rounded-full backdrop-blur-md">
-                                ★ <?= number_format((float)$cg['avg_rating'], 1) ?>
+                                 <?= number_format((float)$cg['avg_rating'], 1) ?>
                                 <span class="text-slate-400 font-normal">(<?= $cg['total_reviews'] ?>)</span>
                             </span>
                         </div>
@@ -789,7 +789,7 @@ function sportEmoji(string $s): string {
                 <!-- Sport Card 1 -->
                 <div class="reveal-on-scroll delay-100 interactive-card bg-white rounded-3xl p-6 border border-slate-200 shadow-sm text-center">
                     <div class="w-16 h-16 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center text-3xl mx-auto mb-5">
-                        🏏
+                        
                     </div>
                     <h3 class="text-lg font-bold text-slate-900">Tape Ball & Hardball Cricket</h3>
                     <p class="text-xs text-slate-500 mt-2 leading-relaxed">Floodlit natural turf and cemented strip grounds equipped with safety nets and pavilion seating.</p>
@@ -798,7 +798,7 @@ function sportEmoji(string $s): string {
                 <!-- Sport Card 2 -->
                 <div class="reveal-on-scroll delay-200 interactive-card bg-white rounded-3xl p-6 border border-slate-200 shadow-sm text-center">
                     <div class="w-16 h-16 rounded-2xl bg-teal-100 text-teal-700 flex items-center justify-center text-3xl mx-auto mb-5">
-                        ⚽
+                        
                     </div>
                     <h3 class="text-lg font-bold text-slate-900">5-a-side & 7-a-side Football</h3>
                     <p class="text-xs text-slate-500 mt-2 leading-relaxed">High-grade artificial AstroTurf pitches with rebound fencing and professional goal standards.</p>
@@ -807,7 +807,7 @@ function sportEmoji(string $s): string {
                 <!-- Sport Card 3 -->
                 <div class="reveal-on-scroll delay-300 interactive-card bg-white rounded-3xl p-6 border border-slate-200 shadow-sm text-center">
                     <div class="w-16 h-16 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center text-3xl mx-auto mb-5">
-                        🏀
+                        
                     </div>
                     <h3 class="text-lg font-bold text-slate-900">Basketball Courts</h3>
                     <p class="text-xs text-slate-500 mt-2 leading-relaxed">Standard acrylic coated outdoor & indoor hardwood courts with spring hoops and lighting.</p>
@@ -816,7 +816,7 @@ function sportEmoji(string $s): string {
                 <!-- Sport Card 4 -->
                 <div class="reveal-on-scroll delay-400 interactive-card bg-white rounded-3xl p-6 border border-slate-200 shadow-sm text-center">
                     <div class="w-16 h-16 rounded-2xl bg-violet-100 text-violet-700 flex items-center justify-center text-3xl mx-auto mb-5">
-                        🏸
+                        
                     </div>
                     <h3 class="text-lg font-bold text-slate-900">Futsal & Badminton</h3>
                     <p class="text-xs text-slate-500 mt-2 leading-relaxed">Air-cushioned synthetic mat courts for fast-paced badminton rallies and indoor futsal tournaments.</p>
@@ -901,7 +901,7 @@ $platform = $landing_config['platform'];
                     <!-- Card 1: Phone / WhatsApp -->
                     <div class="reveal-on-scroll delay-100 interactive-card bg-slate-50 rounded-3xl p-6 border border-slate-100 flex items-start gap-4">
                         <div class="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center flex-shrink-0 text-xl font-bold">
-                            📞
+                            
                         </div>
                         <div>
                             <div class="text-xs font-bold uppercase tracking-wider text-slate-400">Phone & WhatsApp Support</div>
@@ -915,7 +915,7 @@ $platform = $landing_config['platform'];
                     <!-- Card 2: Email -->
                     <div class="reveal-on-scroll delay-200 interactive-card bg-slate-50 rounded-3xl p-6 border border-slate-100 flex items-start gap-4">
                         <div class="w-12 h-12 rounded-2xl bg-teal-100 text-teal-600 flex items-center justify-center flex-shrink-0 text-xl font-bold">
-                            ✉️
+                            
                         </div>
                         <div>
                             <div class="text-xs font-bold uppercase tracking-wider text-slate-400">Email Inquiries</div>
@@ -929,7 +929,7 @@ $platform = $landing_config['platform'];
                     <!-- Card 3: Location -->
                     <div class="reveal-on-scroll delay-300 interactive-card bg-slate-50 rounded-3xl p-6 border border-slate-100 flex items-start gap-4">
                         <div class="w-12 h-12 rounded-2xl bg-violet-100 text-violet-600 flex items-center justify-center flex-shrink-0 text-xl font-bold">
-                            📍
+                            
                         </div>
                         <div>
                             <div class="text-xs font-bold uppercase tracking-wider text-slate-400">Head Office</div>
@@ -945,7 +945,7 @@ $platform = $landing_config['platform'];
                     <!-- Card 4: Quick Help Note -->
                     <div class="reveal-on-scroll delay-400 rounded-3xl bg-gradient-to-br from-emerald-600 to-teal-700 p-6 text-white shadow-lg">
                         <div class="flex items-center gap-3">
-                            <span class="text-2xl">⚡</span>
+                            <span class="text-2xl"></span>
                             <div>
                                 <h4 class="text-sm font-extrabold">Instant Ground Onboarding</h4>
                                 <p class="text-xs text-emerald-100 mt-0.5 leading-relaxed">
@@ -1085,7 +1085,7 @@ $platform = $landing_config['platform'];
             const feedback = document.getElementById('contactFeedback');
             
             feedback.className = 'rounded-xl p-4 text-xs font-bold bg-emerald-100 border border-emerald-300 text-emerald-800 flex items-center gap-2';
-            feedback.innerHTML = '<span class="text-base">✓</span> Thank you! Your message has been received. Our team will get back to you shortly.';
+            feedback.innerHTML = '<span class="text-base"></span> Thank you! Your message has been received. Our team will get back to you shortly.';
             feedback.classList.remove('hidden');
 
             form.reset();

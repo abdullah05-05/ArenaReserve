@@ -10,6 +10,9 @@ if (!function_exists('csrf_token')) {
      */
     function csrf_token(): string
     {
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
         if (empty($_SESSION['csrf_token'])) {
             $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
         }
@@ -29,19 +32,49 @@ if (!function_exists('csrf_field')) {
 
 if (!function_exists('csrf_verify')) {
     /**
-     * Verify CSRF token from POST data
+     * Verify CSRF token from POST data, HTTP headers, or JSON body
      * Returns true if valid, false otherwise
      */
     function csrf_verify(?string $token = null): bool
     {
-        $submitted = $token ?? ($_POST['csrf_token'] ?? '');
-        $expected  = $_SESSION['csrf_token'] ?? '';
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+
+        // 1. Explicit token argument
+        $submitted = $token;
+
+        // 2. Standard POST parameter
+        if (empty($submitted) && isset($_POST['csrf_token'])) {
+            $submitted = $_POST['csrf_token'];
+        }
+
+        // 3. HTTP Headers (X-CSRF-Token / X-XSRF-Token)
+        if (empty($submitted)) {
+            $submitted = $_SERVER['HTTP_X_CSRF_TOKEN']
+                      ?? ($_SERVER['HTTP_X_XSRF_TOKEN']
+                      ?? ($_SERVER['HTTP_CSRF_TOKEN']
+                      ?? ''));
+        }
+
+        // 4. Raw JSON input body
+        if (empty($submitted)) {
+            $raw = file_get_contents('php://input');
+            if (!empty($raw)) {
+                $decoded = json_decode($raw, true);
+                if (is_array($decoded) && !empty($decoded['csrf_token'])) {
+                    $submitted = $decoded['csrf_token'];
+                }
+            }
+        }
+
+        $expected = $_SESSION['csrf_token'] ?? '';
 
         if (empty($submitted) || empty($expected)) {
             return false;
         }
 
-        return hash_equals($expected, $submitted);
+        return hash_equals($expected, (string)$submitted);
     }
 }
 

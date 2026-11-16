@@ -442,7 +442,7 @@ $name_initials = strtoupper(substr($user['name'], 0, 1));
 
     <!-- ══ Toast Notification ═════════════════════════════════════════════ -->
     <div id="profile-toast" role="alert" aria-live="polite">
-        <span id="toast-icon">✓</span>
+        <span id="toast-icon"></span>
         <span id="toast-msg"></span>
     </div>
 
@@ -625,7 +625,7 @@ $name_initials = strtoupper(substr($user['name'], 0, 1));
             void toast.offsetWidth;
 
             msg.textContent  = message;
-            icon.textContent = success ? '✓' : '✗';
+            icon.textContent = success ? '' : '';
             toast.classList.add('show', success ? 'success' : 'error');
 
             clearTimeout(toastTimer);

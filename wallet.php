@@ -326,7 +326,7 @@ if (isset($_SESSION['payment_error'])) {
                             <div class="bg-gradient-to-r from-red-50 to-amber-50 border border-red-200/80 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                                 <div>
                                     <h4 class="font-bold text-slate-900 text-sm flex items-center gap-1.5">
-                                        <span>⚡ Instant JazzCash Deposit</span>
+                                        <span> Instant JazzCash Deposit</span>
                                     </h4>
                                     <p class="text-xs text-slate-600 mt-0.5">Pay via JazzCash Mobile Account or Debit/Credit Card. Your wallet balance updates instantly upon payment.</p>
                                 </div>
@@ -340,12 +340,12 @@ if (isset($_SESSION['payment_error'])) {
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mb-2">
                                 <button type="button" id="jc_sub_mwallet_btn" onclick="setJazzCashSubMethod('mwallet')"
                                         class="py-2.5 px-3 rounded-xl border-2 border-red-500 bg-red-50 text-red-800 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer">
-                                    <span>📱</span>
+                                    <span></span>
                                     <span>JazzCash Mobile</span>
                                 </button>
                                 <button type="button" id="jc_sub_card_btn" onclick="setJazzCashSubMethod('card')"
                                         class="py-2.5 px-3 rounded-xl border-2 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer">
-                                    <span>💳</span>
+                                    <span></span>
                                     <span>Debit / Credit Card</span>
                                 </button>
                             </div>
@@ -428,7 +428,7 @@ if (isset($_SESSION['payment_error'])) {
                                 <button type="submit" id="jc_submit_btn"
                                         class="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl shadow-md text-sm font-bold text-white bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-700 hover:to-amber-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-all cursor-pointer">
                                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-                                    <span id="jc_btn_text">⚡ Deposit via JazzCash Mobile (MPIN)</span>
+                                    <span id="jc_btn_text"> Deposit via JazzCash Mobile (MPIN)</span>
                                 </button>
                             </form>
                         </div>
@@ -643,13 +643,13 @@ if (isset($_SESSION['payment_error'])) {
                 mwalletBtn.className = 'py-2.5 px-3 rounded-xl border-2 border-red-500 bg-red-50 text-red-800 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer';
                 mwalletFields.classList.remove('hidden');
                 cardFields.classList.add('hidden');
-                if (btnText) btnText.textContent = '⚡ Deposit via JazzCash Mobile (MPIN)';
+                if (btnText) btnText.textContent = ' Deposit via JazzCash Mobile (MPIN)';
                 if (descEl) descEl.textContent = 'Instant online deposit • Authorize with your 4-digit JazzCash MPIN.';
             } else {
                 cardBtn.className = 'py-2.5 px-3 rounded-xl border-2 border-slate-800 bg-slate-900 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer';
                 cardFields.classList.remove('hidden');
                 mwalletFields.classList.add('hidden');
-                if (btnText) btnText.textContent = '💳 Proceed to Card Payment';
+                if (btnText) btnText.textContent = ' Proceed to Card Payment';
                 if (descEl) descEl.textContent = 'Redirects to JazzCash secure payment portal for Visa / MasterCard.';
             }
         }
@@ -691,7 +691,7 @@ if (isset($_SESSION['payment_error'])) {
                 }
 
                 btn.disabled = true;
-                btnText.textContent = '📲 Prompt sent! Enter MPIN on phone…';
+                btnText.textContent = ' Prompt sent! Enter MPIN on phone…';
                 btn.classList.add('opacity-75', 'cursor-not-allowed');
                 if (waitingBox) waitingBox.classList.remove('hidden');
             } else {
@@ -713,7 +713,7 @@ if (isset($_SESSION['payment_error'])) {
             .then(res => res.json())
             .then(data => {
                 if (data.success && data.redirect_url) {
-                    btnText.textContent = '✅ Approved! Updating balance…';
+                    btnText.textContent = ' Approved! Updating balance…';
                     window.location.href = data.redirect_url;
                 } else if (data.success && data.post_url && data.params) {
                     btnText.textContent = 'Redirecting to JazzCash...';
@@ -736,8 +736,8 @@ if (isset($_SESSION['payment_error'])) {
                     btn.classList.remove('opacity-75', 'cursor-not-allowed');
                     if (waitingBox) waitingBox.classList.add('hidden');
                     btnText.textContent = (jcCurrentSubMethod === 'mwallet')
-                        ? '⚡ Deposit via JazzCash Mobile (MPIN)'
-                        : '💳 Proceed to Card Payment';
+                        ? ' Deposit via JazzCash Mobile (MPIN)'
+                        : ' Proceed to Card Payment';
                     errBox.textContent = data.message || 'Unable to complete payment. Please check your details or try again.';
                     errBox.classList.remove('hidden');
                 }
@@ -747,8 +747,8 @@ if (isset($_SESSION['payment_error'])) {
                 btn.classList.remove('opacity-75', 'cursor-not-allowed');
                 if (waitingBox) waitingBox.classList.add('hidden');
                 btnText.textContent = (jcCurrentSubMethod === 'mwallet')
-                    ? '⚡ Deposit via JazzCash Mobile (MPIN)'
-                    : '💳 Proceed to Card Payment';
+                    ? ' Deposit via JazzCash Mobile (MPIN)'
+                    : ' Proceed to Card Payment';
                 errBox.textContent = 'Network or server error. Please try again.';
                 errBox.classList.remove('hidden');
             });

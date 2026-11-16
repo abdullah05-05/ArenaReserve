@@ -100,7 +100,16 @@ foreach ($leaderboard as $i => &$row) {
 }
 unset($row);
 
-$sport_icons = ['Football'=>'⚽','Cricket'=>'🏏','Basketball'=>'🏀','Badminton'=>'🏸','Futsal'=>'⚽','Tennis'=>'🎾'];
+$sport_icons = ['Football'=>'','Cricket'=>'','Basketball'=>'','Badminton'=>'','Futsal'=>'','Tennis'=>''];
+
+// Inline SVG for rank position
+function rankSvg(int $rank): string {
+    if ($rank === 1) return '<svg class="w-5 h-5 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>';
+    if ($rank === 2) return '<svg class="w-5 h-5 text-slate-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>';
+    if ($rank === 3) return '<svg class="w-5 h-5 text-amber-700" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>';
+    return '';
+}
+
 $podium = array_slice($leaderboard, 0, 3);
 // Pad podium to 3 entries if fewer
 while (count($podium) < 3) {
@@ -287,7 +296,7 @@ body { font-family:'Inter',sans-serif; background:#f8fafc; }
     <?php if (empty($leaderboard)): ?>
       <!-- Empty state -->
       <div class="bg-white border border-slate-200 rounded-2xl p-14 shadow-sm text-center">
-        <div class="text-5xl mb-4">🏆</div>
+        <div class="text-5xl mb-4"></div>
         <h3 class="text-base font-bold text-slate-700 mb-2">No rankings yet for <?php echo htmlspecialchars($selected_city); ?></h3>
         <p class="text-sm text-slate-400 max-w-xs mx-auto">Rankings appear here after matches are played and scores are entered by ground owners. Be the first to play!</p>
         <a href="book_slot.php" class="mt-5 inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold px-5 py-2.5 rounded-xl shadow-sm transition-colors">
@@ -303,7 +312,8 @@ body { font-family:'Inter',sans-serif; background:#f8fafc; }
 
         <!-- 2nd place (left) -->
         <div class="podium-2 rounded-2xl p-5 text-center shadow-md mt-6 flex flex-col items-center">
-          <div class="text-3xl mb-2">🥈</div>
+          <!-- Silver medal SVG -->
+          <div class="mb-2"><?php echo rankSvg(2); ?></div>
           <div class="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center font-extrabold text-lg mb-1">
             <?php echo $podium[1]['id'] ? strtoupper(substr($podium[1]['name'],0,1)) : '—'; ?>
           </div>
@@ -313,7 +323,8 @@ body { font-family:'Inter',sans-serif; background:#f8fafc; }
 
         <!-- 1st place (center, tallest) -->
         <div class="podium-1 rounded-2xl p-5 text-center shadow-xl flex flex-col items-center">
-          <div class="text-4xl mb-2">🥇</div>
+          <!-- Gold medal SVG -->
+          <div class="mb-2"><?php echo rankSvg(1); ?></div>
           <div class="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center font-extrabold text-xl mb-1">
             <?php echo $podium[0]['id'] ? strtoupper(substr($podium[0]['name'],0,1)) : '—'; ?>
           </div>
@@ -326,7 +337,8 @@ body { font-family:'Inter',sans-serif; background:#f8fafc; }
 
         <!-- 3rd place (right) -->
         <div class="podium-3 rounded-2xl p-5 text-center shadow-md mt-8 flex flex-col items-center">
-          <div class="text-3xl mb-2">🥉</div>
+          <!-- Bronze medal SVG -->
+          <div class="mb-2"><?php echo rankSvg(3); ?></div>
           <div class="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center font-extrabold text-lg mb-1">
             <?php echo $podium[2]['id'] ? strtoupper(substr($podium[2]['name'],0,1)) : '—'; ?>
           </div>
@@ -343,20 +355,23 @@ body { font-family:'Inter',sans-serif; background:#f8fafc; }
           <h2 class="text-sm font-bold text-slate-800">All Rankings · <?php echo htmlspecialchars($selected_city); ?></h2>
           <span class="text-xs text-slate-400 font-medium"><?php echo count($leaderboard); ?> player<?php echo count($leaderboard) != 1 ? 's' : ''; ?></span>
         </div>
-        <div class="divide-y divide-slate-100">
-          <?php foreach ($leaderboard as $p):
+        <div class="divide-y divide-slate-100" id="lb-list">
+          <?php
+          $lb_page_size = 8;
+          $lb_initial   = array_slice($leaderboard, 0, $lb_page_size);
+          foreach ($lb_initial as $p):
             $is_me = ($p['id'] == $user_id);
             $rank  = $p['rank'];
           ?>
           <div class="px-5 py-4 flex items-center gap-4 hover:bg-slate-50 transition-colors <?php echo $is_me ? 'my-row' : ''; ?>">
-            <!-- Rank badge -->
-            <div class="flex-shrink-0">
+            <!-- Rank badge with SVG icon for 1-3 -->
+            <div class="flex-shrink-0 w-8 flex items-center justify-center">
               <?php if ($rank === 1): ?>
-                <div class="rank-badge bg-amber-100 text-amber-600">🥇</div>
+                <?php echo rankSvg(1); ?>
               <?php elseif ($rank === 2): ?>
-                <div class="rank-badge bg-slate-100 text-slate-500">🥈</div>
+                <?php echo rankSvg(2); ?>
               <?php elseif ($rank === 3): ?>
-                <div class="rank-badge bg-orange-100 text-orange-600">🥉</div>
+                <?php echo rankSvg(3); ?>
               <?php else: ?>
                 <div class="rank-badge bg-slate-50 text-slate-400 border border-slate-200 text-xs font-bold">#<?php echo $rank; ?></div>
               <?php endif; ?>
@@ -383,7 +398,8 @@ body { font-family:'Inter',sans-serif; background:#f8fafc; }
 
             <!-- Wins -->
             <div class="flex-shrink-0 text-right">
-              <div class="text-sm font-bold text-slate-800">
+              <div class="text-sm font-bold text-slate-800 flex items-center gap-1 justify-end">
+                <?php if ($rank <= 3): echo rankSvg($rank); endif; ?>
                 <?php echo $p['wins']; ?>
                 <span class="text-xs font-normal text-slate-400">win<?php echo $p['wins'] != 1 ? 's' : ''; ?></span>
               </div>
@@ -396,6 +412,16 @@ body { font-family:'Inter',sans-serif; background:#f8fafc; }
           </div>
           <?php endforeach; ?>
         </div>
+
+        <?php if (count($leaderboard) > $lb_page_size): ?>
+        <div class="p-4 border-t border-slate-100 text-center" id="lb-show-more-wrap">
+          <button id="lb-show-more-btn" onclick="lbLoadMore()"
+                  class="inline-flex items-center gap-2 px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl shadow transition-all">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            Show More
+          </button>
+        </div>
+        <?php endif; ?>
       </div>
 
     <?php endif; ?>
@@ -432,6 +458,75 @@ document.addEventListener('click', function(e) {
 function toggleMobileMenu() {
   const menu = document.getElementById('mobileNavigationMenu');
   if (menu) menu.classList.toggle('hidden');
+}
+
+// ── Show More for Leaderboard ────────────────────────────────────────────────
+const lbAll = <?php echo json_encode(array_map(function($p) use ($user_id) {
+    return [
+        'id' => $p['id'], 'name' => $p['name'], 'city' => $p['city'],
+        'wins' => intval($p['wins']), 'total_matches' => intval($p['total_matches'] ?? 0),
+        'rank' => $p['rank'], 'is_me' => ($p['id'] == $user_id),
+    ];
+}, $leaderboard)); ?>;
+
+const lbPageSize = 8;
+let lbOffset = lbPageSize;
+
+const rankSvgMap = {
+    1: '<svg class="w-5 h-5 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>',
+    2: '<svg class="w-5 h-5 text-slate-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>',
+    3: '<svg class="w-5 h-5 text-amber-700" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>',
+};
+
+function lbBuildRow(p) {
+    const rankEl = rankSvgMap[p.rank]
+        ? `<div class="w-8 flex items-center justify-center flex-shrink-0">${rankSvgMap[p.rank]}</div>`
+        : `<div class="rank-badge bg-slate-50 text-slate-400 border border-slate-200 text-xs font-bold flex-shrink-0">#${p.rank}</div>`;
+    const avatarCls = p.is_me ? 'bg-emerald-500 text-white ring-2 ring-emerald-300' : 'bg-slate-200 text-slate-600';
+    const youBadge = p.is_me ? '<span class="text-[10px] bg-emerald-100 text-emerald-700 font-bold px-1.5 py-0.5 rounded-full">You</span>' : '';
+    const myRowCls = p.is_me ? 'my-row' : '';
+    const matchTxt = p.total_matches !== 1 ? 'es' : '';
+    const winTxt   = p.wins !== 1 ? 's' : '';
+    const winRate  = p.total_matches > 0 ? `<div class="text-[10px] text-slate-400 mt-0.5">${Math.round((p.wins/p.total_matches)*100)}% win rate</div>` : '';
+    const winsWithIcon = rankSvgMap[p.rank]
+        ? `<div class="text-sm font-bold text-slate-800 flex items-center gap-1 justify-end">${rankSvgMap[p.rank]} ${p.wins} <span class="text-xs font-normal text-slate-400">win${winTxt}</span></div>`
+        : `<div class="text-sm font-bold text-slate-800">${p.wins} <span class="text-xs font-normal text-slate-400">win${winTxt}</span></div>`;
+
+    return `<div class="px-5 py-4 flex items-center gap-4 hover:bg-slate-50 transition-colors ${myRowCls}">
+      ${rankEl}
+      <div class="w-9 h-9 rounded-full ${avatarCls} flex items-center justify-center font-bold text-sm flex-shrink-0">
+        ${p.name.charAt(0).toUpperCase()}
+      </div>
+      <div class="flex-1 min-w-0">
+        <div class="font-semibold text-slate-800 text-sm truncate flex items-center gap-1.5">
+          ${p.name} ${youBadge}
+        </div>
+        <div class="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
+          <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          ${p.city} <span class="text-slate-300">·</span> ${p.total_matches} match${matchTxt}
+        </div>
+      </div>
+      <div class="flex-shrink-0 text-right">${winsWithIcon}${winRate}</div>
+    </div>`;
+}
+
+function lbLoadMore() {
+    const btn  = document.getElementById('lb-show-more-btn');
+    const list = document.getElementById('lb-list');
+    if (!list || !btn) return;
+    btn.disabled = true;
+    btn.innerHTML = '<svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Loading…';
+    const slice = lbAll.slice(lbOffset, lbOffset + lbPageSize);
+    setTimeout(() => {
+        slice.forEach(p => list.insertAdjacentHTML('beforeend', lbBuildRow(p)));
+        lbOffset += lbPageSize;
+        if (lbOffset >= lbAll.length) {
+            document.getElementById('lb-show-more-wrap').style.display = 'none';
+        } else {
+            btn.disabled = false;
+            btn.innerHTML = '<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg> Show More';
+        }
+    }, 150);
 }
 </script>
 </html>

@@ -163,7 +163,7 @@ try {
 
             // In-app notification to ground owner
             createNotification($pdo, $ground_owner_id, 'cancellation_fee_payout',
-                'Cancellation Fee Earned 💰',
+                'Cancellation Fee Earned ',
                 "Booking #{$booking_id} at {$groundRow['title']} was cancelled within 24h. PKR " . number_format($owner_payout, 2) . " has been credited to your wallet (after 5% platform fee).",
                 'owner_scores.php'
             );
@@ -215,7 +215,7 @@ try {
 
     echo json_encode([
         'success'       => true,
-        'message'       => '✅ Booking cancelled. ' . $refund_note,
+        'message'       => ' Booking cancelled. ' . $refund_note,
         'refund_amount' => $refund_amount,
         'new_balance'   => $new_balance,
         'booking_id'    => $booking_id,

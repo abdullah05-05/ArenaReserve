@@ -280,7 +280,7 @@ try {
                 $chalNotifMsg .= " Message: \"{$ch_message}\"";
             }
             createNotification($pdo, $challenged_user_id, 'challenge_received',
-                '⚡ Team Challenge Received!',
+                ' Team Challenge Received!',
                 $chalNotifMsg,
                 'match_history.php'
             );
@@ -322,9 +322,9 @@ try {
     }
 
     $messages = [
-        'direct'         => $slotCount > 1 ? "✅ {$slotCount} Slots confirmed! 50% advance deducted from wallet. Please pay remaining 50% at the venue." : '✅ Booking confirmed! 50% advance deducted from wallet. Please pay remaining 50% at the venue.',
-        'open_challenge' => $slotCount > 1 ? "⚡ {$slotCount} Open challenges posted! 25% payment held. Opponents pay 25% to confirm." : '⚡ Open challenge posted! 25% payment held. Opponent pays 25% to confirm. Remaining 50% paid at venue.',
-        'team_challenge' => $slotCount > 1 ? "🤝 {$slotCount} Challenges sent! 25% payment held. Opponent pays 25% to accept." : '🤝 Challenge sent! 25% payment held. Opponent pays 25% to accept. Remaining 50% paid at venue.',
+        'direct'         => $slotCount > 1 ? " {$slotCount} Slots confirmed! 50% advance deducted from wallet. Please pay remaining 50% at the venue." : ' Booking confirmed! 50% advance deducted from wallet. Please pay remaining 50% at the venue.',
+        'open_challenge' => $slotCount > 1 ? " {$slotCount} Open challenges posted! 25% payment held. Opponents pay 25% to confirm." : ' Open challenge posted! 25% payment held. Opponent pays 25% to confirm. Remaining 50% paid at venue.',
+        'team_challenge' => $slotCount > 1 ? " {$slotCount} Challenges sent! 25% payment held. Opponent pays 25% to accept." : ' Challenge sent! 25% payment held. Opponent pays 25% to accept. Remaining 50% paid at venue.',
     ];
 
     echo json_encode([

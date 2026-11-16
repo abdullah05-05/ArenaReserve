@@ -13,13 +13,14 @@ if (!headers_sent()) {
     header('Content-Type: application/json');
 }
 
-// CSRF protection for AJAX
-csrf_require();
-
 if (!isset($_SESSION['user_id'])) {
-    echo json_encode(['success' => false, 'message' => 'Not authenticated.']);
+    http_response_code(401);
+    echo json_encode(['success' => false, 'message' => 'Not authenticated. Please log in again.']);
     exit;
 }
+
+// CSRF protection for AJAX
+csrf_require();
 
 $user_id   = intval($_SESSION['user_id']);
 $ground_id = intval($_POST['ground_id'] ?? 0);
@@ -55,23 +56,16 @@ if (!$ground_id || !$slot_date || empty($slot_hours)) {
 
 // Check action = 'release'
 if ($action === 'release') {
-    try {
-        $inClause = implode(',', array_fill(0, count($slot_hours), '?'));
-        $stmt = $pdo->prepare("DELETE FROM slot_holds WHERE ground_id = ? AND slot_date = ? AND slot_hour IN ($inClause) AND held_by = ?");
-        $params = array_merge([$ground_id, $slot_date], $slot_hours, [$user_id]);
-        $stmt->execute($params);
-
-        echo json_encode([
-            'success'      => true,
-            'action'       => 'released',
-            'slot_hours'   => $slot_hours,
-            'message'      => 'Hold released.'
-        ]);
-        exit;
-    } catch (Exception $e) {
-        echo json_encode(['success' => false, 'message' => 'Error releasing hold: ' . $e->getMessage()]);
-        exit;
-    }
+    // User requirement: "even if the player deselect the slot after selecting the timer should need to it 0 before availae to others"
+    // Deselecting unselects the slot in the user's UI, but does not delete the hold record from the database.
+    // The hold remains active until expires_at naturally hits 0 before becoming available to others.
+    echo json_encode([
+        'success'      => true,
+        'action'       => 'deselected',
+        'slot_hours'   => $slot_hours,
+        'message'      => 'Slot selection updated.'
+    ]);
+    exit;
 }
 
 // Validate that slots are not in the past
@@ -138,22 +132,48 @@ try {
         exit;
     }
 
-    // 4. Insert or refresh holds for all requested slot hours
-    $holdStmt = $pdo->prepare("
-        INSERT INTO slot_holds (ground_id, slot_date, slot_hour, held_by, expires_at)
-        VALUES (?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 10 MINUTE))
-        ON DUPLICATE KEY UPDATE
-            held_by    = VALUES(held_by),
-            expires_at = DATE_ADD(NOW(), INTERVAL 10 MINUTE)
+    // 4. Check if user already has an active hold session on this ground and date
+    // If active hold exists, reuse that session's expires_at so the 10-minute timer does NOT refresh!
+    $sessionCheck = $pdo->prepare("
+        SELECT expires_at, TIMESTAMPDIFF(SECOND, NOW(), expires_at) AS remaining_sec
+        FROM slot_holds
+        WHERE ground_id = ? AND slot_date = ? AND held_by = ? AND expires_at > NOW()
+        ORDER BY expires_at ASC
+        LIMIT 1
     ");
-    foreach ($slot_hours as $h) {
-        $holdStmt->execute([$ground_id, $slot_date, $h, $user_id]);
+    $sessionCheck->execute([$ground_id, $slot_date, $user_id]);
+    $existingSession = $sessionCheck->fetch();
+
+    if ($existingSession && !empty($existingSession['expires_at']) && intval($existingSession['remaining_sec']) > 0) {
+        $sessionExpiresAt = $existingSession['expires_at'];
+        $holdStmt = $pdo->prepare("
+            INSERT INTO slot_holds (ground_id, slot_date, slot_hour, held_by, expires_at)
+            VALUES (?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+                held_by    = VALUES(held_by),
+                expires_at = VALUES(expires_at)
+        ");
+        foreach ($slot_hours as $h) {
+            $holdStmt->execute([$ground_id, $slot_date, $h, $user_id, $sessionExpiresAt]);
+        }
+    } else {
+        // First slot selection: start new 10-minute window
+        $holdStmt = $pdo->prepare("
+            INSERT INTO slot_holds (ground_id, slot_date, slot_hour, held_by, expires_at)
+            VALUES (?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 10 MINUTE))
+            ON DUPLICATE KEY UPDATE
+                held_by    = VALUES(held_by),
+                expires_at = DATE_ADD(NOW(), INTERVAL 10 MINUTE)
+        ");
+        foreach ($slot_hours as $h) {
+            $holdStmt->execute([$ground_id, $slot_date, $h, $user_id]);
+        }
     }
 
     // 5. Read back minimum remaining seconds from MySQL
     $stmt = $pdo->prepare("
         SELECT MIN(TIMESTAMPDIFF(SECOND, NOW(), expires_at)) AS remaining_sec,
-               MAX(expires_at) AS expires_at
+               MIN(expires_at) AS expires_at
         FROM slot_holds
         WHERE ground_id = ? AND slot_date = ? AND slot_hour IN ($inClause) AND held_by = ?
     ");

@@ -100,7 +100,7 @@ $active_policy = 'cancellation';
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
             <div class="max-w-3xl">
                 <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-bold uppercase tracking-wider mb-4 border border-emerald-500/30">
-                    <span>🔄 Reservation Management</span>
+                    <span> Reservation Management</span>
                 </div>
                 <h1 class="text-3xl sm:text-5xl font-black tracking-tight leading-tight text-white">
                     Cancellation Policy
@@ -129,19 +129,19 @@ $active_policy = 'cancellation';
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex items-center space-x-1 sm:space-x-4 overflow-x-auto py-3 no-scrollbar text-sm font-semibold">
                 <a href="terms.php" class="px-4 py-2 rounded-xl text-slate-600 hover:text-emerald-600 hover:bg-slate-50 transition-colors flex-shrink-0 flex items-center gap-2">
-                    <span>📜 Terms & Conditions</span>
+                    <span> Terms & Conditions</span>
                 </a>
                 <a href="privacy.php" class="px-4 py-2 rounded-xl text-slate-600 hover:text-emerald-600 hover:bg-slate-50 transition-colors flex-shrink-0 flex items-center gap-2">
-                    <span>🔒 Privacy Policy</span>
+                    <span> Privacy Policy</span>
                 </a>
                 <a href="refund-policy.php" class="px-4 py-2 rounded-xl text-slate-600 hover:text-emerald-600 hover:bg-slate-50 transition-colors flex-shrink-0 flex items-center gap-2">
-                    <span>💳 Refund Policy</span>
+                    <span> Refund Policy</span>
                 </a>
                 <a href="cancellation-policy.php" class="px-4 py-2 rounded-xl bg-emerald-50 text-emerald-700 font-bold flex-shrink-0 flex items-center gap-2">
-                    <span>🔄 Cancellation Policy</span>
+                    <span> Cancellation Policy</span>
                 </a>
                 <a href="contact.php" class="px-4 py-2 rounded-xl text-slate-600 hover:text-emerald-600 hover:bg-slate-50 transition-colors flex-shrink-0 flex items-center gap-2">
-                    <span>📞 Support & Contact</span>
+                    <span> Support & Contact</span>
                 </a>
             </div>
         </div>
@@ -173,8 +173,8 @@ $support = $cancel_config['support'];
 ?>
                         <div class="mt-6 pt-6 border-t border-slate-100">
                             <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Need Urgent Cancellation?</div>
-                            <a href="tel:<?php echo htmlspecialchars($support['phone']); ?>" class="text-sm font-bold text-emerald-600 hover:underline block">📞 <?php echo htmlspecialchars($support['phone']); ?></a>
-                            <a href="mailto:<?php echo htmlspecialchars($support['email']); ?>" class="text-xs text-slate-500 hover:text-emerald-600 break-all block mt-1">✉️ <?php echo htmlspecialchars($support['email']); ?></a>
+                            <a href="tel:<?php echo htmlspecialchars($support['phone']); ?>" class="text-sm font-bold text-emerald-600 hover:underline block"> <?php echo htmlspecialchars($support['phone']); ?></a>
+                            <a href="mailto:<?php echo htmlspecialchars($support['email']); ?>" class="text-xs text-slate-500 hover:text-emerald-600 break-all block mt-1"> <?php echo htmlspecialchars($support['email']); ?></a>
                         </div>
                     </div>
                 </aside>
@@ -317,7 +317,7 @@ $support2 = $cancel_config2['support'];
                     <section id="support-help" class="rounded-2xl bg-gradient-to-r from-emerald-800 to-teal-900 p-6 sm:p-8 text-white shadow-lg">
                         <div class="flex items-start gap-4">
                             <div class="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center text-2xl flex-shrink-0">
-                                📞
+                                
                             </div>
                             <div>
                                 <h3 class="text-xl font-black text-white">Need Help With a Cancellation?</h3>
@@ -326,10 +326,10 @@ $support2 = $cancel_config2['support'];
                                 </p>
                                 <div class="mt-4 flex flex-wrap items-center gap-4 text-sm font-semibold">
                                     <a href="tel:<?php echo htmlspecialchars($support2['phone']); ?>" class="px-4 py-2 rounded-xl bg-white text-emerald-900 hover:bg-emerald-50 transition-colors flex items-center gap-2">
-                                        <span>📞 <?php echo htmlspecialchars($support2['phone']); ?></span>
+                                        <span> <?php echo htmlspecialchars($support2['phone']); ?></span>
                                     </a>
                                     <a href="mailto:<?php echo htmlspecialchars($support2['email']); ?>" class="px-4 py-2 rounded-xl bg-emerald-700/80 hover:bg-emerald-700 text-white border border-emerald-500/50 transition-colors flex items-center gap-2">
-                                        <span>✉️ <?php echo htmlspecialchars($support2['email']); ?></span>
+                                        <span> <?php echo htmlspecialchars($support2['email']); ?></span>
                                     </a>
                                 </div>
                             </div>

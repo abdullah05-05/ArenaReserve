@@ -19,9 +19,9 @@ try {
             FOREIGN KEY (`ground_id`) REFERENCES `grounds`(`id`) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     ");
-    $success[] = "✅ slot_holds table created (or already exists).";
+    $success[] = " slot_holds table created (or already exists).";
 } catch (Exception $e) {
-    $errors[] = "❌ slot_holds: " . $e->getMessage();
+    $errors[] = " slot_holds: " . $e->getMessage();
 }
 
 // 2. bookings table
@@ -49,9 +49,9 @@ try {
     if (empty($cols)) {
         $pdo->exec("ALTER TABLE bookings ADD COLUMN challenged_user_id INT DEFAULT NULL");
     }
-    $success[] = "✅ bookings table created/updated with challenged_user_id.";
+    $success[] = " bookings table created/updated with challenged_user_id.";
 } catch (Exception $e) {
-    $errors[] = "❌ bookings: " . $e->getMessage();
+    $errors[] = " bookings: " . $e->getMessage();
 }
 
 // 3. Add wallet_transactions types if needed (alter enum)
@@ -61,10 +61,10 @@ try {
         MODIFY COLUMN `transaction_type`
         ENUM('Deposit','Booking_Payment','Refund','Payout','Challenge_Hold') NOT NULL;
     ");
-    $success[] = "✅ wallet_transactions enum updated.";
+    $success[] = " wallet_transactions enum updated.";
 } catch (Exception $e) {
     // Non-fatal if already updated
-    $success[] = "ℹ️ wallet_transactions enum: " . $e->getMessage();
+    $success[] = "ℹ wallet_transactions enum: " . $e->getMessage();
 }
 
 ?>
@@ -73,7 +73,7 @@ try {
 <style>body{font-family:monospace;padding:2rem;background:#0f172a;color:#e2e8f0;}
 h1{color:#34d399;} .ok{color:#86efac;} .err{color:#f87171;}</style>
 </head><body>
-<h1>🗃️ ArenaReserve Migration: Booking System</h1>
+<h1> ArenaReserve Migration: Booking System</h1>
 <?php foreach ($success as $s): ?>
   <p class="ok"><?= htmlspecialchars($s) ?></p>
 <?php endforeach; ?>

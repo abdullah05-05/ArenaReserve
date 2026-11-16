@@ -2,6 +2,7 @@
 require_once 'session_config.php';
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'db.php';
+require_once 'csrf_helper.php';
 require_once 'logo_helper.php';
 if (!isset($_SESSION['user_id'])) { header("Location: login.php"); exit; }
 $user_id = $_SESSION['user_id'];
@@ -239,7 +240,7 @@ body { background: #f5f6fa; }
 .slot-passed     { background: #f1f5f9; border: 1.5px solid #e2e8f0; cursor: not-allowed; opacity: 0.6; }
 .slot-selected   { background: #ecfdf5 !important; border: 2.5px solid #059669 !important; transform: translateY(-2px); box-shadow: 0 0 0 3px rgba(5,150,105,0.25), 0 8px 18px rgba(5,150,105,0.18) !important; position: relative; }
 .slot-selected::after {
-    content: '✓';
+    content: '';
     position: absolute;
     top: -8px;
     right: -8px;
@@ -325,6 +326,7 @@ body { background: #f5f6fa; }
 #toast.info    { background: linear-gradient(135deg, #3b82f6, #2563eb); }
 </style>
     <?php
+    echo csrf_meta();
     $page_description = 'Book a sports ground slot on ArenaReserve. Choose your date, time, and venue – confirmed in seconds.';
     include 'logo_head.php';
     ?>
@@ -512,7 +514,7 @@ body { background: #f5f6fa; }
             </div>
             <div class="text-right flex-shrink-0">
               <div id="venue-rating-display" class="inline-flex items-center gap-1 text-xs font-bold bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/20">
-                <span class="text-amber-400">★</span>
+                <span class="text-amber-400"></span>
                 <span id="venue-rating-val"><?php echo (!empty($selected_ground['total_reviews']) && $selected_ground['total_reviews'] > 0) ? number_format(floatval($selected_ground['avg_rating']), 1) : 'New'; ?></span>
                 <?php if (!empty($selected_ground['total_reviews']) && $selected_ground['total_reviews'] > 0): ?>
                 <span id="venue-rating-count" class="text-[10px] text-slate-300 font-normal">(<?php echo intval($selected_ground['total_reviews']); ?>)</span>
@@ -551,7 +553,7 @@ body { background: #f5f6fa; }
             </div>
             <div class="text-[11px] font-semibold text-slate-500" id="venue-score-summary">
               <?php if (!empty($selected_ground['total_reviews']) && $selected_ground['total_reviews'] > 0): ?>
-                ★ <?php echo number_format(floatval($selected_ground['avg_rating']), 1); ?>/5 Average
+                 <?php echo number_format(floatval($selected_ground['avg_rating']), 1); ?>/5 Average
               <?php else: ?>
                 No reviews yet
               <?php endif; ?>
@@ -569,11 +571,11 @@ body { background: #f5f6fa; }
                   </div>
                   <div>
                     <span class="text-xs font-bold text-slate-800"><?php echo htmlspecialchars($first_review['user_name'] ?? 'Player'); ?></span>
-                    <span class="text-[10px] text-emerald-600 font-semibold ml-1">✓ Verified Match</span>
+                    <span class="text-[10px] text-emerald-600 font-semibold ml-1"> Verified Match</span>
                   </div>
                 </div>
                 <div class="text-amber-500 text-xs font-semibold tracking-tighter">
-                  <?php echo str_repeat('★', intval($first_review['rating'])) . str_repeat('☆', 5 - intval($first_review['rating'])); ?>
+                  <?php echo str_repeat('', intval($first_review['rating'])) . str_repeat('', 5 - intval($first_review['rating'])); ?>
                 </div>
               </div>
               <?php if (!empty($first_review['review'])): ?>
@@ -607,11 +609,11 @@ body { background: #f5f6fa; }
                   </div>
                   <div>
                     <span class="text-xs font-bold text-slate-800"><?php echo htmlspecialchars($r['user_name'] ?? 'Player'); ?></span>
-                    <span class="text-[10px] text-emerald-600 font-semibold ml-1">✓ Verified Match</span>
+                    <span class="text-[10px] text-emerald-600 font-semibold ml-1"> Verified Match</span>
                   </div>
                 </div>
                 <div class="text-amber-500 text-xs font-semibold tracking-tighter">
-                  <?php echo str_repeat('★', intval($r['rating'])) . str_repeat('☆', 5 - intval($r['rating'])); ?>
+                  <?php echo str_repeat('', intval($r['rating'])) . str_repeat('', 5 - intval($r['rating'])); ?>
                 </div>
               </div>
               <?php if (!empty($r['review'])): ?>
@@ -675,7 +677,7 @@ body { background: #f5f6fa; }
             $selRev = intval($selected_ground['total_reviews'] ?? 0);
           ?>
           <div id="ground-rating-badge" class="flex items-center gap-1 text-xs font-semibold <?php echo ($selRev > 0) ? 'text-amber-800 bg-amber-50 border border-amber-200' : 'text-slate-500 bg-slate-50 border border-slate-200'; ?> px-2.5 py-1.5 rounded-lg shadow-2xs">
-            <span class="text-amber-500">★</span>
+            <span class="text-amber-500"></span>
             <span><?php echo ($selRev > 0) ? number_format($selAvg, 1) : 'New'; ?></span>
             <?php if ($selRev > 0): ?>
             <span class="text-[10px] text-slate-400 font-normal">(<?php echo $selRev; ?> reviews)</span>
@@ -739,9 +741,9 @@ body { background: #f5f6fa; }
 
               <div class="flex items-center justify-between">
                 <?php if ($isPeak): ?>
-                  <span class="text-[10px] font-bold bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded">🔥 Peak</span>
+                  <span class="inline-flex items-center gap-1 text-[10px] font-bold bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded"><span class="w-1.5 h-1.5 rounded-full bg-orange-500"></span>Peak</span>
                 <?php else: ?>
-                  <span class="text-[10px] font-bold bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded">🟢 Normal</span>
+                  <span class="inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Standard</span>
                 <?php endif; ?>
                 <?php if ($slot['label']): ?>
                   <span class="text-[10px] font-semibold <?php echo $tc['text']; ?>"><?php echo htmlspecialchars($slot['label']); ?></span>
@@ -753,7 +755,7 @@ body { background: #f5f6fa; }
                 <div class="hold-timer-fill" id="fill-<?php echo $slot['hour']; ?>" style="width:<?php echo min(100, round($slot['hold_remaining'] / 3)); ?>%"></div>
               </div>
               <div class="text-[10px] text-blue-600 font-semibold mt-1" id="hold-text-<?php echo $slot['hour']; ?>">
-                <?php echo $slot['type'] === 'held' ? '🔵 Your hold – ' : '⏳ On hold – '; ?><?php echo ceil($slot['hold_remaining'] / 60); ?>m remaining
+                <?php echo $slot['type'] === 'held' ? 'Your hold – ' : 'On hold – '; ?><?php echo ceil($slot['hold_remaining'] / 60); ?>m remaining
               </div>
               <?php endif; ?>
             </div>
@@ -819,8 +821,8 @@ body { background: #f5f6fa; }
       <div id="modal-slots-pills" class="flex flex-wrap gap-1.5 mt-2.5"></div>
 
       <div class="flex items-center gap-4 mt-3 text-xs opacity-90">
-        <span>📅 <span id="modal-date">--</span></span>
-        <span>💰 <span id="modal-price" class="font-bold">--</span> PKR full price</span>
+        <span class="inline-flex items-center gap-1.5"><svg class="w-3.5 h-3.5 text-white/80" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg><span id="modal-date">--</span></span>
+        <span class="inline-flex items-center gap-1.5"><svg class="w-3.5 h-3.5 text-white/80" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/></svg><span id="modal-price" class="font-bold">--</span> PKR full price</span>
       </div>
 
       <!-- Hold countdown bar -->
@@ -848,7 +850,7 @@ body { background: #f5f6fa; }
       <div class="bg-slate-50 border border-slate-200/90 rounded-2xl p-3.5 sm:p-4">
         <div class="flex items-center justify-between mb-2.5 pb-2 border-b border-slate-200/80">
           <span class="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-            <span>🕒</span> Selected Slot(s) (<span id="step1-slots-count">1</span>)
+            <svg class="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Selected Slot(s) (<span id="step1-slots-count">1</span>)
           </span>
           <span class="text-xs font-extrabold text-emerald-700" id="step1-total-price">-- PKR</span>
         </div>
@@ -988,12 +990,13 @@ body { background: #f5f6fa; }
           <span id="tc-venue-due">-- PKR</span>
         </div>
       </div>
-      <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700 mb-4">
-        ⚠️ Your 10-min slot hold will be released when you navigate away. The slot reservation will be locked once you pay your 25% advance on the next page.
+      <div class="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700 mb-4">
+        <svg class="w-4 h-4 text-amber-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+        <span>Your 10-min slot hold will be released when you navigate away. The slot reservation will be locked once you pay your 25% advance on the next page.</span>
       </div>
       <button onclick="goToChallengeTeam()"
-              class="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 rounded-xl text-sm transition-all shadow-md cursor-pointer">
-        🏆 Select Team & Pay 25% →
+              class="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 rounded-xl text-sm transition-all shadow-md cursor-pointer flex items-center justify-center gap-1.5">
+        <span>Select Team & Pay 25% →</span>
       </button>
     </div>
 
@@ -1001,6 +1004,9 @@ body { background: #f5f6fa; }
 </div>
 
 <script>
+// ---- CSRF Security Token ----
+const csrfToken         = '<?php echo csrf_token(); ?>';
+
 // ---- State ----
 let currentGroundId     = <?php echo $selected_ground_id; ?>;
 let currentDate         = '<?php echo $selected_date; ?>';
@@ -1024,7 +1030,7 @@ function escapeHtml(str) {
 
 function renderReviewItemHtml(r) {
   const initial = (r.user_name || 'P').charAt(0).toUpperCase();
-  const stars   = '★'.repeat(parseInt(r.rating || 5)) + '☆'.repeat(Math.max(0, 5 - parseInt(r.rating || 5)));
+  const stars   = ''.repeat(parseInt(r.rating || 5)) + ''.repeat(Math.max(0, 5 - parseInt(r.rating || 5)));
   const text    = r.review ? `<p class="text-xs text-slate-600 italic mt-1 leading-relaxed">"${escapeHtml(r.review)}"</p>` : `<p class="text-xs text-slate-400 italic mt-0.5">Rated ${r.rating}/5 stars without written comments.</p>`;
   const dateStr = r.created_at ? new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
 
@@ -1037,7 +1043,7 @@ function renderReviewItemHtml(r) {
           </div>
           <div>
             <span class="text-xs font-bold text-slate-800">${escapeHtml(r.user_name || 'Player')}</span>
-            <span class="text-[10px] text-emerald-600 font-semibold ml-1">✓ Verified Match</span>
+            <span class="text-[10px] text-emerald-600 font-semibold ml-1"> Verified Match</span>
           </div>
         </div>
         <div class="text-amber-500 text-xs font-semibold tracking-tighter">
@@ -1097,7 +1103,7 @@ function updateVenueShowcase(groundId) {
 
   const scoreSummary = document.getElementById('venue-score-summary');
   if (scoreSummary) {
-    scoreSummary.textContent = reviews.length > 0 ? `★ ${g.avg_rating.toFixed(1)}/5 Average` : 'No reviews yet';
+    scoreSummary.textContent = reviews.length > 0 ? ` ${g.avg_rating.toFixed(1)}/5 Average` : 'No reviews yet';
   }
 
   const featuredBox = document.getElementById('venue-featured-review-box');
@@ -1185,7 +1191,7 @@ function renderSlotCardHtml(slot, groundId, date) {
   let holdHtml = '';
   if (isHeldOrOnHold) {
     const isOwn  = (slot.type === 'held');
-    const prefix = isOwn ? '🔵 Your hold – ' : '⏳ On hold – ';
+    const prefix = isOwn ? 'Your hold – ' : 'On hold – ';
     const rem    = Math.max(0, parseInt(slot.hold_remaining || 0));
     const m      = Math.floor(rem / 60);
     const s      = String(rem % 60).padStart(2, '0');
@@ -1225,7 +1231,7 @@ function renderSlotCardHtml(slot, groundId, date) {
       </div>
 
       <div class="flex items-center justify-between">
-        ${isPeak ? '<span class="text-[10px] font-bold bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded">🔥 Peak</span>' : '<span class="text-[10px] font-bold bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded">🟢 Normal</span>'}
+        ${isPeak ? '<span class="inline-flex items-center gap-1 text-[10px] font-bold bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded"><span class="w-1.5 h-1.5 rounded-full bg-orange-500"></span>Peak</span>' : '<span class="inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Standard</span>'}
         ${slot.label ? `<span class="text-[10px] font-semibold ${tc.text}">${escHtml(slot.label)}</span>` : ''}
       </div>
 
@@ -1318,41 +1324,37 @@ function clickSlot(el) {
   const date   = el.dataset.date;
 
   if (selectedSlots.has(hour)) {
-    // Deselect
+    // Deselect locally: as per requirement, slot remains held in DB until timer hits 0 before available to others
     selectedSlots.delete(hour);
     el.classList.remove('slot-selected');
-
-    // Call release hold via AJAX
-    fetch('hold_slot.php', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-      body: `action=release&ground_id=${ground}&slot_date=${date}&slot_hours=${JSON.stringify([hour])}`
-    }).catch(() => {});
-
     updateMultiSlotBar();
   } else {
     // Select & Place Hold
     fetch('hold_slot.php', {
       method: 'POST',
-      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-      body: `action=hold&ground_id=${ground}&slot_date=${date}&slot_hours=${JSON.stringify([hour])}`
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-CSRF-Token': csrfToken
+      },
+      body: `action=hold&ground_id=${ground}&slot_date=${date}&slot_hours=${encodeURIComponent(JSON.stringify([hour]))}&csrf_token=${encodeURIComponent(csrfToken)}`
     })
     .then(r => r.json())
     .then(res => {
       if (!res.success) {
-        showToast('❌ ' + (res.message || 'Slot is currently on hold.'), 'error');
+        showToast(res.message || 'Slot is currently on hold.', 'error');
         fetchSlotsLive(ground, date, false);
         return;
       }
 
       selectedSlots.set(hour, { hour, time, price, ground, date });
       el.classList.add('slot-selected');
-      holdSeconds = res.remaining || 600;
-      updateSlotCardHoldState(hour, holdSeconds, true);
+      const rem = res.remaining ? parseInt(res.remaining, 10) : 600;
+      holdSeconds = rem;
+      updateSlotCardHoldState(hour, rem, true);
       updateMultiSlotBar();
     })
     .catch(() => {
-      showToast('❌ Network error. Please try again.', 'error');
+      showToast('Network error. Please try again.', 'error');
     });
   }
 }
@@ -1394,17 +1396,10 @@ function updateMultiSlotBar() {
 function clearAllSelections() {
   if (selectedSlots.size === 0) return;
 
-  const hours = Array.from(selectedSlots.keys());
-  fetch('hold_slot.php', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-    body: `action=release&ground_id=${currentGroundId}&slot_date=${currentDate}&slot_hours=${JSON.stringify(hours)}`
-  }).catch(() => {});
-
+  // Clear selections from UI (holds in DB expire naturally when timer hits 0)
   selectedSlots.clear();
   document.querySelectorAll('.slot-card.slot-selected').forEach(c => c.classList.remove('slot-selected'));
   updateMultiSlotBar();
-  fetchSlotsLive(currentGroundId, currentDate, false);
 }
 
 // ---- Update Single Slot Card Hold Visuals Directly ----
@@ -1418,7 +1413,7 @@ function updateSlotCardHoldState(hour, seconds, isOwn) {
   let timerBar = card.querySelector('.hold-timer-bar');
   let holdText = document.getElementById('hold-text-' + hour);
 
-  const prefix = isOwn ? '🔵 Your hold – ' : '⏳ On hold – ';
+  const prefix = isOwn ? 'Your hold – ' : 'On hold – ';
   const m = Math.floor(seconds / 60);
   const s = String(seconds % 60).padStart(2, '0');
   const widthPct = Math.min(100, Math.max(0, Math.round((seconds / 600) * 100)));
@@ -1473,7 +1468,7 @@ function openModal() {
   if (pillsWrap) {
     pillsWrap.innerHTML = sorted.map(s => `
       <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/20 text-white backdrop-blur-xs border border-white/30">
-        🕒 ${escHtml(s.time)} (${formatNum(s.price)} PKR)
+        <svg class="w-3 h-3 mr-1 inline opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2"/></svg>${escHtml(s.time)} (${formatNum(s.price)} PKR)
       </span>
     `).join('');
   }
@@ -1510,7 +1505,25 @@ function openModal() {
 
   showStep(1);
   document.getElementById('booking-modal-overlay').classList.add('open');
-  startCountdown(holdSeconds);
+
+  // Compute live remaining seconds from the currently selected slots
+  let minSec = 600;
+  let found = false;
+  selectedSlots.forEach((slot, hour) => {
+    const card = document.getElementById('slot-card-' + hour);
+    if (card && card.dataset.holdRemaining) {
+      const rem = parseInt(card.dataset.holdRemaining, 10);
+      if (rem > 0 && rem < minSec) {
+        minSec = rem;
+        found = true;
+      }
+    }
+  });
+  if (!found && holdSeconds > 0 && holdSeconds < 600) {
+    minSec = holdSeconds;
+  }
+  holdSeconds = minSec;
+  startCountdown(minSec);
 }
 
 function closeModal() {
@@ -1526,16 +1539,18 @@ function closeModal() {
 function startCountdown(seconds) {
   if (countdownInterval) clearInterval(countdownInterval);
   let remaining = seconds;
-  const total   = seconds;
+  const total   = 600; // Total 10-minute hold window for accurate progress bar
   updateCountdownUI(remaining, total);
 
   countdownInterval = setInterval(() => {
     remaining--;
+    holdSeconds = remaining;
     if (remaining <= 0) {
       clearInterval(countdownInterval);
-      showToast('⏰ Hold expired. Slots released.', 'info');
+      showToast('Hold expired. Slots released.', 'info');
       clearAllSelections();
       closeModal();
+      fetchSlotsLive(currentGroundId, currentDate, false);
       return;
     }
     updateCountdownUI(remaining, total);
@@ -1579,10 +1594,17 @@ function initCardCountdowns() {
           hasExpired = true;
         } else {
           const isOwn  = card.classList.contains('slot-held') || card.classList.contains('slot-selected');
-          const prefix = isOwn ? '🔵 Your hold – ' : '⏳ On hold – ';
+          const prefix = isOwn ? 'Your hold – ' : 'On hold – ';
           const m      = Math.floor(rem / 60);
           const s      = String(rem % 60).padStart(2, '0');
           text.textContent = prefix + m + ':' + s + ' remaining';
+        }
+      }
+
+      // Synchronize active user holdSeconds with live card ticks
+      if (selectedSlots.has(parseInt(hour))) {
+        if (holdSeconds <= 0 || rem < holdSeconds) {
+          holdSeconds = rem;
         }
       }
     });
@@ -1610,10 +1632,10 @@ function onGroundChanged(newGroundId) {
       const revs = parseInt(opt.dataset.reviews) || 0;
       if (revs > 0) {
         ratingBadge.className = 'flex items-center gap-1 text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-1.5 rounded-lg shadow-2xs';
-        ratingBadge.innerHTML = `<span class="text-amber-500">★</span> <span>${avg.toFixed(1)}</span> <span class="text-[10px] text-slate-400 font-normal">(${revs} reviews)</span>`;
+        ratingBadge.innerHTML = `<span class="text-amber-500"></span> <span>${avg.toFixed(1)}</span> <span class="text-[10px] text-slate-400 font-normal">(${revs} reviews)</span>`;
       } else {
         ratingBadge.className = 'flex items-center gap-1 text-xs font-semibold text-slate-500 bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-lg shadow-2xs';
-        ratingBadge.innerHTML = `<span class="text-amber-500">★</span> <span>New</span>`;
+        ratingBadge.innerHTML = `<span class="text-amber-500"></span> <span>New</span>`;
       }
     }
   }

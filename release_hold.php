@@ -29,13 +29,8 @@ if (!$ground_id || !$slot_date || $slot_hour < 0) {
 }
 
 try {
-    $stmt = $pdo->prepare("
-        DELETE FROM slot_holds
-        WHERE ground_id = ? AND slot_date = ? AND slot_hour = ? AND held_by = ?
-    ");
-    $stmt->execute([$ground_id, $slot_date, $slot_hour, $user_id]);
-
-    echo json_encode(['success' => true, 'message' => 'Hold released.']);
+    // As per user requirement: slot remains held until expires_at hits 0
+    echo json_encode(['success' => true, 'message' => 'Hold deselected.']);
 } catch (Exception $e) {
     echo json_encode(['success' => false, 'message' => 'Server error: ' . $e->getMessage()]);
 }

@@ -289,9 +289,9 @@ body { font-family:'Inter',sans-serif; background:#f8fafc; }
           <div class="text-xs font-semibold opacity-80 mb-0.5">Booking for this slot</div>
           <div class="font-extrabold text-lg"><?php echo htmlspecialchars($ctx_ground['title']); ?></div>
           <div class="flex flex-wrap gap-3 mt-1 text-sm opacity-90">
-            <span>📅 <?php echo date('D, d M Y', strtotime($ctx_date)); ?></span>
+            <span> <?php echo date('D, d M Y', strtotime($ctx_date)); ?></span>
             <span>⏰ <?php echo $ctx_time_label; ?></span>
-            <span>💰 Your share: <strong><?php echo number_format($ctx_quarter, 0); ?> PKR</strong> (25% advance · 50% paid at venue)</span>
+            <span> Your share: <strong><?php echo number_format($ctx_quarter, 0); ?> PKR</strong> (25% advance · 50% paid at venue)</span>
           </div>
         </div>
       </div>
@@ -364,7 +364,7 @@ body { font-family:'Inter',sans-serif; background:#f8fafc; }
         <div>
           <button class="w-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 active:from-orange-700 active:to-amber-700 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5"
                   onclick="event.stopPropagation();openChallengeModal(<?php echo $team['id']; ?>, <?php echo json_encode($team['name']); ?>, <?php echo json_encode($team['city']); ?>)">
-            ⚡ Challenge Player
+             Challenge Player
           </button>
         </div>
       </div>
@@ -399,7 +399,7 @@ body { font-family:'Inter',sans-serif; background:#f8fafc; }
       <!-- No slot context: show slot picker -->
       <?php if (!$has_context): ?>
       <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 text-xs text-amber-700">
-        ⚠️ No slot selected. Please <a href="book_slot.php" class="font-bold underline">go to Book Slot</a> first and choose "Challenge a Team" from there to pre-fill slot details.
+         No slot selected. Please <a href="book_slot.php" class="font-bold underline">go to Book Slot</a> first and choose "Challenge a Team" from there to pre-fill slot details.
       </div>
       <?php endif; ?>
 
@@ -434,7 +434,7 @@ body { font-family:'Inter',sans-serif; background:#f8fafc; }
       <!-- Optional message -->
       <div class="mb-4">
         <label class="block text-xs font-semibold text-slate-700 mb-1">Challenge Message (optional)</label>
-        <textarea id="ch-message" rows="2" placeholder="Game on! See you on the field 🏆" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 resize-none"></textarea>
+        <textarea id="ch-message" rows="2" placeholder="Game on! See you on the field " class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 resize-none"></textarea>
       </div>
 
       <!-- Payment Method Switcher -->
@@ -444,7 +444,7 @@ body { font-family:'Inter',sans-serif; background:#f8fafc; }
           <!-- Wallet Card Option -->
           <div id="ct-payopt-wallet" onclick="selectCTPaymentMethod('wallet')" class="pay-method-card selected">
             <div class="flex items-center gap-1.5 mb-1">
-              <span class="text-base">💳</span>
+              <span class="text-base"></span>
               <span class="font-bold text-xs text-slate-800">My Wallet</span>
             </div>
             <div class="text-[10px] text-slate-500">Balance: <span class="font-bold text-slate-700"><?php echo number_format($available_balance, 0); ?> PKR</span></div>
@@ -453,7 +453,7 @@ body { font-family:'Inter',sans-serif; background:#f8fafc; }
           <!-- JazzCash Card Option -->
           <div id="ct-payopt-jazzcash" onclick="selectCTPaymentMethod('jazzcash')" class="pay-method-card">
             <div class="flex items-center gap-1.5 mb-1">
-              <span class="text-base">⚡</span>
+              <span class="text-base"></span>
               <span class="font-bold text-xs text-slate-800">JazzCash</span>
             </div>
             <div class="text-[10px] text-red-600 font-semibold truncate">Mobile · Cards · Voucher</div>
@@ -465,7 +465,7 @@ body { font-family:'Inter',sans-serif; background:#f8fafc; }
       <div id="ct-panel-jazzcash" class="hidden space-y-3 mb-4">
         <div class="bg-gradient-to-r from-red-50 to-amber-50 border border-red-200 rounded-xl p-3 text-xs space-y-1.5">
           <div class="flex items-center justify-between">
-            <span class="font-bold text-slate-800">⚡ JazzCash Online Checkout</span>
+            <span class="font-bold text-slate-800"> JazzCash Online Checkout</span>
             <div class="flex items-center gap-1">
               <span class="px-1.5 py-0.5 bg-white border border-red-200 text-[10px] font-bold text-red-700 rounded shadow-2xs">JazzCash</span>
               <span class="px-1.5 py-0.5 bg-white border border-red-200 text-[10px] font-bold text-red-700 rounded shadow-2xs">Cards</span>
@@ -492,7 +492,7 @@ body { font-family:'Inter',sans-serif; background:#f8fafc; }
         <button onclick="submitChallenge()" id="ch-submit-btn"
                 class="flex-1 py-2.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold rounded-xl shadow transition-all <?php echo (!$has_context) ? 'opacity-50 cursor-not-allowed' : ''; ?>"
                 <?php echo (!$has_context) ? 'disabled' : ''; ?>>
-          ⚡ Pay 25% from Wallet & Send
+           Pay 25% from Wallet & Send
         </button>
       </div>
     </div>
@@ -524,12 +524,12 @@ function selectCTPaymentMethod(method) {
     if (wCard) wCard.className = 'pay-method-card selected';
     if (jcCard) jcCard.className = 'pay-method-card';
     if (jcPanel) jcPanel.classList.add('hidden');
-    if (submitBtn) submitBtn.textContent = '⚡ Pay 25% from Wallet & Send';
+    if (submitBtn) submitBtn.textContent = ' Pay 25% from Wallet & Send';
   } else {
     if (wCard) wCard.className = 'pay-method-card';
     if (jcCard) jcCard.className = 'pay-method-card selected';
     if (jcPanel) jcPanel.classList.remove('hidden');
-    if (submitBtn) submitBtn.textContent = '⚡ Pay 25% via JazzCash & Send';
+    if (submitBtn) submitBtn.textContent = ' Pay 25% via JazzCash & Send';
   }
 }
 
@@ -582,7 +582,7 @@ function submitChallenge() {
     .then(r => r.json())
     .then(res => {
       if (res.success && res.redirect_url) {
-        btn.textContent = '✅ Payment Approved! Redirecting…';
+        btn.textContent = ' Payment Approved! Redirecting…';
         window.location.href = res.redirect_url;
       } else if (res.success && res.post_url && res.params) {
         btn.textContent = 'Redirecting to JazzCash…';
@@ -601,15 +601,15 @@ function submitChallenge() {
         document.body.appendChild(form);
         form.submit();
       } else {
-        showCTToast('❌ ' + (res.message || 'Payment initiation failed.'), 'error');
+        showCTToast(' ' + (res.message || 'Payment initiation failed.'), 'error');
         btn.disabled = false;
-        btn.textContent = '⚡ Pay 25% via JazzCash & Send';
+        btn.textContent = ' Pay 25% via JazzCash & Send';
       }
     })
     .catch(() => {
-      showCTToast('❌ Network error while initiating checkout.', 'error');
+      showCTToast(' Network error while initiating checkout.', 'error');
       btn.disabled = false;
-      btn.textContent = '⚡ Pay 25% via JazzCash & Send';
+      btn.textContent = ' Pay 25% via JazzCash & Send';
     });
     return;
   }
@@ -627,9 +627,9 @@ function submitChallenge() {
   .then(r => r.json())
   .then(holdRes => {
     if (!holdRes.success) {
-      showCTToast('❌ ' + (holdRes.message || 'Slot is no longer available.'), 'error');
+      showCTToast(' ' + (holdRes.message || 'Slot is no longer available.'), 'error');
       btn.disabled    = false;
-      btn.textContent = '⚡ Pay 25% from Wallet & Send';
+      btn.textContent = ' Pay 25% from Wallet & Send';
       return;
     }
 
@@ -654,19 +654,19 @@ function submitChallenge() {
     .then(res => {
       closeChModal();
       if (res.success) {
-        showCTToast('🎉 Challenge sent to ' + selectedTeamName + '! Payment held.', 'success');
+        showCTToast(' Challenge sent to ' + selectedTeamName + '! Payment held.', 'success');
         setTimeout(() => { window.location.href = 'match_history.php'; }, 2500);
       } else {
-        showCTToast('❌ ' + res.message, 'error');
+        showCTToast(' ' + res.message, 'error');
         btn.disabled    = false;
-        btn.textContent = '⚡ Pay 25% from Wallet & Send';
+        btn.textContent = ' Pay 25% from Wallet & Send';
       }
     });
   })
   .catch(() => {
-    showCTToast('❌ Network error.', 'error');
+    showCTToast(' Network error.', 'error');
     btn.disabled    = false;
-    btn.textContent = '⚡ Pay 25% from Wallet & Send';
+    btn.textContent = ' Pay 25% from Wallet & Send';
   });
 }
 

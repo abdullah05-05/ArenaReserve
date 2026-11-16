@@ -57,15 +57,15 @@ function sendTeamChallengeSentEmail(string $toEmail, string $toName, array $deta
     try {
         $mail = _buildMailer();
         $mail->addAddress($toEmail, $toName);
-        $mail->Subject = '⚡ You\'ve Been Challenged! — ArenaReserve';
+        $mail->Subject = ' You\'ve Been Challenged! — ArenaReserve';
 
         $slotDate   = date('l, d M Y', strtotime($details['slot_date']));
         $slotTime   = sprintf('%02d:00 – %02d:00', $details['slot_hour'], $details['slot_hour'] + 1);
         $acceptLink = getBaseUrl() . '/match_history.php';
-        $msgText    = !empty($details['message']) ? htmlspecialchars($details['message']) : 'Game on! See you on the field! 🏆';
+        $msgText    = !empty($details['message']) ? htmlspecialchars($details['message']) : 'Game on! See you on the field! ';
 
         $mail->Body = _emailHeader('Team Challenge Received') . "
-            <h2 style='color:#ea580c;font-size:22px;margin:0 0 8px;'>You've Been Challenged! ⚡</h2>
+            <h2 style='color:#ea580c;font-size:22px;margin:0 0 8px;'>You've Been Challenged! </h2>
             <p style='color:#475569;font-size:15px;line-height:1.6;margin:0 0 20px;'>
                 Hi " . htmlspecialchars($toName) . ",
                 <strong>" . htmlspecialchars($details['challenger_name']) . "</strong>
@@ -75,10 +75,10 @@ function sendTeamChallengeSentEmail(string $toEmail, string $toName, array $deta
                 <p style='color:#9a3412;font-size:14px;font-style:italic;margin:0;'>\"" . $msgText . "\"</p>
             </div>
             " . _detailTable([
-                '🏟️ Venue'        => htmlspecialchars($details['ground_title']),
-                '📅 Date'         => $slotDate,
-                '🕐 Time'         => $slotTime,
-                '⚡ Challenger'   => htmlspecialchars($details['challenger_name']),
+                ' Venue'        => htmlspecialchars($details['ground_title']),
+                ' Date'         => $slotDate,
+                ' Time'         => $slotTime,
+                ' Challenger'   => htmlspecialchars($details['challenger_name']),
             ]) . "
             <p style='color:#475569;font-size:14px;'>Accept the challenge from your Match History page. You'll need to pay 25% of the slot price as an advance to confirm (remaining 50% paid at venue).</p>
             " . _btn('View & Accept Challenge', $acceptLink, '#ea580c') . "
@@ -183,7 +183,7 @@ function sendBookingConfirmedEmail(string $toEmail, string $toName, array $detai
     try {
         $mail = _buildMailer();
         $mail->addAddress($toEmail, $toName);
-        $mail->Subject = '✅ Booking Confirmed — ArenaReserve #' . ($details['booking_id'] ?? '');
+        $mail->Subject = ' Booking Confirmed — ArenaReserve #' . ($details['booking_id'] ?? '');
 
         $slotTime  = sprintf('%02d:00 – %02d:00', $details['slot_hour'], $details['slot_hour'] + 1);
         $slotDate  = date('l, d M Y', strtotime($details['slot_date']));
@@ -192,17 +192,17 @@ function sendBookingConfirmedEmail(string $toEmail, string $toName, array $detai
         $profileLink = getBaseUrl() . '/match_history.php';
 
         $mail->Body = _emailHeader('Booking Confirmed') . "
-            <h2 style='color:#064e3b;font-size:22px;margin:0 0 8px;'>Your slot is booked! 🎉</h2>
+            <h2 style='color:#064e3b;font-size:22px;margin:0 0 8px;'>Your slot is booked! </h2>
             <p style='color:#475569;font-size:15px;line-height:1.6;margin:0 0 20px;'>
                 Hi " . htmlspecialchars($toName) . ", your booking has been confirmed. See you on the field!
             </p>
             " . _detailTable([
-                '📋 Booking ID'   => '#' . ($details['booking_id'] ?? '—'),
-                '🏟️ Venue'        => htmlspecialchars($details['ground_title']),
-                '📅 Date'         => $slotDate,
-                '🕐 Time'         => $slotTime,
-                '🎯 Type'         => $typeLabel,
-                '💳 Amount Paid'  => $amount,
+                ' Booking ID'   => '#' . ($details['booking_id'] ?? '—'),
+                ' Venue'        => htmlspecialchars($details['ground_title']),
+                ' Date'         => $slotDate,
+                ' Time'         => $slotTime,
+                ' Type'         => $typeLabel,
+                ' Amount Paid'  => $amount,
             ]) .
             _btn('View My Bookings', $profileLink) . "
             <p style='color:#94a3b8;font-size:12px;margin:16px 0 0;text-align:center;'>
@@ -230,7 +230,7 @@ function sendBookingCancelledEmail(string $toEmail, string $toName, array $detai
     try {
         $mail = _buildMailer();
         $mail->addAddress($toEmail, $toName);
-        $mail->Subject = '❌ Booking Cancelled — ArenaReserve #' . ($details['booking_id'] ?? '');
+        $mail->Subject = ' Booking Cancelled — ArenaReserve #' . ($details['booking_id'] ?? '');
 
         $slotDate    = date('l, d M Y', strtotime($details['slot_date']));
         $slotTime    = sprintf('%02d:00 – %02d:00', $details['slot_hour'], $details['slot_hour'] + 1);
@@ -243,15 +243,15 @@ function sendBookingCancelledEmail(string $toEmail, string $toName, array $detai
                 Hi " . htmlspecialchars($toName) . ", your booking has been successfully cancelled.
             </p>
             " . _detailTable([
-                '📋 Booking ID'  => '#' . ($details['booking_id'] ?? '—'),
-                '🏟️ Venue'       => htmlspecialchars($details['ground_title']),
-                '📅 Date'        => $slotDate,
-                '🕐 Time'        => $slotTime,
-                '💰 Refund'      => $refundText,
+                ' Booking ID'  => '#' . ($details['booking_id'] ?? '—'),
+                ' Venue'       => htmlspecialchars($details['ground_title']),
+                ' Date'        => $slotDate,
+                ' Time'        => $slotTime,
+                ' Refund'      => $refundText,
             ]) . "
             " . ($refundAmount > 0 ? "<div style='background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:14px 18px;margin:16px 0;'>
                 <p style='color:#166534;font-size:14px;font-weight:600;margin:0;'>
-                    💚 Refund of {$refundText} has been added to your ArenaReserve wallet.
+                     Refund of {$refundText} has been added to your ArenaReserve wallet.
                 </p>
             </div>" : '') . "
             " . _btn('Check My Wallet', $walletLink, '#475569') . "
@@ -284,10 +284,10 @@ function sendChallengeAcceptedEmail(
         $histLink  = getBaseUrl() . '/match_history.php';
 
         $tableRows = [
-            '📋 Booking ID'  => '#' . ($details['booking_id'] ?? '—'),
-            '🏟️ Venue'       => htmlspecialchars($details['ground_title']),
-            '📅 Date'        => $slotDate,
-            '🕐 Time'        => $slotTime,
+            ' Booking ID'  => '#' . ($details['booking_id'] ?? '—'),
+            ' Venue'       => htmlspecialchars($details['ground_title']),
+            ' Date'        => $slotDate,
+            ' Time'        => $slotTime,
         ];
 
         foreach ([
@@ -296,9 +296,9 @@ function sendChallengeAcceptedEmail(
         ] as [$email, $name, $subMsg]) {
             $mail = _buildMailer();
             $mail->addAddress($email, $name);
-            $mail->Subject = '🎉 Challenge Accepted — ArenaReserve #' . ($details['booking_id'] ?? '');
+            $mail->Subject = ' Challenge Accepted — ArenaReserve #' . ($details['booking_id'] ?? '');
             $mail->Body = _emailHeader('Challenge Accepted') . "
-                <h2 style='color:#064e3b;font-size:22px;margin:0 0 8px;'>Challenge Accepted! ⚡</h2>
+                <h2 style='color:#064e3b;font-size:22px;margin:0 0 8px;'>Challenge Accepted! </h2>
                 <p style='color:#475569;font-size:15px;line-height:1.6;margin:0 0 20px;'>
                     Hi " . htmlspecialchars($name) . ", {$subMsg} The slot is now confirmed for both teams. Game on!
                 </p>
@@ -322,23 +322,23 @@ function sendNewBookingOwnerEmail(string $toEmail, string $toName, array $detail
     try {
         $mail = _buildMailer();
         $mail->addAddress($toEmail, $toName);
-        $mail->Subject = '🏟️ New Booking on Your Venue — ' . ($details['ground_title'] ?? '');
+        $mail->Subject = ' New Booking on Your Venue — ' . ($details['ground_title'] ?? '');
 
         $slotDate = date('l, d M Y', strtotime($details['slot_date']));
         $slotTime = sprintf('%02d:00 – %02d:00', $details['slot_hour'], $details['slot_hour'] + 1);
         $dashLink = getBaseUrl() . '/owner_dashboard.php';
 
         $mail->Body = _emailHeader('New Booking') . "
-            <h2 style='color:#064e3b;font-size:22px;margin:0 0 8px;'>New Booking Received! 🏟️</h2>
+            <h2 style='color:#064e3b;font-size:22px;margin:0 0 8px;'>New Booking Received! </h2>
             <p style='color:#475569;font-size:15px;line-height:1.6;margin:0 0 20px;'>
                 Hi " . htmlspecialchars($toName) . ", a player has booked a slot at your venue.
             </p>
             " . _detailTable([
-                '🏟️ Venue'      => htmlspecialchars($details['ground_title']),
-                '📅 Date'       => $slotDate,
-                '🕐 Time'       => $slotTime,
-                '🎯 Type'       => ucwords(str_replace('_', ' ', $details['booking_type'])),
-                '👤 Booked By'  => htmlspecialchars($details['player_name']),
+                ' Venue'      => htmlspecialchars($details['ground_title']),
+                ' Date'       => $slotDate,
+                ' Time'       => $slotTime,
+                ' Type'       => ucwords(str_replace('_', ' ', $details['booking_type'])),
+                ' Booked By'  => htmlspecialchars($details['player_name']),
             ]) .
             _btn('View Owner Dashboard', $dashLink) . "
         " . _emailFooter();
@@ -360,11 +360,11 @@ function sendVenueApprovedEmail(string $toEmail, string $toName, string $groundT
     try {
         $mail = _buildMailer();
         $mail->addAddress($toEmail, $toName);
-        $mail->Subject = '✅ Venue Approved — ' . $groundTitle;
+        $mail->Subject = ' Venue Approved — ' . $groundTitle;
 
         $dashLink = getBaseUrl() . '/owner_dashboard.php';
         $mail->Body = _emailHeader('Venue Approved') . "
-            <h2 style='color:#064e3b;font-size:22px;margin:0 0 8px;'>Your Venue is Live! 🎉</h2>
+            <h2 style='color:#064e3b;font-size:22px;margin:0 0 8px;'>Your Venue is Live! </h2>
             <p style='color:#475569;font-size:15px;line-height:1.6;margin:0 0 20px;'>
                 Hi " . htmlspecialchars($toName) . ", congratulations! Your venue
                 <strong>" . htmlspecialchars($groundTitle) . "</strong> has been approved by our admin team
@@ -390,7 +390,7 @@ function sendVenueRejectedEmail(string $toEmail, string $toName, string $groundT
     try {
         $mail = _buildMailer();
         $mail->addAddress($toEmail, $toName);
-        $mail->Subject = '❌ Venue Review Update — ' . $groundTitle;
+        $mail->Subject = ' Venue Review Update — ' . $groundTitle;
 
         $dashLink = getBaseUrl() . '/owner_dashboard.php';
         $mail->Body = _emailHeader('Venue Review Update') . "
@@ -424,13 +424,13 @@ function sendWalletDepositApprovedEmail(string $toEmail, string $toName, float $
     try {
         $mail = _buildMailer();
         $mail->addAddress($toEmail, $toName);
-        $mail->Subject = '💰 Wallet Top-Up Approved — ArenaReserve';
+        $mail->Subject = ' Wallet Top-Up Approved — ArenaReserve';
 
         $walletLink = getBaseUrl() . '/wallet.php';
         $amountFmt  = 'PKR ' . number_format($amount, 2);
 
         $mail->Body = _emailHeader('Wallet Top-Up Approved') . "
-            <h2 style='color:#064e3b;font-size:22px;margin:0 0 8px;'>Wallet Credited! 💚</h2>
+            <h2 style='color:#064e3b;font-size:22px;margin:0 0 8px;'>Wallet Credited! </h2>
             <p style='color:#475569;font-size:15px;line-height:1.6;margin:0 0 20px;'>
                 Hi " . htmlspecialchars($toName) . ", your wallet top-up request has been approved.
                 <strong>{$amountFmt}</strong> has been added to your ArenaReserve wallet balance.
@@ -455,7 +455,7 @@ function sendWalletDepositRejectedEmail(string $toEmail, string $toName, float $
     try {
         $mail = _buildMailer();
         $mail->addAddress($toEmail, $toName);
-        $mail->Subject = '❌ Wallet Top-Up Rejected — ArenaReserve';
+        $mail->Subject = ' Wallet Top-Up Rejected — ArenaReserve';
 
         $walletLink = getBaseUrl() . '/wallet.php';
         $amountFmt  = 'PKR ' . number_format($amount, 2);

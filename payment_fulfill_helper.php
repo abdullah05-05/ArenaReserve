@@ -105,7 +105,7 @@ function fulfillPaymentTransaction(PDO $pdo, string $orderId, ?string $reference
 
             // In-app notification
             createNotification($pdo, $userId, 'wallet_topup',
-                'Wallet Top-up Successful! 💳',
+                'Wallet Top-up Successful! ',
                 "Your wallet has been credited with " . number_format($amount, 2) . " PKR via JazzCash.",
                 'wallet.php'
             );
@@ -246,7 +246,7 @@ function fulfillPaymentTransaction(PDO $pdo, string $orderId, ?string $reference
                             $chalNotifMsg .= " Message: \"{$chMessage}\"";
                         }
                         createNotification($pdo, $challengedUserId, 'challenge_received',
-                            '⚡ Team Challenge Received!',
+                            ' Team Challenge Received!',
                             $chalNotifMsg,
                             'match_history.php'
                         );
@@ -329,7 +329,7 @@ function fulfillPaymentTransaction(PDO $pdo, string $orderId, ?string $reference
 
                 if ($info) {
                     createNotification($pdo, $info['booked_by'], 'challenge_accepted',
-                        'Challenge Accepted! ⚡',
+                        'Challenge Accepted! ',
                         "{$info['opponent_name']} accepted your challenge at {$info['ground_title']} on {$info['slot_date']}. Match confirmed!",
                         'match_history.php'
                     );

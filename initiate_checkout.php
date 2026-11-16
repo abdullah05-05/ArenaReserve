@@ -143,14 +143,34 @@ try {
             throw new Exception('One or more selected slots are currently on hold by another player.');
         }
 
-        // Place / extend hold to 10 minutes for all slot hours
-        $holdStmt = $pdo->prepare("
-            INSERT INTO slot_holds (ground_id, slot_date, slot_hour, held_by, expires_at)
-            VALUES (?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 10 MINUTE))
-            ON DUPLICATE KEY UPDATE held_by = VALUES(held_by), expires_at = VALUES(expires_at)
+        // Place or preserve active hold for all slot hours (do not reset if hold already active)
+        $existingHoldStmt = $pdo->prepare("
+            SELECT expires_at FROM slot_holds
+            WHERE ground_id = ? AND slot_date = ? AND held_by = ? AND expires_at > NOW()
+            ORDER BY expires_at ASC LIMIT 1
         ");
-        foreach ($slot_hours as $h) {
-            $holdStmt->execute([$ground_id, $slot_date, $h, $user_id]);
+        $existingHoldStmt->execute([$ground_id, $slot_date, $user_id]);
+        $existingHoldRow = $existingHoldStmt->fetch();
+
+        if ($existingHoldRow && !empty($existingHoldRow['expires_at'])) {
+            $sessionExpiresAt = $existingHoldRow['expires_at'];
+            $holdStmt = $pdo->prepare("
+                INSERT INTO slot_holds (ground_id, slot_date, slot_hour, held_by, expires_at)
+                VALUES (?, ?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE held_by = VALUES(held_by), expires_at = VALUES(expires_at)
+            ");
+            foreach ($slot_hours as $h) {
+                $holdStmt->execute([$ground_id, $slot_date, $h, $user_id, $sessionExpiresAt]);
+            }
+        } else {
+            $holdStmt = $pdo->prepare("
+                INSERT INTO slot_holds (ground_id, slot_date, slot_hour, held_by, expires_at)
+                VALUES (?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 10 MINUTE))
+                ON DUPLICATE KEY UPDATE held_by = VALUES(held_by), expires_at = VALUES(expires_at)
+            ");
+            foreach ($slot_hours as $h) {
+                $holdStmt->execute([$ground_id, $slot_date, $h, $user_id]);
+            }
         }
 
         // Get ground slot prices
