@@ -6,6 +6,7 @@ require_once 'session_config.php';
  */
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'db.php';
+require_once 'csrf_helper.php';
 require_once 'logo_helper.php';
 
 if (!isset($_SESSION['user_id'])) {
@@ -122,25 +123,46 @@ if ($otherHoldChk->fetch()) {
     exit;
 }
 
-// Refresh / place hold
-$holdStmt = $pdo->prepare("
-    INSERT INTO slot_holds (ground_id, slot_date, slot_hour, held_by, expires_at)
-    VALUES (?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 10 MINUTE))
-    ON DUPLICATE KEY UPDATE held_by = VALUES(held_by), expires_at = DATE_ADD(NOW(), INTERVAL 10 MINUTE)
+// Preserve existing hold expiry if already held by this user; do not reset timer
+$activeHoldStmt = $pdo->prepare("
+    SELECT MIN(TIMESTAMPDIFF(SECOND, NOW(), expires_at)) AS remaining_sec,
+           MIN(expires_at) AS session_expires_at
+    FROM slot_holds
+    WHERE ground_id = ? AND slot_date = ? AND slot_hour IN ($inClause)
+      AND held_by = ? AND expires_at > NOW()
 ");
-foreach ($slot_hours as $h) {
-    $holdStmt->execute([$ground_id, $slot_date, $h, $user_id]);
+$activeHoldStmt->execute(array_merge([$ground_id, $slot_date], $slot_hours, [$user_id]));
+$activeHold = $activeHoldStmt->fetch();
+
+if ($activeHold && !empty($activeHold['session_expires_at']) && intval($activeHold['remaining_sec']) > 0) {
+    // Keep original expiration timestamp so countdown does NOT reset to 10 minutes
+    $sessionExpiresAt = $activeHold['session_expires_at'];
+    $hold_remaining_seconds = max(0, intval($activeHold['remaining_sec']));
+    $holdStmt = $pdo->prepare("
+        INSERT INTO slot_holds (ground_id, slot_date, slot_hour, held_by, expires_at)
+        VALUES (?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE held_by = VALUES(held_by), expires_at = VALUES(expires_at)
+    ");
+    foreach ($slot_hours as $h) {
+        $holdStmt->execute([$ground_id, $slot_date, $h, $user_id, $sessionExpiresAt]);
+    }
+} else {
+    // If no active hold, start a 10-minute hold
+    $holdStmt = $pdo->prepare("
+        INSERT INTO slot_holds (ground_id, slot_date, slot_hour, held_by, expires_at)
+        VALUES (?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 10 MINUTE))
+        ON DUPLICATE KEY UPDATE held_by = VALUES(held_by), expires_at = VALUES(expires_at)
+    ");
+    foreach ($slot_hours as $h) {
+        $holdStmt->execute([$ground_id, $slot_date, $h, $user_id]);
+    }
+    $hold_remaining_seconds = 600;
 }
 
-// Fetch exact remaining seconds
-$remStmt = $pdo->prepare("
-    SELECT MIN(TIMESTAMPDIFF(SECOND, NOW(), expires_at)) AS remaining_sec
-    FROM slot_holds
-    WHERE ground_id = ? AND slot_date = ? AND slot_hour IN ($inClause) AND held_by = ?
-");
-$remStmt->execute(array_merge([$ground_id, $slot_date], $slot_hours, [$user_id]));
-$remRow = $remStmt->fetch();
-$hold_remaining_seconds = max(0, intval($remRow['remaining_sec'] ?? 600));
+if ($hold_remaining_seconds <= 0) {
+    header("Location: book_slot.php?ground={$ground_id}&date={$slot_date}&error=" . urlencode("Your slot hold has expired. Please re-select your slots."));
+    exit;
+}
 
 // 4. Fetch slot prices
 $pStmt = $pdo->prepare("SELECT hour, price FROM ground_slots WHERE ground_id = ? AND hour IN ($inClause) AND is_available = 1");
@@ -224,63 +246,25 @@ $challenge_advance_amount = round($total_full_price * 0.25, 2);
         #toast.error   { background: linear-gradient(135deg, #dc2626, #b91c1c); }
         #toast.info    { background: linear-gradient(135deg, #3b82f6, #2563eb); }
     </style>
+    <?php echo csrf_meta(); ?>
 </head>
-<body class="bg-slate-100 min-h-screen flex flex-col text-slate-800 antialiased">
+<body class="bg-slate-100 min-h-screen flex flex-col text-slate-800 antialiased" style="display: flex !important; flex-direction: column !important; min-height: 100vh !important; width: 100% !important;">
 
 <!-- Toast Notification -->
 <div id="toast"></div>
 
-<!-- Top Navigation Header -->
-<header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between h-16 items-center">
-        <div class="flex items-center gap-3">
-            <a href="book_slot.php?ground=<?php echo $ground_id; ?>&date=<?php echo $slot_date; ?>" class="text-slate-400 hover:text-slate-700 transition-colors p-1.5 rounded-lg hover:bg-slate-100">
-                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
-            </a>
-            <a href="explore.php" class="flex items-center gap-2 text-emerald-600 font-bold text-lg">
-                <?php echo get_logo_markup('h-7 w-7 flex-shrink-0'); ?>
-                <span>Arena<span class="text-slate-900">Reserve</span></span>
-            </a>
-        </div>
-        <div class="flex items-center gap-3">
-            <a href="wallet.php" class="hidden sm:flex items-center bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-full text-xs font-semibold border border-emerald-200">
-                <span class="w-2 h-2 rounded-full bg-emerald-500 mr-2"></span>
-                <span><?php echo number_format($available_balance, 0); ?> PKR</span>
-            </a>
-            <?php include __DIR__ . '/assets/notification_bell.php'; ?>
-        </div>
-    </div>
-</header>
+<!-- Main Checkout Body -->
+<main class="flex-1 w-full flex items-center justify-center py-8 sm:py-12 px-4" style="flex: 1 0 auto; width: 100%;">
 
-<!-- Guaranteed Hold Timer Banner -->
-<div class="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 text-white py-3 px-4 shadow-sm border-b border-emerald-700/30">
-    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3 text-xs">
-        <div class="flex items-center gap-2">
-            <span class="flex h-2.5 w-2.5 relative">
-                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-                <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
-            </span>
-            <span class="font-medium text-emerald-50">Slots held exclusively for you. Complete booking before timer expires:</span>
-        </div>
-        <div class="flex items-center gap-3">
-            <div class="flex items-center gap-1.5 font-mono font-bold text-sm text-white bg-white/20 px-3 py-1 rounded-lg border border-white/30 backdrop-blur-xs shadow-2xs">
-                <svg class="w-4 h-4 text-white animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                <span id="hold-countdown-text">10:00</span>
-            </div>
-        </div>
-    </div>
-    <div class="max-w-7xl mx-auto mt-2 h-1 bg-emerald-900/30 rounded-full overflow-hidden">
-        <div id="hold-progress-bar" class="h-full bg-white transition-all duration-1000" style="width: 100%;"></div>
-    </div>
-</div>
-
-<<!-- Main Checkout Body -->
-<main class="max-w-lg sm:max-w-xl mx-auto px-4 py-8 sm:py-12 flex-1 w-full flex items-center justify-center">
-
-    <div class="bg-white rounded-3xl p-6 sm:p-7 shadow-xl border border-slate-200/90 space-y-5 w-full">
+    <div class="max-w-lg sm:max-w-xl w-full mx-auto bg-white rounded-3xl p-6 sm:p-7 shadow-xl border border-slate-200/90 space-y-5">
         
         <h3 class="text-lg sm:text-xl font-extrabold text-slate-900 pb-3 border-b border-slate-100 flex items-center justify-between">
-            <span>Payment Summary</span>
+            <span class="flex items-center gap-2">
+                <a href="book_slot.php?ground=<?php echo $ground_id; ?>&date=<?php echo $slot_date; ?>" class="text-slate-400 hover:text-slate-700 transition-colors p-1 -ml-1 rounded-lg hover:bg-slate-100 inline-flex items-center" title="Back to Slots">
+                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                </a>
+                <span>Payment Summary</span>
+            </span>
             <span class="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
                 <?php echo count($slots_data); ?> Slot(s)
             </span>
@@ -321,7 +305,9 @@ $challenge_advance_amount = round($total_full_price * 0.25, 2);
             <div class="grid grid-cols-3 gap-2 sm:gap-3.5 mb-5 w-full">
                 <!-- Wallet Option -->
                 <div id="btn-method-wallet" onclick="selectPayMethod('wallet')" class="pay-method-card selected h-28 sm:h-36 p-2 sm:p-3 flex flex-col items-center justify-between text-center relative overflow-hidden select-none">
-                    <div class="selection-check absolute top-1.5 right-1.5 sm:top-2 sm:right-2 w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] font-bold shadow-2xs">✓</div>
+                    <div class="selection-check absolute top-1.5 right-1.5 sm:top-2 sm:right-2 w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-2xs">
+                        <svg class="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                    </div>
                     
                     <!-- Wallet SVG Logo -->
                     <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center flex-shrink-0 shadow-2xs mt-0.5">
@@ -342,7 +328,9 @@ $challenge_advance_amount = round($total_full_price * 0.25, 2);
 
                 <!-- JazzCash Mobile Account -->
                 <div id="btn-method-mwallet" onclick="selectPayMethod('mwallet')" class="pay-method-card h-28 sm:h-36 p-2 sm:p-3 flex flex-col items-center justify-between text-center relative overflow-hidden select-none">
-                    <div class="selection-check absolute top-1.5 right-1.5 sm:top-2 sm:right-2 w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] font-bold shadow-2xs">✓</div>
+                    <div class="selection-check absolute top-1.5 right-1.5 sm:top-2 sm:right-2 w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-2xs">
+                        <svg class="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                    </div>
 
                     <!-- JazzCash Logo Badge -->
                     <div class="h-10 sm:h-12 w-full flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -362,7 +350,9 @@ $challenge_advance_amount = round($total_full_price * 0.25, 2);
 
                 <!-- Card Option -->
                 <div id="btn-method-card" onclick="selectPayMethod('card')" class="pay-method-card h-28 sm:h-36 p-2 sm:p-3 flex flex-col items-center justify-between text-center relative overflow-hidden select-none">
-                    <div class="selection-check absolute top-1.5 right-1.5 sm:top-2 sm:right-2 w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] font-bold shadow-2xs">✓</div>
+                    <div class="selection-check absolute top-1.5 right-1.5 sm:top-2 sm:right-2 w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-2xs">
+                        <svg class="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                    </div>
 
                     <!-- Visa & Mastercard Dual Logos -->
                     <div class="h-10 sm:h-12 w-full flex items-center justify-center gap-1.5 flex-shrink-0 mt-0.5">
@@ -400,7 +390,10 @@ $challenge_advance_amount = round($total_full_price * 0.25, 2);
                 </div>
 
                 <div id="wallet-insufficient-msg" class="hidden bg-red-50 border border-red-200 rounded-2xl p-3 text-xs text-red-700 space-y-1.5">
-                    <div class="font-bold">⚠️ Insufficient Wallet Balance</div>
+                    <div class="font-bold flex items-center gap-1.5">
+                        <svg class="w-4 h-4 text-red-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                        <span>Insufficient Wallet Balance</span>
+                    </div>
                     <p class="text-[11px]">Your balance is lower than required. You can pay instantly using JazzCash Mobile or Card.</p>
                     <button type="button" onclick="selectPayMethod('mwallet')" class="text-xs font-bold text-red-700 underline cursor-pointer">
                         Switch to JazzCash Mobile PIN →
@@ -409,7 +402,8 @@ $challenge_advance_amount = round($total_full_price * 0.25, 2);
 
                 <button type="button" id="pay-wallet-submit-btn" onclick="executeWalletPayment()"
                         class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-3.5 px-4 rounded-xl text-base transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 cursor-pointer">
-                    <span id="pay-wallet-btn-text">✅ Pay <?php echo number_format($direct_advance_amount, 0); ?> PKR from Wallet</span>
+                    <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                    <span id="pay-wallet-btn-text">Pay <?php echo number_format($direct_advance_amount, 0); ?> PKR from Wallet</span>
                 </button>
             </div>
 
@@ -418,7 +412,8 @@ $challenge_advance_amount = round($total_full_price * 0.25, 2);
                 <div class="bg-gradient-to-r from-red-50 to-amber-50 border border-red-200 rounded-2xl p-3 text-xs space-y-1.5">
                     <div class="flex items-center justify-between">
                         <span class="font-bold text-slate-900 flex items-center gap-1.5">
-                            <span>📱</span> JazzCash Mobile Account
+                            <svg class="w-4 h-4 text-red-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                            <span>JazzCash Mobile Account</span>
                         </span>
                         <span class="px-2 py-0.5 bg-red-600 text-[10px] font-bold text-white rounded-full">Instant MPIN</span>
                     </div>
@@ -454,8 +449,8 @@ $challenge_advance_amount = round($total_full_price * 0.25, 2);
 
                 <button type="button" id="pay-mwallet-submit-btn" onclick="executeMWalletPayment()"
                         class="w-full bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-700 hover:to-amber-700 text-white font-extrabold py-3.5 px-4 rounded-xl text-sm transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 cursor-pointer">
-                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-                    <span id="pay-mwallet-btn-text">📱 Pay <?php echo number_format($direct_advance_amount, 0); ?> PKR via JazzCash Mobile</span>
+                    <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                    <span id="pay-mwallet-btn-text">Pay <?php echo number_format($direct_advance_amount, 0); ?> PKR via JazzCash Mobile</span>
                 </button>
             </div>
 
@@ -464,7 +459,8 @@ $challenge_advance_amount = round($total_full_price * 0.25, 2);
                 <div class="bg-slate-50 border border-slate-200 rounded-2xl p-3 text-xs space-y-2">
                     <div class="flex items-center justify-between">
                         <span class="font-bold text-slate-800 flex items-center gap-1.5">
-                            <span>💳</span> Debit / Credit Card Checkout
+                            <svg class="w-4 h-4 text-slate-700 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+                            <span>Debit / Credit Card Checkout</span>
                         </span>
                         <div class="flex items-center gap-1">
                             <span class="px-1.5 py-0.5 bg-white border border-slate-300 text-[9px] font-bold text-slate-700 rounded">Visa</span>
@@ -477,8 +473,8 @@ $challenge_advance_amount = round($total_full_price * 0.25, 2);
 
                 <button type="button" id="pay-card-submit-btn" onclick="executeCardPayment()"
                         class="w-full bg-slate-900 hover:bg-slate-800 text-white font-extrabold py-3.5 px-4 rounded-xl text-sm transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 cursor-pointer">
-                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
-                    <span id="pay-card-btn-text">💳 Proceed to Card Payment (<?php echo number_format($direct_advance_amount, 0); ?> PKR)</span>
+                    <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+                    <span id="pay-card-btn-text">Proceed to Card Payment (<?php echo number_format($direct_advance_amount, 0); ?> PKR)</span>
                 </button>
             </div>
 
@@ -488,9 +484,12 @@ $challenge_advance_amount = round($total_full_price * 0.25, 2);
 
 </main>
 
-<?php include __DIR__ . '/footer.php'; ?>
+<div class="w-full mt-auto" style="width: 100% !important; margin-top: auto !important; flex-shrink: 0 !important;">
+    <?php include __DIR__ . '/footer.php'; ?>
+</div>
 
 <script>
+const csrfToken        = '<?php echo csrf_token(); ?>';
 const groundId         = <?php echo $ground_id; ?>;
 const slotDate         = '<?php echo $slot_date; ?>';
 const slotHours        = <?php echo json_encode($slot_hours); ?>;
@@ -579,10 +578,10 @@ function recalculatePrices() {
     const cBtnText  = document.getElementById('pay-card-btn-text');
 
     if (mwBtnText) {
-        mwBtnText.textContent = `📱 Pay ${formatNum(advanceAmount)} PKR via JazzCash Mobile`;
+        mwBtnText.textContent = ` Pay ${formatNum(advanceAmount)} PKR via JazzCash Mobile`;
     }
     if (cBtnText) {
-        cBtnText.textContent = `💳 Proceed to Card Payment (${formatNum(advanceAmount)} PKR)`;
+        cBtnText.textContent = ` Proceed to Card Payment (${formatNum(advanceAmount)} PKR)`;
     }
 
     if (userBalance < advanceAmount) {
@@ -590,7 +589,7 @@ function recalculatePrices() {
             walletBtn.disabled = true;
             walletBtn.className = 'w-full bg-slate-300 text-slate-500 font-bold py-3.5 px-4 rounded-xl text-sm cursor-not-allowed';
         }
-        if (wBtnText) wBtnText.textContent = '❌ Insufficient Wallet Balance';
+        if (wBtnText) wBtnText.textContent = ' Insufficient Wallet Balance';
         if (walletAlert) walletAlert.classList.remove('hidden');
         if (selectedMethod === 'wallet') {
             selectPayMethod('mwallet');
@@ -600,7 +599,7 @@ function recalculatePrices() {
             walletBtn.disabled = false;
             walletBtn.className = 'w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-3.5 px-4 rounded-xl text-sm transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 cursor-pointer';
         }
-        if (wBtnText) wBtnText.textContent = `✅ Pay ${formatNum(advanceAmount)} PKR from Wallet`;
+        if (wBtnText) wBtnText.textContent = ` Pay ${formatNum(advanceAmount)} PKR from Wallet`;
         if (walletAlert) walletAlert.classList.add('hidden');
     }
 }
@@ -640,11 +639,11 @@ function executeWalletPayment() {
 
     if (selectedType === 'team_challenge') {
         if (!teamName) {
-            showToast('⚠️ Please enter your team name.', 'error');
+            showToast(' Please enter your team name.', 'error');
             return;
         }
         if (!challengedUserId || challengedUserId <= 0) {
-            showToast('⚠️ Please select an opponent squad to challenge.', 'error');
+            showToast(' Please select an opponent squad to challenge.', 'error');
             return;
         }
     }
@@ -653,6 +652,7 @@ function executeWalletPayment() {
     if (btnText) btnText.textContent = 'Confirming booking…';
 
     const params = {
+        csrf_token:           csrfToken,
         ground_id:            groundId,
         slot_date:            slotDate,
         slot_hours:           JSON.stringify(slotHours),
@@ -664,24 +664,27 @@ function executeWalletPayment() {
 
     fetch('process_booking.php', {
         method: 'POST',
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRF-Token': csrfToken
+        },
         body: new URLSearchParams(params)
     })
     .then(r => r.json())
     .then(res => {
         if (res.success) {
-            showToast('✅ ' + res.message, 'success');
+            showToast(' ' + res.message, 'success');
             setTimeout(() => {
                 window.location.href = 'match_history.php?booked=1';
             }, 1200);
         } else {
-            showToast('❌ ' + (res.message || 'Booking failed.'), 'error');
+            showToast(' ' + (res.message || 'Booking failed.'), 'error');
             if (btn) btn.disabled = false;
             recalculatePrices();
         }
     })
     .catch(() => {
-        showToast('❌ Network error. Please try again.', 'error');
+        showToast(' Network error. Please try again.', 'error');
         if (btn) btn.disabled = false;
         recalculatePrices();
     });
@@ -705,13 +708,13 @@ function executeMWalletPayment() {
     const cnic  = (cnicInput?.value || '').replace(/\D/g, '');
 
     if (!phone || phone.length !== 11 || !phone.startsWith('03')) {
-        showToast('⚠️ Please enter a valid 11-digit JazzCash mobile number (03XXXXXXXXX).', 'error');
+        showToast(' Please enter a valid 11-digit JazzCash mobile number (03XXXXXXXXX).', 'error');
         if (phoneInput) phoneInput.focus();
         return;
     }
 
     if (!cnic || cnic.length !== 6) {
-        showToast('⚠️ Please enter the last 6 digits of your CNIC.', 'error');
+        showToast(' Please enter the last 6 digits of your CNIC.', 'error');
         if (cnicInput) cnicInput.focus();
         return;
     }
@@ -722,20 +725,21 @@ function executeMWalletPayment() {
 
     if (selectedType === 'team_challenge') {
         if (!teamName) {
-            showToast('⚠️ Please enter your team name.', 'error');
+            showToast(' Please enter your team name.', 'error');
             return;
         }
         if (!challengedUserId || challengedUserId <= 0) {
-            showToast('⚠️ Please select an opponent squad to challenge.', 'error');
+            showToast(' Please select an opponent squad to challenge.', 'error');
             return;
         }
     }
 
     if (btn) btn.disabled = true;
-    if (btnText) btnText.textContent = '📲 Prompt sent! Enter MPIN on phone…';
+    if (btnText) btnText.textContent = ' Prompt sent! Enter MPIN on phone…';
     if (waitingAlert) waitingAlert.classList.remove('hidden');
 
     const params = {
+        csrf_token:           csrfToken,
         purpose:              'slot_booking',
         format:               'json',
         ground_id:            groundId,
@@ -754,15 +758,16 @@ function executeMWalletPayment() {
         method: 'POST',
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
-            'Accept': 'application/json'
+            'Accept': 'application/json',
+            'X-CSRF-Token': csrfToken
         },
         body: new URLSearchParams(params)
     })
     .then(r => r.json())
     .then(res => {
         if (res.success && res.redirect_url) {
-            if (btnText) btnText.textContent = '✅ Payment Approved! Redirecting…';
-            showToast('✅ Payment approved! Transferring to confirmation…', 'success');
+            if (btnText) btnText.textContent = ' Payment Approved! Redirecting…';
+            showToast(' Payment approved! Transferring to confirmation…', 'success');
             setTimeout(() => {
                 window.location.href = res.redirect_url;
             }, 800);
@@ -770,10 +775,10 @@ function executeMWalletPayment() {
             if (waitingAlert) waitingAlert.classList.add('hidden');
             const msg = res.message || 'Payment was declined or timed out.';
             if (errorBox) {
-                errorBox.textContent = '❌ ' + msg;
+                errorBox.textContent = ' ' + msg;
                 errorBox.classList.remove('hidden');
             }
-            showToast('❌ ' + msg, 'error');
+            showToast(' ' + msg, 'error');
             if (btn) btn.disabled = false;
             recalculatePrices();
         }
@@ -782,10 +787,10 @@ function executeMWalletPayment() {
         if (waitingAlert) waitingAlert.classList.add('hidden');
         const errText = 'Network timeout while waiting for phone approval. If you entered your MPIN, please check your bookings.';
         if (errorBox) {
-            errorBox.textContent = '⚠️ ' + errText;
+            errorBox.textContent = ' ' + errText;
             errorBox.classList.remove('hidden');
         }
-        showToast('⚠️ ' + errText, 'error');
+        showToast(' ' + errText, 'error');
         if (btn) btn.disabled = false;
         recalculatePrices();
     });
@@ -802,11 +807,11 @@ function executeCardPayment() {
 
     if (selectedType === 'team_challenge') {
         if (!teamName) {
-            showToast('⚠️ Please enter your team name.', 'error');
+            showToast(' Please enter your team name.', 'error');
             return;
         }
         if (!challengedUserId || challengedUserId <= 0) {
-            showToast('⚠️ Please select an opponent squad to challenge.', 'error');
+            showToast(' Please select an opponent squad to challenge.', 'error');
             return;
         }
     }
@@ -815,6 +820,7 @@ function executeCardPayment() {
     if (btnText) btnText.textContent = 'Connecting to Secure Card Checkout…';
 
     const params = {
+        csrf_token:           csrfToken,
         purpose:              'slot_booking',
         format:               'json',
         ground_id:            groundId,
@@ -831,7 +837,8 @@ function executeCardPayment() {
         method: 'POST',
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
-            'Accept': 'application/json'
+            'Accept': 'application/json',
+            'X-CSRF-Token': csrfToken
         },
         body: new URLSearchParams(params)
     })
@@ -854,13 +861,13 @@ function executeCardPayment() {
             document.body.appendChild(form);
             form.submit();
         } else {
-            showToast('❌ ' + (res.message || 'Payment initiation failed.'), 'error');
+            showToast(' ' + (res.message || 'Payment initiation failed.'), 'error');
             if (btn) btn.disabled = false;
             recalculatePrices();
         }
     })
     .catch(() => {
-        showToast('❌ Network error while connecting to payment gateway.', 'error');
+        showToast(' Network error while connecting to payment gateway.', 'error');
         if (btn) btn.disabled = false;
         recalculatePrices();
     });

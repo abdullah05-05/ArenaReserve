@@ -298,14 +298,14 @@
         <!-- Phone & Browser Push Banner -->
         <div id="push-permission-banner" style="display:none;background:#f0fdf4;border-bottom:1px solid #bbf7d0;padding:10px 14px;align-items:center;justify-content:space-between;gap:8px;">
             <div style="display:flex;align-items:center;gap:8px;">
-                <span style="font-size:16px;">📲</span>
+                <span style="font-size:16px;"></span>
                 <span style="font-size:11px;color:#166534;font-weight:600;line-height:1.3;">Enable phone & browser push alerts</span>
             </div>
             <button onclick="requestPushPermission(this)" style="font-size:10px;font-weight:700;background:#10b981;color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;flex-shrink:0;transition:opacity 0.15s;" onmouseover="this.style.opacity=0.9" onmouseout="this.style.opacity=1">Enable</button>
         </div>
 
         <div class="notif-header">
-            <span class="notif-header-title">🔔 Notifications</span>
+            <span class="notif-header-title"> Notifications</span>
             <button class="notif-mark-all" onclick="markAllRead()" id="notif-mark-all-btn" style="display:none;">Mark all read</button>
         </div>
         <div id="notif-list">
@@ -329,18 +329,18 @@
 <script>
 (function () {
     const TYPE_ICONS = {
-        booking_confirmed:   { emoji: '✅', cls: 'green'  },
-        booking_cancelled:   { emoji: '❌', cls: 'red'    },
-        challenge_accepted:  { emoji: '⚡', cls: 'amber'  },
-        challenge_posted:    { emoji: '🏟️', cls: 'blue'   },
-        challenge_received:  { emoji: '🤝', cls: 'purple' },
-        challenge_cancelled: { emoji: '⚠️', cls: 'amber'  },
-        venue_approved:      { emoji: '✅', cls: 'green'  },
-        venue_rejected:      { emoji: '❌', cls: 'red'    },
-        deposit_approved:    { emoji: '💰', cls: 'green'  },
-        deposit_rejected:    { emoji: '❌', cls: 'red'    },
-        new_booking_owner:   { emoji: '🏟️', cls: 'blue'   },
-        default:             { emoji: '🔔', cls: 'blue'   },
+        booking_confirmed:   { emoji: '', cls: 'green'  },
+        booking_cancelled:   { emoji: '', cls: 'red'    },
+        challenge_accepted:  { emoji: '', cls: 'amber'  },
+        challenge_posted:    { emoji: '', cls: 'blue'   },
+        challenge_received:  { emoji: '', cls: 'purple' },
+        challenge_cancelled: { emoji: '', cls: 'amber'  },
+        venue_approved:      { emoji: '', cls: 'green'  },
+        venue_rejected:      { emoji: '', cls: 'red'    },
+        deposit_approved:    { emoji: '', cls: 'green'  },
+        deposit_rejected:    { emoji: '', cls: 'red'    },
+        new_booking_owner:   { emoji: '', cls: 'blue'   },
+        default:             { emoji: '', cls: 'blue'   },
     };
 
     let dropdownOpen     = false;
@@ -378,7 +378,7 @@
             checkPushBanner();
             if (permission === 'granted') {
                 dispatchNativeNotification(
-                    'Notifications Enabled! 🎉',
+                    'Notifications Enabled! ',
                     'You will now receive alerts for challenges, bookings & updates on this device.',
                     'explore.php'
                 );
@@ -571,7 +571,7 @@
                     // If user has enabled push and a new unread notification arrived
                     if (lastSeenNotifId > 0 && newestId > lastSeenNotifId && !newest.is_read) {
                         dispatchNativeNotification(
-                            newest.title || 'ArenaReserve Alert 🔔',
+                            newest.title || 'ArenaReserve Alert ',
                             newest.message || 'You have a new update.',
                             newest.link
                         );

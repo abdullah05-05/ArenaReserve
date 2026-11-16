@@ -22,9 +22,9 @@ try {
             FOREIGN KEY (`owner_id`)   REFERENCES `users`(`id`)    ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     ");
-    $success[] = "✅ match_scores table created (or already exists).";
+    $success[] = " match_scores table created (or already exists).";
 } catch (Exception $e) {
-    $errors[] = "❌ match_scores: " . $e->getMessage();
+    $errors[] = " match_scores: " . $e->getMessage();
 }
 
 // 2. Update wallet_transactions enum to include Commission
@@ -34,9 +34,9 @@ try {
         MODIFY COLUMN `transaction_type`
         ENUM('Deposit','Booking_Payment','Refund','Payout','Challenge_Hold','Commission') NOT NULL;
     ");
-    $success[] = "✅ wallet_transactions enum updated (Commission added).";
+    $success[] = " wallet_transactions enum updated (Commission added).";
 } catch (Exception $e) {
-    $success[] = "ℹ️ wallet_transactions enum: " . $e->getMessage();
+    $success[] = "ℹ wallet_transactions enum: " . $e->getMessage();
 }
 
 ?>
@@ -52,7 +52,7 @@ try {
 </style>
 </head>
 <body>
-<h1>🗃️ ArenaReserve Migration: Score System</h1>
+<h1> ArenaReserve Migration: Score System</h1>
 <?php foreach ($success as $s): ?>
   <p class="ok"><?= htmlspecialchars($s) ?></p>
 <?php endforeach; ?>

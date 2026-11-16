@@ -206,7 +206,7 @@ function formatSlotHourDisplay(int $h): string {
                     $bookingCount = !empty($allBookings) ? count($allBookings) : 1;
                 ?>
                     <h1 class="text-2xl font-extrabold text-slate-900 mb-1">
-                        <?php echo $bookingCount > 1 ? "{$bookingCount} Bookings Confirmed! ⚽" : "Booking Confirmed! ⚽"; ?>
+                        <?php echo $bookingCount > 1 ? "{$bookingCount} Bookings Confirmed! " : "Booking Confirmed! "; ?>
                     </h1>
                     <p class="text-xs text-slate-500 mb-6">Your slot advance has been paid securely via JazzCash.</p>
 
@@ -275,15 +275,15 @@ function formatSlotHourDisplay(int $h): string {
 
                     <div class="space-y-2">
                         <a href="match_history.php" class="w-full block py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg text-sm transition-colors shadow-sm">
-                            🏆 View in Match History
+                             View in Match History
                         </a>
                         <a href="book_slot.php" class="w-full block py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg text-xs transition-colors">
-                            📅 Book Another Slot
+                             Book Another Slot
                         </a>
                     </div>
 
                 <?php elseif (($transaction['purpose'] ?? '') === 'accept_challenge'): ?>
-                    <h1 class="text-2xl font-extrabold text-slate-900 mb-1">Challenge Accepted! ⚔️</h1>
+                    <h1 class="text-2xl font-extrabold text-slate-900 mb-1">Challenge Accepted! </h1>
                     <p class="text-xs text-slate-500 mb-6">Your 25% match share has been paid via JazzCash.</p>
 
                     <div class="bg-violet-50 border border-violet-200 rounded-xl p-4 text-left text-xs space-y-2.5 mb-6">
@@ -303,7 +303,7 @@ function formatSlotHourDisplay(int $h): string {
 
                     <div class="space-y-2">
                         <a href="match_history.php" class="w-full block py-2.5 px-4 bg-violet-600 hover:bg-violet-700 text-white font-semibold rounded-lg text-sm transition-colors shadow-sm">
-                            🏆 View in Match History
+                             View in Match History
                         </a>
                         <a href="explore.php" class="w-full block py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg text-xs transition-colors">
                             Explore Grounds
@@ -311,7 +311,7 @@ function formatSlotHourDisplay(int $h): string {
                     </div>
 
                 <?php else: ?>
-                    <h1 class="text-2xl font-extrabold text-slate-900 mb-1">Wallet Top-up Successful! 💳</h1>
+                    <h1 class="text-2xl font-extrabold text-slate-900 mb-1">Wallet Top-up Successful! </h1>
                     <p class="text-xs text-slate-500 mb-6">Your wallet balance has been updated instantly via JazzCash.</p>
 
                     <!-- Wallet Topup Details Card -->
@@ -341,7 +341,7 @@ function formatSlotHourDisplay(int $h): string {
                             View Updated Wallet Balance
                         </a>
                         <a href="book_slot.php" class="w-full block py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg text-xs transition-colors">
-                            📅 Proceed to Book a Slot
+                             Proceed to Book a Slot
                         </a>
                     </div>
                 <?php endif; ?>
@@ -369,7 +369,7 @@ function formatSlotHourDisplay(int $h): string {
 
                 <div class="space-y-2">
                     <a href="jazzcash_return.php?orderId=<?php echo urlencode($orderId); ?>" class="w-full block py-2.5 px-4 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-lg text-sm transition-colors">
-                        🔄 Refresh Status
+                         Refresh Status
                     </a>
                     <a href="book_slot.php" class="w-full block py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg text-xs transition-colors">
                         Go to Book Slots

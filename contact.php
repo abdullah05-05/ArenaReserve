@@ -103,7 +103,7 @@ $active_policy = 'contact';
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
             <div class="max-w-3xl">
                 <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-bold uppercase tracking-wider mb-4 border border-emerald-500/30">
-                    <span>📞 24/7 Support Network</span>
+                    <span> 24/7 Support Network</span>
                 </div>
                 <h1 class="text-3xl sm:text-5xl font-black tracking-tight leading-tight text-white">
                     Contact & Support Hub
@@ -122,19 +122,19 @@ $active_policy = 'contact';
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex items-center space-x-1 sm:space-x-4 overflow-x-auto py-3 no-scrollbar text-sm font-semibold">
                 <a href="terms.php" class="px-4 py-2 rounded-xl text-slate-600 hover:text-emerald-600 hover:bg-slate-50 transition-colors flex-shrink-0 flex items-center gap-2">
-                    <span>📜 Terms & Conditions</span>
+                    <span> Terms & Conditions</span>
                 </a>
                 <a href="privacy.php" class="px-4 py-2 rounded-xl text-slate-600 hover:text-emerald-600 hover:bg-slate-50 transition-colors flex-shrink-0 flex items-center gap-2">
-                    <span>🔒 Privacy Policy</span>
+                    <span> Privacy Policy</span>
                 </a>
                 <a href="refund-policy.php" class="px-4 py-2 rounded-xl text-slate-600 hover:text-emerald-600 hover:bg-slate-50 transition-colors flex-shrink-0 flex items-center gap-2">
-                    <span>💳 Refund Policy</span>
+                    <span> Refund Policy</span>
                 </a>
                 <a href="cancellation-policy.php" class="px-4 py-2 rounded-xl text-slate-600 hover:text-emerald-600 hover:bg-slate-50 transition-colors flex-shrink-0 flex items-center gap-2">
-                    <span>🔄 Cancellation Policy</span>
+                    <span> Cancellation Policy</span>
                 </a>
                 <a href="contact.php" class="px-4 py-2 rounded-xl bg-emerald-50 text-emerald-700 font-bold flex-shrink-0 flex items-center gap-2">
-                    <span>📞 Support & Contact</span>
+                    <span> Support & Contact</span>
                 </a>
             </div>
         </div>
@@ -158,7 +158,7 @@ $platform = $contact_config['platform'];
                     <!-- Card 1: Phone / WhatsApp -->
                     <div class="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm flex items-start gap-4">
                         <div class="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center flex-shrink-0 text-xl font-bold">
-                            📞
+                            
                         </div>
                         <div>
                             <div class="text-xs font-bold uppercase tracking-wider text-slate-400">Phone & WhatsApp Support</div>
@@ -172,7 +172,7 @@ $platform = $contact_config['platform'];
                     <!-- Card 2: Email -->
                     <div class="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm flex items-start gap-4">
                         <div class="w-12 h-12 rounded-2xl bg-teal-100 text-teal-700 flex items-center justify-center flex-shrink-0 text-xl font-bold">
-                            ✉️
+                            
                         </div>
                         <div>
                             <div class="text-xs font-bold uppercase tracking-wider text-slate-400">Direct Support Email</div>
@@ -186,7 +186,7 @@ $platform = $contact_config['platform'];
                     <!-- Card 3: Location -->
                     <div class="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm flex items-start gap-4">
                         <div class="w-12 h-12 rounded-2xl bg-violet-100 text-violet-700 flex items-center justify-center flex-shrink-0 text-xl font-bold">
-                            📍
+                            
                         </div>
                         <div>
                             <div class="text-xs font-bold uppercase tracking-wider text-slate-400">Head Office</div>
@@ -202,7 +202,7 @@ $platform = $contact_config['platform'];
                     <!-- Card 4: Venue Owner Hotline -->
                     <div class="rounded-3xl bg-gradient-to-br from-emerald-600 to-teal-700 p-6 text-white shadow-lg">
                         <div class="flex items-center gap-3">
-                            <span class="text-2xl">⚡</span>
+                            <span class="text-2xl"></span>
                             <div>
                                 <h4 class="text-base font-black">Ground Owner Onboarding Hotline</h4>
                                 <p class="text-xs text-emerald-100 mt-1 leading-relaxed">
@@ -309,7 +309,7 @@ $platform = $contact_config['platform'];
             const feedback = document.getElementById('contactFeedback');
             
             feedback.className = 'rounded-xl p-4 text-xs font-bold bg-emerald-100 border border-emerald-300 text-emerald-800 flex items-center gap-2';
-            feedback.innerHTML = '<span class="text-base">✓</span> Thank you! Your inquiry has been sent to our support desk (abdullahtariq0505@gmail.com). We will reach out promptly!';
+            feedback.innerHTML = '<span class="text-base"></span> Thank you! Your inquiry has been sent to our support desk (abdullahtariq0505@gmail.com). We will reach out promptly!';
             feedback.classList.remove('hidden');
 
             form.reset();

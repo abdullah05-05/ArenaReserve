@@ -100,7 +100,7 @@ $active_policy = 'terms';
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
             <div class="max-w-3xl">
                 <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-bold uppercase tracking-wider mb-4 border border-emerald-500/30">
-                    <span>📜 Legal Compliance</span>
+                    <span> Legal Compliance</span>
                 </div>
                 <h1 class="text-3xl sm:text-5xl font-black tracking-tight leading-tight text-white">
                     Terms & Conditions
@@ -129,19 +129,19 @@ $active_policy = 'terms';
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex items-center space-x-1 sm:space-x-4 overflow-x-auto py-3 no-scrollbar text-sm font-semibold">
                 <a href="terms.php" class="px-4 py-2 rounded-xl bg-emerald-50 text-emerald-700 font-bold flex-shrink-0 flex items-center gap-2">
-                    <span>📜 Terms & Conditions</span>
+                    <span> Terms & Conditions</span>
                 </a>
                 <a href="privacy.php" class="px-4 py-2 rounded-xl text-slate-600 hover:text-emerald-600 hover:bg-slate-50 transition-colors flex-shrink-0 flex items-center gap-2">
-                    <span>🔒 Privacy Policy</span>
+                    <span> Privacy Policy</span>
                 </a>
                 <a href="refund-policy.php" class="px-4 py-2 rounded-xl text-slate-600 hover:text-emerald-600 hover:bg-slate-50 transition-colors flex-shrink-0 flex items-center gap-2">
-                    <span>💳 Refund Policy</span>
+                    <span> Refund Policy</span>
                 </a>
                 <a href="cancellation-policy.php" class="px-4 py-2 rounded-xl text-slate-600 hover:text-emerald-600 hover:bg-slate-50 transition-colors flex-shrink-0 flex items-center gap-2">
-                    <span>🔄 Cancellation Policy</span>
+                    <span> Cancellation Policy</span>
                 </a>
                 <a href="contact.php" class="px-4 py-2 rounded-xl text-slate-600 hover:text-emerald-600 hover:bg-slate-50 transition-colors flex-shrink-0 flex items-center gap-2">
-                    <span>📞 Support & Contact</span>
+                    <span> Support & Contact</span>
                 </a>
             </div>
         </div>
@@ -173,8 +173,8 @@ $active_policy = 'terms';
 
                         <div class="mt-6 pt-6 border-t border-slate-100">
                             <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Need Immediate Help?</div>
-                            <a href="tel:03137970801" class="text-sm font-bold text-emerald-600 hover:underline block">📞 03137970801</a>
-                            <a href="mailto:abdullahtariq0505@gmail.com" class="text-xs text-slate-500 hover:text-emerald-600 break-all block mt-1">✉️ abdullahtariq0505@gmail.com</a>
+                            <a href="tel:03137970801" class="text-sm font-bold text-emerald-600 hover:underline block"> 03137970801</a>
+                            <a href="mailto:abdullahtariq0505@gmail.com" class="text-xs text-slate-500 hover:text-emerald-600 break-all block mt-1"> abdullahtariq0505@gmail.com</a>
                         </div>
                     </div>
                 </aside>
@@ -223,7 +223,7 @@ $active_policy = 'terms';
                                 When a Player books an available slot through ArenaReserve, the reservation is locked and confirmed instantly upon deduction of payment from the user's available wallet balance.
                             </p>
                             <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 my-3 text-sm text-slate-700">
-                                <span class="font-bold text-emerald-700">📌 Time Slot Lock:</span> Once a slot is selected, a 10-minute temporary hold is enforced to prevent double-booking while the player completes payment.
+                                <span class="font-bold text-emerald-700"> Time Slot Lock:</span> Once a slot is selected, a 10-minute temporary hold is enforced to prevent double-booking while the player completes payment.
                             </div>
                             <p>
                                 Confirmed bookings guarantee exclusive access to the designated pitch, court, or turf for the booked 1-hour interval, subject to venue facility rules.
@@ -326,7 +326,7 @@ $active_policy = 'terms';
                     <section id="contact-clauses" class="rounded-2xl bg-gradient-to-r from-emerald-800 to-teal-900 p-6 sm:p-8 text-white shadow-lg">
                         <div class="flex items-start gap-4">
                             <div class="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center text-2xl flex-shrink-0">
-                                📞
+                                
                             </div>
                             <div>
                                 <h3 class="text-xl font-black text-white">Questions About These Terms?</h3>
@@ -335,10 +335,10 @@ $active_policy = 'terms';
                                 </p>
                                 <div class="mt-4 flex flex-wrap items-center gap-4 text-sm font-semibold">
                                     <a href="tel:03137970801" class="px-4 py-2 rounded-xl bg-white text-emerald-900 hover:bg-emerald-50 transition-colors flex items-center gap-2">
-                                        <span>📞 03137970801</span>
+                                        <span> 03137970801</span>
                                     </a>
                                     <a href="mailto:abdullahtariq0505@gmail.com" class="px-4 py-2 rounded-xl bg-emerald-700/80 hover:bg-emerald-700 text-white border border-emerald-500/50 transition-colors flex items-center gap-2">
-                                        <span>✉️ abdullahtariq0505@gmail.com</span>
+                                        <span> abdullahtariq0505@gmail.com</span>
                                     </a>
                                 </div>
                             </div>

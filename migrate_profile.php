@@ -44,7 +44,7 @@ try {
 <body class="bg-slate-900 min-h-screen flex flex-col justify-start md:justify-center items-center py-6 md:py-12 px-6">
     <div class="bg-slate-800 rounded-2xl p-8 max-w-lg w-full shadow-2xl border border-slate-700">
         <h1 class="text-2xl font-bold text-white mb-6 flex items-center gap-3">
-            <span class="text-emerald-400">⚙</span> Profile Migration
+            <span class="text-emerald-400"></span> Profile Migration
         </h1>
         <?php foreach ($messages as $msg): ?>
             <?php
@@ -55,9 +55,9 @@ try {
                     default   => 'text-slate-300 bg-slate-700/50 border-slate-600',
                 };
                 $icon = match($msg['type']) {
-                    'success' => '✓',
-                    'error'   => '✗',
-                    'done'    => '🎉',
+                    'success' => '',
+                    'error'   => '',
+                    'done'    => '',
                     default   => 'ℹ',
                 };
             ?>

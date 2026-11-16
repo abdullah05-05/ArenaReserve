@@ -2,6 +2,7 @@
 require_once 'session_config.php';
 session_start();
 require_once 'db.php';
+require_once 'csrf_helper.php';
 require_once 'logo_helper.php';
 
 // Redirect if not logged in
@@ -303,7 +304,7 @@ try {
                 <p class="text-sm text-slate-500">
                     Find and book nearby sports facilities
                     <?php if (!$using_default_location): ?>
-                        &nbsp;·&nbsp;<span class="text-emerald-600 font-semibold">📍 Location Active</span>
+                        &nbsp;·&nbsp;<span class="text-emerald-600 font-semibold"> Location Active</span>
                     <?php endif; ?>
                 </p>
             </div>
@@ -317,7 +318,7 @@ try {
             <?php if ($using_default_location): ?>
             <div id="locationBanner" class="mb-4 flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm">
                 <svg class="h-5 w-5 text-amber-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                <span class="text-amber-800 flex-1">📍 Enable your location for accurate proximity sorting &amp; distances.</span>
+                <span class="text-amber-800 flex-1"> Enable your location for accurate proximity sorting &amp; distances.</span>
                 <button onclick="requestPlayerLocation()" class="ml-auto flex-shrink-0 text-xs font-bold text-white bg-amber-500 hover:bg-amber-600 px-3 py-1.5 rounded-lg transition-colors">Enable Now</button>
                 <button onclick="document.getElementById('locationBanner').remove()" class="text-amber-400 hover:text-amber-600 flex-shrink-0" aria-label="Dismiss">
                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
@@ -351,7 +352,7 @@ try {
                         <button type="button" id="nearMeBtn" onclick="requestPlayerLocation()"
                                 class="flex items-center justify-center gap-1.5 px-3 py-2 w-full lg:w-auto <?php echo !$using_default_location ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-300'; ?> border text-xs font-semibold rounded-lg hover:bg-emerald-600 hover:text-white hover:border-emerald-600 transition-colors whitespace-nowrap">
                             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                            <?php echo $using_default_location ? '📍 Near Me' : '✓ Near Me'; ?>
+                            <?php echo $using_default_location ? ' Near Me' : ' Near Me'; ?>
                         </button>
 
                         <!-- Radius Filter (only shown when location is active) -->
@@ -389,7 +390,7 @@ try {
                             <select id="sort_by" name="sort_by" onchange="this.form.submit()"
                                     class="text-xs border border-slate-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 bg-white flex-1 lg:flex-initial w-full lg:w-auto">
                                 <option value="proximity" <?php echo ($sort_by === 'proximity') ? 'selected' : ''; ?>>Nearby Proximity</option>
-                                <option value="rating_desc" <?php echo ($sort_by === 'rating_desc') ? 'selected' : ''; ?>>Top Rated ⭐</option>
+                                <option value="rating_desc" <?php echo ($sort_by === 'rating_desc') ? 'selected' : ''; ?>>Top Rated</option>
                                 <option value="price_asc" <?php echo ($sort_by === 'price_asc') ? 'selected' : ''; ?>>Price: Low to High</option>
                                 <option value="price_desc" <?php echo ($sort_by === 'price_desc') ? 'selected' : ''; ?>>Price: High to Low</option>
                             </select>
@@ -409,8 +410,13 @@ try {
                 </div>
             <?php else: ?>
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="groundsGrid">
-                    <?php foreach ($grounds as $ground): ?>
-                        <div class="ground-card bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-300"
+                    <?php 
+                    $g_index = 0;
+                    foreach ($grounds as $ground): 
+                        $is_hidden_ground = ($g_index >= 8);
+                        $g_index++;
+                    ?>
+                        <div class="ground-card bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-300 <?php echo $is_hidden_ground ? 'ground-overflow-item hidden' : ''; ?>"
                              data-title="<?php echo htmlspecialchars(strtolower($ground['title'])); ?>">
                             <!-- Image -->
                             <div class="h-48 bg-slate-100 relative">
@@ -455,7 +461,7 @@ try {
                                         $totalRev = intval($ground['total_reviews'] ?? 0);
                                     ?>
                                     <div class="flex items-center gap-1 text-xs font-semibold <?php echo ($totalRev > 0) ? 'text-amber-700 bg-amber-50 border border-amber-200/80' : 'text-slate-500 bg-slate-50 border border-slate-200'; ?> px-2 py-0.5 rounded-md shadow-2xs" title="<?php echo ($totalRev > 0) ? number_format($avgRate, 1) . ' out of 5 stars based on ' . $totalRev . ' review(s)' : 'No player ratings yet'; ?>">
-                                        <span class="text-amber-500">★</span>
+                                        <span class="text-amber-500"></span>
                                         <span><?php echo ($totalRev > 0) ? number_format($avgRate, 1) : 'New'; ?></span>
                                         <?php if ($totalRev > 0): ?>
                                         <span class="text-[10px] text-slate-400 font-normal">(<?php echo $totalRev; ?>)</span>
@@ -490,13 +496,13 @@ try {
                                             $d = floatval($ground['distance']);
                                             if ($d < 3) {
                                                 $badge_class = 'bg-emerald-100 text-emerald-700';
-                                                $label = '🟢';
+                                                $label = '';
                                             } elseif ($d < 10) {
                                                 $badge_class = 'bg-amber-100 text-amber-700';
-                                                $label = '🟡';
+                                                $label = '';
                                             } else {
                                                 $badge_class = 'bg-slate-100 text-slate-600';
-                                                $label = '⚪';
+                                                $label = '';
                                             }
                                         ?>
                                         <div class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full <?php echo $badge_class; ?>">
@@ -516,6 +522,16 @@ try {
                         </div>
                     <?php endforeach; ?>
                 </div>
+
+                <?php if (count($grounds) > 8): ?>
+                <div class="mt-8 text-center" id="grounds-show-more-wrap">
+                    <button type="button" id="grounds-show-more-btn" onclick="showMoreGrounds()"
+                            class="inline-flex items-center gap-2 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl shadow transition-all cursor-pointer">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        Show More Grounds
+                    </button>
+                </div>
+                <?php endif; ?>
             <?php endif; ?>
         </main>
     </div>
@@ -531,7 +547,7 @@ try {
                 <svg class="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
             </div>
             <div>
-                <h2 class="text-xl font-bold text-slate-900">⚡ Open Challenges</h2>
+                <h2 class="text-xl font-bold text-slate-900"> Open Challenges</h2>
                 <p class="text-sm text-slate-500">Accept a challenge — pay your 25% share to confirm the match! (50% remaining paid at venue)</p>
             </div>
             <span class="ml-auto bg-violet-100 text-violet-700 text-xs font-bold px-3 py-1.5 rounded-full"><?php echo count($open_challenges); ?> open</span>
@@ -596,7 +612,7 @@ try {
 
                 <button onclick="openAcceptModal(<?php echo $ch['id']; ?>, '<?php echo addslashes($ch['ground_title']); ?>', '<?php echo $time_lbl; ?>', <?php echo $opponent_cost; ?>, '<?php echo date('D d M', strtotime($ch['slot_date'])); ?>')"
                         class="mt-4 w-full bg-violet-600 hover:bg-violet-700 text-white text-sm font-bold py-2.5 rounded-xl transition-all shadow-sm hover:shadow-md">
-                    ⚡ Accept Challenge
+                     Accept Challenge
                 </button>
             </div>
         </div>
@@ -637,7 +653,7 @@ try {
           </div>
           <div class="flex gap-3">
             <button onclick="closeAcceptModal()" class="flex-1 py-2.5 border border-slate-300 text-slate-700 text-sm font-semibold rounded-xl hover:bg-slate-50">Cancel</button>
-            <button onclick="confirmAccept()" id="acc-btn" class="flex-1 py-2.5 bg-violet-600 hover:bg-violet-700 text-white text-sm font-bold rounded-xl shadow transition-all">⚡ Pay 25% & Accept</button>
+            <button onclick="confirmAccept()" id="acc-btn" class="flex-1 py-2.5 bg-violet-600 hover:bg-violet-700 text-white text-sm font-bold rounded-xl shadow transition-all"> Pay 25% & Accept</button>
           </div>
         </div>
       </div>
@@ -674,7 +690,7 @@ try {
         // =============================================
         function requestPlayerLocation() {
             if (!navigator.geolocation) {
-                showExpToast('❌ Geolocation is not supported by your browser.', '#dc2626');
+                showExpToast(' Geolocation is not supported by your browser.', '#dc2626');
                 return;
             }
 
@@ -698,14 +714,14 @@ try {
                     window.location.href = url.toString();
                 },
                 function(err) {
-                    if (btn) { btn.textContent = '📍 Near Me'; btn.disabled = false; }
+                    if (btn) { btn.textContent = ' Near Me'; btn.disabled = false; }
                     let msg = 'Could not get your location.';
                     if (err.code === err.PERMISSION_DENIED) {
-                        msg = '❌ Location permission denied. Please allow location access in your browser settings.';
+                        msg = ' Location permission denied. Please allow location access in your browser settings.';
                     } else if (err.code === err.POSITION_UNAVAILABLE) {
-                        msg = '❌ Location unavailable. Check your device GPS/network.';
+                        msg = ' Location unavailable. Check your device GPS/network.';
                     } else if (err.code === err.TIMEOUT) {
-                        msg = '❌ Location request timed out. Please try again.';
+                        msg = ' Location request timed out. Please try again.';
                     }
                     showExpToast(msg, '#dc2626');
                 },
@@ -749,10 +765,14 @@ try {
             btn.disabled = true;
             btn.textContent = 'Processing…';
 
+            const csrfToken = '<?php echo csrf_token(); ?>';
             fetch('accept_challenge.php', {
                 method: 'POST',
-                headers: {'Content-Type':'application/x-www-form-urlencoded'},
-                body: 'booking_id=' + acceptBookingId
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRF-Token': csrfToken
+                },
+                body: 'booking_id=' + encodeURIComponent(acceptBookingId) + '&csrf_token=' + encodeURIComponent(csrfToken)
             })
             .then(r => r.json())
             .then(res => {
@@ -768,12 +788,12 @@ try {
                         setTimeout(() => card.remove(), 400);
                     }
                 } else {
-                    showExpToast('❌ ' + res.message, '#dc2626');
+                    showExpToast(' ' + res.message, '#dc2626');
                     btn.disabled = false;
-                    btn.textContent = '⚡ Pay & Accept';
+                    btn.textContent = ' Pay & Accept';
                 }
             })
-            .catch(() => { showExpToast('❌ Network error.', '#dc2626'); btn.disabled=false; btn.textContent='⚡ Pay & Accept'; });
+            .catch(() => { showExpToast(' Network error.', '#dc2626'); btn.disabled=false; btn.textContent=' Pay & Accept'; });
         }
 
         function toggleProfileDropdown() {
@@ -795,6 +815,23 @@ try {
         function toggleMobileMenu() {
             const menu = document.getElementById('mobileNavigationMenu');
             if (menu) menu.classList.toggle('hidden');
+        }
+
+        // Show More Grounds (loads in batches of 8)
+        function showMoreGrounds() {
+            const hiddenItems = document.querySelectorAll('.ground-overflow-item.hidden');
+            let shown = 0;
+            hiddenItems.forEach(item => {
+                if (shown < 8) {
+                    item.classList.remove('hidden');
+                    shown++;
+                }
+            });
+            const remaining = document.querySelectorAll('.ground-overflow-item.hidden').length;
+            if (remaining === 0) {
+                const wrap = document.getElementById('grounds-show-more-wrap');
+                if (wrap) wrap.style.display = 'none';
+            }
         }
 
         document.addEventListener('click', function(e) {

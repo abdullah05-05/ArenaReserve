@@ -143,11 +143,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
             ")->execute([$ownerWalletId, $owner_payout, 'SCORE-BK-' . $booking_id]);
 
             $pdo->commit();
-            $success_msg = '✅ Score recorded! PKR ' . number_format($owner_payout, 2) . ' credited to venue owner wallet (5% platform fee of PKR ' . number_format($platform_fee, 2) . ' deducted from online advance payment).';
+            $success_msg = ' Score recorded! PKR ' . number_format($owner_payout, 2) . ' credited to venue owner wallet (5% platform fee of PKR ' . number_format($platform_fee, 2) . ' deducted from online advance payment).';
 
         } catch (Exception $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
-            $error_msg = '❌ ' . $e->getMessage();
+            $error_msg = ' ' . $e->getMessage();
         }
     }
 }
@@ -235,13 +235,31 @@ try {
 // Current server time
 $now_ts = time();
 
+// Inline SVG helper for sport type
+function ownerSportSvg(string $sport): string {
+    switch (strtolower(trim($sport))) {
+        case 'football':
+            return '<svg class="w-3.5 h-3.5 text-green-600 inline-block mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 2a10 10 0 00-6.26 17.84M12 2a10 10 0 016.26 17.84M4.93 7.5h14.14M3 12h18M4.93 16.5h14.14"/></svg>';
+        case 'cricket':
+            return '<svg class="w-3.5 h-3.5 text-blue-600 inline-block mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M5 19L19 5M9 19l10-10M5 15l4-4"/></svg>';
+        case 'basketball':
+            return '<svg class="w-3.5 h-3.5 text-orange-500 inline-block mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path stroke-linecap="round" stroke-linejoin="round" d="M4.93 4.93a10 10 0 0014.14 14.14M4.93 19.07A10 10 0 0119.07 4.93M2 12h20M12 2v20"/></svg>';
+        case 'badminton':
+            return '<svg class="w-3.5 h-3.5 text-red-500 inline-block mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M17 3l4 4-9.5 9.5M14.5 14.5L5 21M12 7l5 5"/></svg>';
+        case 'futsal':
+            return '<svg class="w-3.5 h-3.5 text-purple-600 inline-block mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><path stroke-linecap="round" stroke-linejoin="round" d="M9 3v18M15 3v18M3 9h18M3 15h18"/></svg>';
+        default:
+            return '<svg class="w-3.5 h-3.5 text-slate-500 inline-block mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/></svg>';
+    }
+}
+
 $sport_icons = [
-    'Football'   => '⚽',
-    'Cricket'    => '🏏',
-    'Basketball' => '🏀',
-    'Badminton'  => '🏸',
-    'Futsal'     => '⚽',
-    'Tennis'     => '🎾',
+    'Football'   => '',
+    'Cricket'    => '',
+    'Basketball' => '',
+    'Badminton'  => '',
+    'Futsal'     => '',
+    'Tennis'     => '',
 ];
 ?>
 <!DOCTYPE html>
@@ -401,136 +419,150 @@ $sport_icons = [
 
             <!-- Matches List -->
             <?php if (!empty($bookings)): ?>
-            <div class="space-y-6 max-w-4xl">
-                <?php foreach ($bookings as $bk): ?>
-                    <?php
-                        $slot_date = $bk['slot_date'] ?? date('Y-m-d');
-                        $slot_hour = (int)($bk['slot_hour'] ?? 0);
-                        $slot_end_ts = strtotime($slot_date . ' ' . sprintf('%02d:00:00', $slot_hour + 1));
-                        $slot_over = ($now_ts >= $slot_end_ts);
-                        $slot_remaining = max($slot_end_ts - $now_ts, 0);
-                        $hrs = (int)floor($slot_remaining / 3600);
-                        $mins = (int)floor(($slot_remaining % 3600) / 60);
-                        $already_scored = !empty($bk['score_id']) || (!empty($bk['score_a']) || $bk['score_a'] === '0' || $bk['score_b'] !== null);
-                        $is_cancelled   = ($bk['booking_status'] === 'cancelled');
-                        $cancellation_earned = floatval($bk['cancellation_payout_owner'] ?? 0);
-                        $team_a = trim((string)($bk['team_a_name'] ?? 'Team A')) ?: 'Team A';
-                        $team_b = trim((string)($bk['team_b_name'] ?? 'Team B')) ?: 'Team B';
-                        $slot_label = date('D, M j', strtotime($slot_date)) . ' · ' . sprintf('%02d:00', $slot_hour) . ':00';
-                    ?>
-                    <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                        <div class="space-y-3">
-                            <!-- Venue Details -->
-                            <div class="flex items-center gap-2 text-slate-800">
-                                <span class="text-emerald-500">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
-                                    </svg>
-                                </span>
-                                <h3 class="font-bold text-slate-800 text-lg leading-snug"><?php echo htmlspecialchars($bk['ground_title']); ?></h3>
-                            </div>
-
-                            <!-- Date / Time / Sport Tag -->
-                            <div class="flex flex-wrap items-center gap-3 text-xs text-slate-500 font-medium">
-                                <div class="flex items-center gap-1">
-                                    <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                                    </svg>
-                                    <span><?php echo date('D, M j, Y', strtotime($slot_date)); ?> · <?php echo sprintf('%02d:00', $slot_hour); ?>:00</span>
-                                </div>
-                                <span class="bg-slate-100 text-slate-700 px-2.5 py-1 rounded font-semibold text-[10px] uppercase">
-                                    <?php echo htmlspecialchars($bk['sport_type']); ?>
-                                </span>
-                            </div>
-
-                            <!-- Slot time -->
-                            <div class="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
-                                <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                                <?php echo $slot_label; ?>
-                                <?php if ($is_cancelled): ?>
-                                    <span class="text-rose-600 font-semibold">· Cancelled booking</span>
-                                <?php else: ?>
-                                    <span class="text-emerald-600 font-semibold">· PKR <?php echo number_format($bk['amount_paid'], 0); ?> paid</span>
-                                <?php endif; ?>
-                            </div>
-
-                            <!-- Teams -->
-                            <div class="flex items-center gap-2 flex-wrap">
-                                <?php if ($is_cancelled): ?>
-                                    <span class="font-semibold text-slate-700 text-sm"><?php echo htmlspecialchars($team_a); ?></span>
-                                    <?php if (!empty($bk['team_b_name'])): ?>
-                                        <span class="text-slate-400 text-sm">vs</span>
-                                        <span class="font-semibold text-slate-700 text-sm"><?php echo htmlspecialchars($team_b); ?></span>
-                                    <?php endif; ?>
-                                    <span class="text-xs text-rose-500 font-medium">(Booking Cancelled)</span>
-                                <?php elseif ($already_scored): ?>
-                                    <!-- Show final result -->
-                                    <span class="font-semibold text-slate-900 text-sm <?php echo $bk['score_a'] == 1 ? 'text-emerald-700' : 'text-slate-500 line-through decoration-1'; ?>">
-                                        <?php echo htmlspecialchars($team_a); ?>
-                                    </span>
-                                    <span class="bg-slate-100 text-slate-800 font-bold px-2.5 py-0.5 rounded text-xs"><?php echo $bk['score_a']; ?></span>
-                                    <span class="text-slate-400 text-sm">vs</span>
-                                    <span class="bg-slate-100 text-slate-800 font-bold px-2.5 py-0.5 rounded text-xs"><?php echo $bk['score_b']; ?></span>
-                                    <span class="font-semibold text-slate-900 text-sm <?php echo $bk['score_b'] == 1 ? 'text-emerald-700' : 'text-slate-500 line-through decoration-1'; ?>">
-                                        <?php echo htmlspecialchars($team_b); ?>
-                                    </span>
-                                <?php else: ?>
-                                    <span class="font-semibold text-slate-800 text-sm"><?php echo htmlspecialchars($team_a); ?></span>
-                                    <span class="text-slate-400 text-sm">vs</span>
-                                    <span class="font-semibold text-slate-800 text-sm"><?php echo htmlspecialchars($team_b); ?></span>
-                                <?php endif; ?>
-                            </div>
+            <div class="space-y-6 max-w-4xl" id="scoresList">
+                <?php 
+                $sc_index = 0;
+                foreach ($bookings as $bk): 
+                    $is_hidden_score = ($sc_index >= 9);
+                    $sc_index++;
+                    $slot_date = $bk['slot_date'] ?? date('Y-m-d');
+                    $slot_hour = (int)($bk['slot_hour'] ?? 0);
+                    $slot_end_ts = strtotime($slot_date . ' ' . sprintf('%02d:00:00', $slot_hour + 1));
+                    $slot_over = ($now_ts >= $slot_end_ts);
+                    $slot_remaining = max($slot_end_ts - $now_ts, 0);
+                    $hrs = (int)floor($slot_remaining / 3600);
+                    $mins = (int)floor(($slot_remaining % 3600) / 60);
+                    $already_scored = !empty($bk['score_id']) || (!empty($bk['score_a']) || $bk['score_a'] === '0' || $bk['score_b'] !== null);
+                    $is_cancelled   = ($bk['booking_status'] === 'cancelled');
+                    $cancellation_earned = floatval($bk['cancellation_payout_owner'] ?? 0);
+                    $team_a = trim((string)($bk['team_a_name'] ?? 'Team A')) ?: 'Team A';
+                    $team_b = trim((string)($bk['team_b_name'] ?? 'Team B')) ?: 'Team B';
+                    $slot_label = date('D, M j', strtotime($slot_date)) . ' · ' . sprintf('%02d:00', $slot_hour) . ':00';
+                ?>
+                <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4 <?php echo $is_hidden_score ? 'score-overflow-item hidden' : ''; ?>">
+                    <div class="space-y-3">
+                        <!-- Venue Details -->
+                        <div class="flex items-center gap-2 text-slate-800">
+                            <span class="text-emerald-500">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                </svg>
+                            </span>
+                            <h3 class="font-bold text-slate-800 text-lg leading-snug"><?php echo htmlspecialchars($bk['ground_title']); ?></h3>
                         </div>
 
-                        <!-- Right: action -->
-                        <div class="flex-shrink-0 flex flex-col items-end gap-2">
+                        <!-- Date / Time / Sport Tag -->
+                        <div class="flex flex-wrap items-center gap-3 text-xs text-slate-500 font-medium">
+                            <div class="flex items-center gap-1">
+                                <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                </svg>
+                                <span><?php echo date('D, M j, Y', strtotime($slot_date)); ?> · <?php echo sprintf('%02d:00', $slot_hour); ?>:00</span>
+                            </div>
+                            <span class="bg-slate-100 text-slate-700 px-2.5 py-1 rounded font-semibold text-[10px] uppercase flex items-center">
+                                <?php echo ownerSportSvg($bk['sport_type']); ?><span><?php echo htmlspecialchars($bk['sport_type']); ?></span>
+                            </span>
+                        </div>
+
+                        <!-- Slot time -->
+                        <div class="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+                            <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                            <?php echo $slot_label; ?>
                             <?php if ($is_cancelled): ?>
-                                <!-- Cancelled state -->
-                                <div class="flex items-center gap-2">
-                                    <span class="inline-flex items-center gap-1.5 bg-rose-50 text-rose-700 px-4 py-2 rounded-xl text-xs font-bold border border-rose-200 shadow-sm">
-                                        ❌ Cancelled
-                                    </span>
-                                </div>
-                                <?php if ($cancellation_earned > 0): ?>
-                                    <span class="text-xs text-emerald-600 font-semibold">+PKR <?php echo number_format($cancellation_earned, 2); ?> earned (Cancellation fee)</span>
-                                <?php else: ?>
-                                    <span class="text-[10px] text-slate-400">Full refund issued to player</span>
+                                <span class="text-rose-600 font-semibold">· Cancelled booking</span>
+                            <?php else: ?>
+                                <span class="text-emerald-600 font-semibold">· PKR <?php echo number_format($bk['amount_paid'], 0); ?> paid</span>
+                            <?php endif; ?>
+                        </div>
+
+                        <!-- Teams -->
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <?php if ($is_cancelled): ?>
+                                <span class="font-semibold text-slate-700 text-sm"><?php echo htmlspecialchars($team_a); ?></span>
+                                <?php if (!empty($bk['team_b_name'])): ?>
+                                    <span class="text-slate-400 text-sm">vs</span>
+                                    <span class="font-semibold text-slate-700 text-sm"><?php echo htmlspecialchars($team_b); ?></span>
                                 <?php endif; ?>
+                                <span class="text-xs text-rose-500 font-medium">(Booking Cancelled)</span>
                             <?php elseif ($already_scored): ?>
-                                <!-- Finalized state -->
-                                <div class="flex items-center gap-2">
-                                    <span class="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 px-4 py-2 rounded-xl text-xs font-bold border border-emerald-200 shadow-sm">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
-                                        Finalized
-                                    </span>
-                                </div>
-                                <span class="text-xs text-emerald-600 font-semibold">+PKR <?php echo number_format($bk['commission_paid'], 0); ?> earned</span>
-                            <?php elseif (!$slot_over): ?>
-                                <!-- Match not yet ended -->
-                                <button disabled class="btn-disabled inline-flex items-center gap-2 bg-slate-200 text-slate-500 text-xs font-bold px-5 py-2.5 rounded-xl border border-slate-300">
-                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-                                    Enter Score
-                                </button>
-                                <span class="countdown-badge text-[10px] text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                                    ⏱ <?php
-                                        if ($hrs > 0) echo "{$hrs}h {$mins}m remaining";
-                                        else echo "{$mins}m remaining";
-                                    ?>
+                                <!-- Show final result -->
+                                <span class="font-semibold text-slate-900 text-sm <?php echo $bk['score_a'] == 1 ? 'text-emerald-700' : 'text-slate-500 line-through decoration-1'; ?>">
+                                    <?php echo htmlspecialchars($team_a); ?>
+                                </span>
+                                <span class="bg-slate-100 text-slate-800 font-bold px-2.5 py-0.5 rounded text-xs"><?php echo $bk['score_a']; ?></span>
+                                <span class="text-slate-400 text-sm">vs</span>
+                                <span class="bg-slate-100 text-slate-800 font-bold px-2.5 py-0.5 rounded text-xs"><?php echo $bk['score_b']; ?></span>
+                                <span class="font-semibold text-slate-900 text-sm <?php echo $bk['score_b'] == 1 ? 'text-emerald-700' : 'text-slate-500 line-through decoration-1'; ?>">
+                                    <?php echo htmlspecialchars($team_b); ?>
                                 </span>
                             <?php else: ?>
-                                <!-- Slot ended – can score -->
-                                <button onclick="openScoreModal(<?php echo $bk['booking_id']; ?>, '<?php echo htmlspecialchars(addslashes($team_a)); ?>', '<?php echo htmlspecialchars(addslashes($team_b)); ?>')"
-                                        class="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white text-xs font-bold px-5 py-2.5 rounded-xl shadow-sm transition-colors">
-                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                                    Enter Score
-                                </button>
-                                <span class="text-[10px] text-slate-400 font-medium">Match has ended</span>
+                                <span class="font-semibold text-slate-800 text-sm"><?php echo htmlspecialchars($team_a); ?></span>
+                                <span class="text-slate-400 text-sm">vs</span>
+                                <span class="font-semibold text-slate-800 text-sm"><?php echo htmlspecialchars($team_b); ?></span>
                             <?php endif; ?>
                         </div>
                     </div>
+
+                    <!-- Right: action -->
+                    <div class="flex-shrink-0 flex flex-col items-end gap-2">
+                        <?php if ($is_cancelled): ?>
+                            <!-- Cancelled state -->
+                            <div class="flex items-center gap-2">
+                                <span class="inline-flex items-center gap-1.5 bg-rose-50 text-rose-700 px-4 py-2 rounded-xl text-xs font-bold border border-rose-200 shadow-sm">
+                                     Cancelled
+                                </span>
+                            </div>
+                            <?php if ($cancellation_earned > 0): ?>
+                                <span class="text-xs text-emerald-600 font-semibold">+PKR <?php echo number_format($cancellation_earned, 2); ?> earned (Cancellation fee)</span>
+                            <?php else: ?>
+                                <span class="text-[10px] text-slate-400">Full refund issued to player</span>
+                            <?php endif; ?>
+                        <?php elseif ($already_scored): ?>
+                            <!-- Finalized state -->
+                            <div class="flex items-center gap-2">
+                                <span class="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 px-4 py-2 rounded-xl text-xs font-bold border border-emerald-200 shadow-sm">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                                    Finalized
+                                </span>
+                            </div>
+                            <span class="text-xs text-emerald-600 font-semibold">+PKR <?php echo number_format($bk['commission_paid'], 0); ?> earned</span>
+                        <?php elseif (!$slot_over): ?>
+                            <!-- Match not yet ended -->
+                            <button disabled class="btn-disabled inline-flex items-center gap-2 bg-slate-200 text-slate-500 text-xs font-bold px-5 py-2.5 rounded-xl border border-slate-300">
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                                Enter Score
+                            </button>
+                            <span class="countdown-badge text-[10px] text-amber-600 font-bold bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200 flex items-center gap-1">
+                                <svg class="w-3 h-3 text-amber-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                <span><?php
+                                    if ($hrs > 0) echo "{$hrs}h {$mins}m remaining";
+                                    else echo "{$mins}m remaining";
+                                ?></span>
+                            </span>
+                        <?php else: ?>
+                            <!-- Slot ended – can score -->
+                            <button onclick="openScoreModal(<?php echo $bk['booking_id']; ?>, '<?php echo htmlspecialchars(addslashes($team_a)); ?>', '<?php echo htmlspecialchars(addslashes($team_b)); ?>')"
+                                    class="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white text-xs font-bold px-5 py-2.5 rounded-xl shadow-sm transition-colors">
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                Enter Score
+                            </button>
+                            <span class="text-[10px] text-slate-400 font-medium">Match has ended</span>
+                        <?php endif; ?>
+                    </div>
+                </div>
                 <?php endforeach; ?>
             </div>
+
+            <?php if (count($bookings) > 9): ?>
+            <div class="mt-8 text-center max-w-4xl" id="scores-show-more-wrap">
+                <button type="button" id="scores-show-more-btn" onclick="showMoreScores()"
+                        class="inline-flex items-center gap-2 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl shadow transition-all cursor-pointer">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    Show More Matches
+                </button>
+            </div>
+            <?php endif; ?>
             <?php endif; ?>
         </div>
     </main>
@@ -562,20 +594,20 @@ $sport_icons = [
                         class="winner-btn flex flex-col items-center gap-2 border-2 border-slate-200 hover:border-emerald-400 bg-slate-50 hover:bg-emerald-50 rounded-xl px-4 py-5 transition-all">
                     <div class="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-lg" id="avatarA">?</div>
                     <span class="text-xs font-bold text-slate-700 text-center leading-tight" id="labelTeamA">Team A</span>
-                    <span class="text-[10px] text-emerald-600 font-semibold">🏆 Win (1)</span>
+                    <span class="text-[10px] text-emerald-600 font-semibold"> Win (1)</span>
                 </button>
                 <button type="button" id="btnTeamB"
                         onclick="selectWinner('b')"
                         class="winner-btn flex flex-col items-center gap-2 border-2 border-slate-200 hover:border-emerald-400 bg-slate-50 hover:bg-emerald-50 rounded-xl px-4 py-5 transition-all">
                     <div class="w-10 h-10 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center font-bold text-lg" id="avatarB">?</div>
                     <span class="text-xs font-bold text-slate-700 text-center leading-tight" id="labelTeamB">Team B</span>
-                    <span class="text-[10px] text-emerald-600 font-semibold">🏆 Win (1)</span>
+                    <span class="text-[10px] text-emerald-600 font-semibold"> Win (1)</span>
                 </button>
             </div>
 
             <!-- Commission note -->
             <div class="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2.5 text-xs text-emerald-800 font-medium mb-5 text-center leading-relaxed">
-                💰 <strong>Payout Details:</strong> 5% platform commission of the slot price is deducted from the online advance payment, and the remaining online balance is credited directly to your wallet.
+                 <strong>Payout Details:</strong> 5% platform commission of the slot price is deducted from the online advance payment, and the remaining online balance is credited directly to your wallet.
             </div>
 
             <div class="flex gap-3">
@@ -659,6 +691,23 @@ function openScoreModal(bookingId, teamA, teamB) {
         function toggleMobileMenu() {
             const menu = document.getElementById('mobileNavigationMenu');
             if (menu) menu.classList.toggle('hidden');
+        }
+
+        // Show More Matches (loads in batches of 9)
+        function showMoreScores() {
+            const hiddenItems = document.querySelectorAll('.score-overflow-item.hidden');
+            let shown = 0;
+            hiddenItems.forEach(item => {
+                if (shown < 9) {
+                    item.classList.remove('hidden');
+                    shown++;
+                }
+            });
+            const remaining = document.querySelectorAll('.score-overflow-item.hidden').length;
+            if (remaining === 0) {
+                const wrap = document.getElementById('scores-show-more-wrap');
+                if (wrap) wrap.style.display = 'none';
+            }
         }
     </script>
 </body>

@@ -2,6 +2,7 @@
 require_once 'session_config.php';
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'db.php';
+require_once 'csrf_helper.php';
 require_once 'logo_helper.php';
 if (!isset($_SESSION['user_id'])) { header("Location: login.php"); exit; }
 $user_id = $_SESSION['user_id'];
@@ -91,12 +92,44 @@ function formatHourLabel(int $h): string {
     return sprintf('%d:00 %s – %d:00 %s', $displayH, $suffix, $nextDisp, $nextSuf);
 }
 
+// Inline SVG helpers for sport type
+function sportSvgIcon(string $sport): string {
+    switch (strtolower($sport)) {
+        case 'football':
+            return '<svg class="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 2a10 10 0 00-6.26 17.84M12 2a10 10 0 016.26 17.84M4.93 7.5h14.14M3 12h18M4.93 16.5h14.14"/></svg>';
+        case 'cricket':
+            return '<svg class="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M5 19L19 5M9 19l10-10M5 15l4-4"/></svg>';
+        case 'basketball':
+            return '<svg class="w-5 h-5 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path stroke-linecap="round" stroke-linejoin="round" d="M4.93 4.93a10 10 0 0014.14 14.14M4.93 19.07A10 10 0 0019.07 4.93M2 12h20M12 2v20"/></svg>';
+        case 'badminton':
+            return '<svg class="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M17 3l4 4-9.5 9.5M14.5 14.5L5 21M12 7l5 5"/></svg>';
+        case 'futsal':
+            return '<svg class="w-5 h-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><path stroke-linecap="round" stroke-linejoin="round" d="M9 3v18M15 3v18M3 9h18M3 15h18"/></svg>';
+        default:
+            return '<svg class="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/></svg>';
+    }
+}
+
+// Inline SVG helpers for booking type
+function bookingTypeSvg(string $type): string {
+    switch ($type) {
+        case 'direct':
+            return '<svg class="w-3.5 h-3.5 inline-block mr-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>';
+        case 'open_challenge':
+            return '<svg class="w-3.5 h-3.5 inline-block mr-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>';
+        case 'team_challenge':
+            return '<svg class="w-3.5 h-3.5 inline-block mr-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>';
+        default:
+            return '';
+    }
+}
+
 $statusConfig = [
-    'confirmed'          => ['badge' => 'bg-emerald-100 text-emerald-700', 'label' => 'Confirmed',         'icon' => '✅'],
-    'challenge_open'     => ['badge' => 'bg-violet-100 text-violet-700',   'label' => 'Open Challenge',    'icon' => '⚡'],
-    'challenge_pending'  => ['badge' => 'bg-orange-100 text-orange-700',   'label' => 'Pending Accept',    'icon' => '🤝'],
-    'challenge_accepted' => ['badge' => 'bg-blue-100 text-blue-700',       'label' => 'Match Set ✓',      'icon' => '🏆'],
-    'cancelled'          => ['badge' => 'bg-red-100 text-red-700',         'label' => 'Cancelled',         'icon' => '❌'],
+    'confirmed'          => ['badge' => 'bg-emerald-100 text-emerald-700', 'label' => 'Confirmed',      'icon' => '<svg class="w-3 h-3 inline-block mr-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>'],
+    'challenge_open'     => ['badge' => 'bg-violet-100 text-violet-700',   'label' => 'Open Challenge','icon' => '<svg class="w-3 h-3 inline-block mr-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>'],
+    'challenge_pending'  => ['badge' => 'bg-orange-100 text-orange-700',   'label' => 'Pending',       'icon' => '<svg class="w-3 h-3 inline-block mr-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>'],
+    'challenge_accepted' => ['badge' => 'bg-blue-100 text-blue-700',       'label' => 'Match Set',     'icon' => '<svg class="w-3 h-3 inline-block mr-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>'],
+    'cancelled'          => ['badge' => 'bg-red-100 text-red-700',         'label' => 'Cancelled',     'icon' => '<svg class="w-3 h-3 inline-block mr-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>'],
 ];
 
 $typeConfig = [
@@ -312,21 +345,25 @@ body { font-family: 'Inter', sans-serif; background: #f8fafc; }
           <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-orange-400 inline-block"></span>Pending</span>
         </div>
       </div>
-      <div class="divide-y divide-slate-100">
-        <?php foreach ($all_bookings as $bk):
-          $sc = $statusConfig[$bk['status']] ?? ['badge'=>'bg-slate-100 text-slate-600','label'=>ucfirst($bk['status']),'icon'=>'📋'];
+      <div class="divide-y divide-slate-100" id="mh-list">
+        <?php
+        $mh_page_size = 8;
+        $mh_initial   = array_slice($all_bookings, 0, $mh_page_size);
+        foreach ($mh_initial as $bk):
+          $sc = $statusConfig[$bk['status']] ?? ['badge'=>'bg-slate-100 text-slate-600','label'=>ucfirst($bk['status']),'icon'=>''];
           $tc = $typeConfig[$bk['booking_type']] ?? ['badge'=>'bg-slate-100 text-slate-600','label'=>$bk['booking_type']];
           $timeLabel = formatHourLabel(intval($bk['slot_hour']));
           $slot_start_time = strtotime($bk['slot_date'] . ' ' . sprintf('%02d:00:00', intval($bk['slot_hour'])));
           $isUpcoming = ($slot_start_time > time()) && ($bk['status'] !== 'cancelled');
           $isPast     = !$isUpcoming;
-          $sportIcon  = ['Football'=>'⚽','Cricket'=>'🏏','Basketball'=>'🏀','Badminton'=>'🏸','Futsal'=>'⚽'][$bk['sport_type']] ?? '🏟️';
+          $sportSvg   = sportSvgIcon($bk['sport_type'] ?? '');
+          $typeSvg    = bookingTypeSvg($bk['booking_type'] ?? '');
         ?>
         <div class="booking-row p-5 flex flex-col sm:flex-row sm:items-center gap-4" data-booking-id="<?php echo $bk['id']; ?>">
           <!-- Left: sport icon + info -->
           <div class="flex gap-4 items-start flex-1">
-            <div class="w-11 h-11 rounded-xl bg-emerald-50 flex items-center justify-center text-xl flex-shrink-0 border border-emerald-100">
-              <?php echo $sportIcon; ?>
+            <div class="w-11 h-11 rounded-xl bg-slate-50 flex items-center justify-center flex-shrink-0 border border-slate-200">
+              <?php echo $sportSvg; ?>
             </div>
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2 flex-wrap">
@@ -337,27 +374,32 @@ body { font-family: 'Inter', sans-serif; background: #f8fafc; }
                   </span>
                 <?php endif; ?>
               </div>
-              <div class="text-xs text-slate-500 mt-0.5">
-                📅 <?php echo date('D, d M Y', strtotime($bk['slot_date'])); ?>
-                &nbsp;⏰ <?php echo $timeLabel; ?>
+              <div class="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
+                <svg class="w-3 h-3 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                <?php echo date('D, d M Y', strtotime($bk['slot_date'])); ?>
+                <svg class="w-3 h-3 text-slate-400 flex-shrink-0 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <?php echo $timeLabel; ?>
               </div>
               <?php if ($bk['role'] === 'opponent' && $bk['status'] === 'challenge_pending'): ?>
-              <div class="text-xs text-orange-600 font-medium mt-0.5">
-                ⚡ Team Challenge from <span class="font-bold"><?php echo htmlspecialchars($bk['challenger_name'] ?? 'Unknown'); ?></span> — awaiting your acceptance
+              <div class="text-xs text-orange-600 font-medium mt-0.5 flex items-center gap-1">
+                <svg class="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                 Team Challenge from <span class="font-bold"><?php echo htmlspecialchars($bk['challenger_name'] ?? 'Unknown'); ?></span> — awaiting your acceptance
               </div>
               <?php elseif ($bk['role'] === 'opponent'): ?>
-              <div class="text-xs text-blue-600 font-medium mt-0.5">
-                🏆 Accepted challenge from <span class="font-bold"><?php echo htmlspecialchars($bk['challenger_name'] ?? 'Unknown'); ?></span>
+              <div class="text-xs text-blue-600 font-medium mt-0.5 flex items-center gap-1">
+                <svg class="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                 Accepted challenge from <span class="font-bold"><?php echo htmlspecialchars($bk['challenger_name'] ?? 'Unknown'); ?></span>
               </div>
               <?php elseif ($bk['challenger_team_name']): ?>
-              <div class="text-xs text-orange-600 font-medium mt-0.5">
-                🤝 Challenged: <span class="font-bold"><?php echo htmlspecialchars($bk['challenger_team_name']); ?></span>
+              <div class="text-xs text-orange-600 font-medium mt-0.5 flex items-center gap-1">
+                <svg class="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                 Challenged: <span class="font-bold"><?php echo htmlspecialchars($bk['challenger_team_name']); ?></span>
               </div>
               <?php endif; ?>
 
               <?php if (!empty($bk['challenge_message'])): ?>
               <div class="mt-2 text-xs bg-amber-50 border border-amber-200/80 text-amber-900 px-3 py-1.5 rounded-lg flex items-start gap-1.5 max-w-md">
-                <span class="text-amber-500 flex-shrink-0">💬</span>
+                <svg class="w-3.5 h-3.5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
                 <span class="italic font-medium">"<?php echo htmlspecialchars($bk['challenge_message']); ?>"</span>
               </div>
               <?php endif; ?>
@@ -367,11 +409,11 @@ body { font-family: 'Inter', sans-serif; background: #f8fafc; }
           <!-- Right: badges + cost + cancel -->
           <div class="flex items-center gap-3 sm:flex-col sm:items-end sm:gap-2 flex-shrink-0">
             <div class="flex items-center gap-2">
-              <span class="status-badge text-xs font-bold px-2 py-1 rounded-full <?php echo $sc['badge']; ?>">
+              <span class="status-badge text-xs font-bold px-2 py-1 rounded-full flex items-center <?php echo $sc['badge']; ?>">
                 <?php echo $sc['icon']; ?> <?php echo $sc['label']; ?>
               </span>
-              <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded <?php echo $tc['badge']; ?>">
-                <?php echo $tc['label']; ?>
+              <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded flex items-center <?php echo $tc['badge']; ?>">
+                <?php echo $typeSvg; ?><?php echo $tc['label']; ?>
               </span>
             </div>
             <div class="text-right">
@@ -381,7 +423,6 @@ body { font-family: 'Inter', sans-serif; background: #f8fafc; }
               <?php endif; ?>
             </div>
             <?php
-              // Show cancel button only for challenger's own future cancellable bookings
               $cancellable_statuses = ['confirmed', 'challenge_open', 'challenge_pending'];
               $can_cancel = ($bk['role'] === 'challenger')
                          && in_array(strtolower(trim($bk['status'])), $cancellable_statuses)
@@ -390,13 +431,13 @@ body { font-family: 'Inter', sans-serif; background: #f8fafc; }
             <?php if ($can_cancel): ?>
             <button
               onclick="openCancelModal(<?php echo $bk['id']; ?>, '<?php echo htmlspecialchars($bk['ground_title'], ENT_QUOTES, 'UTF-8'); ?>', '<?php echo date('D, d M Y', strtotime($bk['slot_date'])); ?>', '<?php echo htmlspecialchars(formatHourLabel(intval($bk['slot_hour'])), ENT_QUOTES, 'UTF-8'); ?>', <?php echo floatval($bk['amount_paid']); ?>, '<?php echo htmlspecialchars($bk['status'], ENT_QUOTES, 'UTF-8'); ?>', '<?php echo $bk['slot_date']; ?>', <?php echo intval($bk['slot_hour']); ?>)"
-              class="text-[11px] font-semibold text-red-600 border border-red-200 bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded-lg transition-all"
+              class="text-[11px] font-semibold text-red-600 border border-red-200 bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded-lg transition-all flex items-center gap-1"
               id="cancel-btn-<?php echo $bk['id']; ?>">
-              ✕ Cancel
+              <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+              Cancel
             </button>
             <?php endif; ?>
             <?php
-              // Show Accept button for incoming team challenges
               $can_accept_team = ($bk['role'] === 'opponent')
                               && ($bk['status'] === 'challenge_pending')
                               && $isUpcoming;
@@ -417,9 +458,10 @@ body { font-family: 'Inter', sans-serif; background: #f8fafc; }
                 'shareAdvance'   => round(floatval($bk['price']) * 0.25, 2),
                 'shareVenue'     => round(floatval($bk['price']) * 0.50, 2),
               ]), ENT_QUOTES, 'UTF-8'); ?>, this)"
-              class="text-[11px] font-bold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 active:from-orange-700 active:to-amber-700 px-3 py-1.5 rounded-lg transition-all shadow-sm flex items-center gap-1"
+              class="text-[11px] font-bold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 px-3 py-1.5 rounded-lg transition-all shadow-sm flex items-center gap-1"
               id="accept-btn-<?php echo $bk['id']; ?>">
-              ⚡ Accept Challenge
+              <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+              Accept Challenge
             </button>
             <?php endif; ?>
             <?php
@@ -442,7 +484,8 @@ body { font-family: 'Inter', sans-serif; background: #f8fafc; }
                 ]), ENT_QUOTES, 'UTF-8'); ?>)"
                 class="text-[11px] font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 shadow-2xs"
                 id="rate-btn-<?php echo $bk['id']; ?>">
-                ★ <?php echo intval($existing_rev['rating']); ?>/5 Rated <span class="text-[10px] font-normal text-amber-600 underline ml-0.5">Edit</span>
+                <svg class="w-3.5 h-3.5 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                <?php echo intval($existing_rev['rating']); ?>/5 Rated <span class="text-[10px] font-normal text-amber-600 underline ml-0.5">Edit</span>
               </button>
               <?php else: ?>
               <button
@@ -457,18 +500,28 @@ body { font-family: 'Inter', sans-serif; background: #f8fafc; }
                 ]), ENT_QUOTES, 'UTF-8'); ?>)"
                 class="text-[11px] font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 shadow-2xs"
                 id="rate-btn-<?php echo $bk['id']; ?>">
-                ⭐ Rate Ground
+                <svg class="w-3.5 h-3.5 text-amber-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                Rate Ground
               </button>
               <?php endif; ?>
             <?php elseif ($is_played && !$slot_ended): ?>
-            <span class="text-[10px] font-medium text-slate-400 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-md" title="Rating unlocks right after your match slot ends">
-              🕒 Rate after match
-            </span>
+            <span class="text-[10px] font-medium text-slate-400 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-md">Rate after match</span>
             <?php endif; ?>
           </div>
         </div>
         <?php endforeach; ?>
       </div>
+
+      <?php if (count($all_bookings) > $mh_page_size): ?>
+      <!-- Show More -->
+      <div class="p-4 border-t border-slate-100 text-center" id="mh-show-more-wrap">
+        <button id="mh-show-more-btn" onclick="mhLoadMore()"
+                class="inline-flex items-center gap-2 px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl shadow transition-all">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          Show More
+        </button>
+      </div>
+      <?php endif; ?>
     </div>
     <?php endif; ?>
   </main>
@@ -494,7 +547,7 @@ body { font-family: 'Inter', sans-serif; background: #f8fafc; }
         </button>
       </div>
       <div class="flex items-center gap-4 mt-2 text-xs opacity-90">
-        <span>📅 <span id="cm-date">--</span></span>
+        <span> <span id="cm-date">--</span></span>
         <span>⏰ <span id="cm-time">--</span></span>
       </div>
     </div>
@@ -503,7 +556,7 @@ body { font-family: 'Inter', sans-serif; background: #f8fafc; }
     <div class="p-6">
       <!-- Refund info box -->
       <div class="bg-red-50 border border-red-200 rounded-xl p-4 mb-5">
-        <div class="text-sm font-bold text-red-700 mb-2">💸 Refund Details</div>
+        <div class="text-sm font-bold text-red-700 mb-2"> Refund Details</div>
         <div class="flex justify-between text-sm mb-1.5">
           <span class="text-slate-500">Amount Paid</span>
           <span class="font-bold text-slate-800" id="cm-paid">-- PKR</span>
@@ -517,7 +570,7 @@ body { font-family: 'Inter', sans-serif; background: #f8fafc; }
 
       <!-- Warning -->
       <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700 mb-5" id="cm-warning">
-        ⚠️ This action cannot be undone.
+         This action cannot be undone.
       </div>
 
       <!-- Buttons -->
@@ -595,14 +648,14 @@ body { font-family: 'Inter', sans-serif; background: #f8fafc; }
       <div id="ac-msg-section" class="mb-4">
         <label class="block text-xs font-semibold text-slate-700 mb-1">Challenge Message</label>
         <div class="w-full border border-slate-200 bg-slate-50/70 rounded-xl px-3.5 py-2.5 text-sm text-slate-700 flex items-start gap-2">
-          <span class="text-amber-500 flex-shrink-0">💬</span>
+          <span class="text-amber-500 flex-shrink-0"></span>
           <span id="ac-message" class="font-medium text-slate-800"></span>
         </div>
       </div>
 
       <!-- Insufficient Wallet Warning -->
       <div id="ac-wallet-warning" class="hidden bg-rose-50 border border-rose-200 rounded-xl p-3 text-xs text-rose-700 mb-4">
-        ⚠️ Insufficient wallet balance. <a href="player_wallet.php" class="underline font-bold">Top up your wallet</a> to accept this challenge.
+         Insufficient wallet balance. <a href="player_wallet.php" class="underline font-bold">Top up your wallet</a> to accept this challenge.
       </div>
 
       <!-- Action Buttons -->
@@ -612,7 +665,7 @@ body { font-family: 'Inter', sans-serif; background: #f8fafc; }
         </button>
         <button onclick="confirmAcceptChallenge()" id="confirm-accept-btn"
                 class="flex-1 py-3 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 active:from-orange-700 active:to-amber-700 text-white text-sm font-bold rounded-xl shadow transition-all flex items-center justify-center gap-1.5">
-          ⚡ Pay 25% & Accept Challenge
+           Pay 25% & Accept Challenge
         </button>
       </div>
     </div>
@@ -708,11 +761,11 @@ function openCancelModal(bookingId, ground, date, time, amountPaid, status, slot
   // Calculate expected refund client-side for display
   let refund = 0;
   let policyNote = '';
-  let warning = '⚠️ This action cannot be undone.';
+  let warning = ' This action cannot be undone.';
 
   if (status === 'challenge_open' || status === 'challenge_pending') {
     refund = amountPaid;
-    policyNote = '✅ Full refund — no opponent has committed yet.';
+    policyNote = ' Full refund — no opponent has committed yet.';
   } else if (status === 'confirmed') {
     // Approximate: compare slot datetime vs now
     const slotMs = new Date(slotDate + 'T' + String(slotHour).padStart(2,'0') + ':00:00').getTime();
@@ -720,11 +773,11 @@ function openCancelModal(bookingId, ground, date, time, amountPaid, status, slot
     const hoursUntil = (slotMs - nowMs) / 3600000;
     if (hoursUntil > 24) {
       refund = amountPaid;
-      policyNote = '✅ Full refund — more than 24 hours before slot.';
+      policyNote = ' Full refund — more than 24 hours before slot.';
     } else {
       refund = Math.round(amountPaid * 0.5);
-      policyNote = '⚠️ 50% refund only — cancelling within 24 hours of slot time.';
-      warning = '⚠️ You will forfeit 50% of your payment as a late cancellation fee.';
+      policyNote = ' 50% refund only — cancelling within 24 hours of slot time.';
+      warning = ' You will forfeit 50% of your payment as a late cancellation fee.';
     }
   }
 
@@ -779,7 +832,7 @@ function openAcceptModal(data, btn) {
     confirmBtn.disabled = false;
     confirmBtn.classList.remove('opacity-50', 'cursor-not-allowed');
   }
-  confirmBtn.innerHTML = '⚡ Pay 25% & Accept Challenge';
+  confirmBtn.innerHTML = ' Pay 25% & Accept Challenge';
 
   document.getElementById('accept-overlay').classList.add('open');
 }
@@ -796,18 +849,22 @@ function confirmAcceptChallenge() {
   btn.disabled = true;
   btn.innerHTML = '<span class="inline-block animate-spin mr-1.5">⏳</span> Processing…';
 
+  const csrfToken = '<?php echo csrf_token(); ?>';
   fetch('accept_challenge.php', {
     method: 'POST',
-    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-    body: 'booking_id=' + encodeURIComponent(bookingId)
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'X-CSRF-Token': csrfToken
+    },
+    body: 'booking_id=' + encodeURIComponent(bookingId) + '&csrf_token=' + encodeURIComponent(csrfToken)
   })
   .then(r => r.json())
   .then(res => {
     closeAcceptModal();
     if (res.success) {
-      showToast('🎉 Challenge accepted! Match confirmed.', 'success');
+      showToast(' Challenge accepted! Match confirmed.', 'success');
       if (currentAcceptBtn) {
-        currentAcceptBtn.outerHTML = '<span class="text-[11px] font-bold text-blue-600 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-lg">🏆 Match Set</span>';
+        currentAcceptBtn.outerHTML = '<span class="text-[11px] font-bold text-blue-600 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-lg"> Match Set</span>';
       }
       
       // Update status badge in the row
@@ -816,7 +873,7 @@ function confirmAcceptChallenge() {
         const statusBadge = row.querySelector('.status-badge');
         if (statusBadge) {
           statusBadge.className = 'status-badge text-xs font-bold px-2 py-1 rounded-full bg-blue-100 text-blue-700';
-          statusBadge.textContent = '🏆 Match Set ✓';
+          statusBadge.textContent = ' Match Set ';
         }
       }
 
@@ -828,12 +885,12 @@ function confirmAcceptChallenge() {
         });
       }
     } else {
-      showToast('❌ ' + (res.message || 'Failed to accept challenge.'), 'error');
+      showToast(' ' + (res.message || 'Failed to accept challenge.'), 'error');
     }
   })
   .catch(() => {
     closeAcceptModal();
-    showToast('❌ Network error. Please try again.', 'error');
+    showToast(' Network error. Please try again.', 'error');
   });
 }
 
@@ -842,10 +899,14 @@ function confirmCancel() {
   btn.disabled = true;
   btn.textContent = 'Cancelling…';
 
+  const csrfToken = '<?php echo csrf_token(); ?>';
   fetch('cancel_booking.php', {
     method: 'POST',
-    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-    body: 'booking_id=' + cancelData.bookingId
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'X-CSRF-Token': csrfToken
+    },
+    body: 'booking_id=' + encodeURIComponent(cancelData.bookingId) + '&csrf_token=' + encodeURIComponent(csrfToken)
   })
   .then(r => r.json())
   .then(res => {
@@ -855,7 +916,7 @@ function confirmCancel() {
       // Update the cancel button to a cancelled badge
       const cancelBtn = document.getElementById('cancel-btn-' + cancelData.bookingId);
       if (cancelBtn) {
-        cancelBtn.outerHTML = '<span class="text-[11px] font-semibold text-red-500 bg-red-50 border border-red-200 px-2.5 py-1 rounded-lg">❌ Cancelled</span>';
+        cancelBtn.outerHTML = '<span class="text-[11px] font-semibold text-red-500 bg-red-50 border border-red-200 px-2.5 py-1 rounded-lg"> Cancelled</span>';
       }
       // Update the status badge in the row
       const row = document.querySelector('[data-booking-id="' + cancelData.bookingId + '"]');
@@ -863,7 +924,7 @@ function confirmCancel() {
         const statusBadge = row.querySelector('.status-badge');
         if (statusBadge) {
           statusBadge.className = 'status-badge text-xs font-bold px-2 py-1 rounded-full bg-red-100 text-red-700';
-          statusBadge.textContent = '❌ Cancelled';
+          statusBadge.textContent = ' Cancelled';
         }
         // Remove Upcoming badge if present
         const upcomingBadge = row.querySelector('.pulse-dot')?.parentElement;
@@ -875,13 +936,13 @@ function confirmCancel() {
         walletEls.forEach(el => { el.textContent = formatNum(res.new_balance) + ' PKR'; });
       }
     } else {
-      showToast('❌ ' + res.message, 'error');
+      showToast(' ' + res.message, 'error');
       btn.disabled = false;
       btn.textContent = 'Yes, Cancel';
     }
   })
   .catch(() => {
-    showToast('❌ Network error. Please try again.', 'error');
+    showToast(' Network error. Please try again.', 'error');
     btn.disabled = false;
     btn.textContent = 'Yes, Cancel';
   });
@@ -902,7 +963,7 @@ function formatNum(n) { return Math.round(n).toLocaleString('en-PK'); }
 // ---- Ground Rating Modal Logic ----
 let currentRatingData = null;
 let selectedRating = 0;
-const ratingLabels = ['', '1 - Poor 👎', '2 - Fair 😐', '3 - Good 👍', '4 - Very Good! 🔥', '5 - Outstanding! ⭐'];
+const ratingLabels = ['', '1 - Poor ', '2 - Fair ', '3 - Good ', '4 - Very Good! ', '5 - Outstanding! ⭐'];
 
 function openRatingModal(data) {
   currentRatingData = data;
@@ -973,7 +1034,7 @@ document.getElementById('rm-review')?.addEventListener('input', function() {
 function handleRatingSubmit(e) {
   e.preventDefault();
   if (selectedRating < 1 || selectedRating > 5) {
-    showToast('⚠️ Please select a rating between 1 and 5 stars.', 'error');
+    showToast(' Please select a rating between 1 and 5 stars.', 'error');
     return;
   }
 
@@ -1006,18 +1067,18 @@ function handleRatingSubmit(e) {
         currentRatingData.rating = selectedRating;
         currentRatingData.review = reviewText;
         rateBtn.className = 'text-[11px] font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 shadow-2xs';
-        rateBtn.innerHTML = `★ ${selectedRating}/5 Rated <span class="text-[10px] font-normal text-amber-600 underline ml-0.5">Edit</span>`;
+        rateBtn.innerHTML = ` ${selectedRating}/5 Rated <span class="text-[10px] font-normal text-amber-600 underline ml-0.5">Edit</span>`;
         rateBtn.setAttribute('onclick', `openRatingModal(${JSON.stringify(currentRatingData)})`);
       }
       closeRatingModal();
     } else {
-      showToast('❌ ' + (res.message || 'Unable to save review.'), 'error');
+      showToast(' ' + (res.message || 'Unable to save review.'), 'error');
       submitBtn.disabled = false;
       btnText.textContent = 'Try Again';
     }
   })
   .catch(() => {
-    showToast('❌ Network error. Please try again.', 'error');
+    showToast(' Network error. Please try again.', 'error');
     submitBtn.disabled = false;
     btnText.textContent = 'Try Again';
   });
@@ -1063,6 +1124,150 @@ document.addEventListener('click', function(e) {
 function toggleMobileMenu() {
   const menu = document.getElementById('mobileNavigationMenu');
   if (menu) menu.classList.toggle('hidden');
+}
+
+// ── Show More for Match History ──────────────────────────────────────────────
+const mhAllBookings = <?php echo json_encode(array_map(function($bk) use ($statusConfig, $typeConfig, $user_ratings) {
+    $sc = $statusConfig[$bk['status']] ?? ['badge'=>'bg-slate-100 text-slate-600','label'=>ucfirst($bk['status']),'icon'=>''];
+    $tc = $typeConfig[$bk['booking_type']] ?? ['badge'=>'bg-slate-100 text-slate-600','label'=>$bk['booking_type']];
+    $slot_start_time = strtotime($bk['slot_date'] . ' ' . sprintf('%02d:00:00', intval($bk['slot_hour'])));
+    $isUpcoming = ($slot_start_time > time()) && ($bk['status'] !== 'cancelled');
+    $slot_end_time = $slot_start_time + 3600;
+    $slot_ended = (time() >= $slot_end_time);
+    $is_played = in_array($bk['status'], ['confirmed', 'challenge_accepted']);
+    $existing_rev = $user_ratings[$bk['id']] ?? null;
+    $h = intval($bk['slot_hour']);
+    $suffix = $h < 12 ? 'AM' : 'PM';
+    $displayH = $h === 0 ? 12 : ($h > 12 ? $h - 12 : $h);
+    $nextH = $h + 1;
+    $nextDisp = $nextH === 0 ? 12 : ($nextH > 12 ? $nextH - 12 : ($nextH === 12 ? 12 : $nextH));
+    $nextSuf = $nextH < 12 ? 'AM' : 'PM';
+    $timeLabel = sprintf('%d:00 %s - %d:00 %s', $displayH, $suffix, $nextDisp, $nextSuf);
+    return [
+        'id' => $bk['id'], 'ground_title' => $bk['ground_title'],
+        'sport_type' => $bk['sport_type'] ?? '', 'slot_date' => $bk['slot_date'],
+        'slot_hour' => $bk['slot_hour'], 'time_label' => $timeLabel,
+        'amount_paid' => $bk['amount_paid'], 'price' => $bk['price'],
+        'status' => $bk['status'], 'booking_type' => $bk['booking_type'],
+        'role' => $bk['role'], 'challenger_name' => $bk['challenger_name'] ?? '',
+        'challenger_team_name' => $bk['challenger_team_name'] ?? '',
+        'challenger_city' => $bk['challenger_city'] ?? '',
+        'challenge_message' => $bk['challenge_message'] ?? '',
+        'address' => $bk['address'] ?? '',
+        'ground_id' => $bk['ground_id'],
+        'is_upcoming' => $isUpcoming, 'slot_ended' => $slot_ended, 'is_played' => $is_played,
+        'existing_rating' => $existing_rev ? intval($existing_rev['rating']) : null,
+        'sc_badge' => $sc['badge'], 'sc_label' => $sc['label'], 'sc_icon' => $sc['icon'],
+        'tc_badge' => $tc['badge'], 'tc_label' => $tc['label'],
+    ];
+}, $all_bookings)); ?>;
+
+const mhPageSize = 8;
+let mhOffset = mhPageSize;
+
+const sportSvgMap = {
+    'football':   '<svg class="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 2a10 10 0 00-6.26 17.84M12 2a10 10 0 016.26 17.84M4.93 7.5h14.14M3 12h18M4.93 16.5h14.14"/></svg>',
+    'cricket':    '<svg class="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M5 19L19 5M9 19l10-10M5 15l4-4"/></svg>',
+    'basketball': '<svg class="w-5 h-5 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path stroke-linecap="round" stroke-linejoin="round" d="M4.93 4.93a10 10 0 0014.14 14.14M4.93 19.07A10 10 0 0119.07 4.93M2 12h20M12 2v20"/></svg>',
+    'badminton':  '<svg class="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M17 3l4 4-9.5 9.5M14.5 14.5L5 21M12 7l5 5"/></svg>',
+    'futsal':     '<svg class="w-5 h-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><path stroke-linecap="round" stroke-linejoin="round" d="M9 3v18M15 3v18M3 9h18M3 15h18"/></svg>',
+};
+const bookingTypeSvgMap = {
+    'direct':         '<svg class="w-3.5 h-3.5 inline-block mr-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>',
+    'open_challenge': '<svg class="w-3.5 h-3.5 inline-block mr-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>',
+    'team_challenge': '<svg class="w-3.5 h-3.5 inline-block mr-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>',
+};
+const starSvg = '<svg class="w-3.5 h-3.5 text-amber-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>';
+
+function mhBuildRow(bk) {
+    const sport = (bk.sport_type || '').toLowerCase();
+    const sportSvg = sportSvgMap[sport] || '<svg class="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><circle cx="12" cy="12" r="10"/></svg>';
+    const typeSvg = bookingTypeSvgMap[bk.booking_type] || '';
+    const dateStr = new Date(bk.slot_date).toLocaleDateString('en-GB', {weekday:'short',day:'2-digit',month:'short',year:'numeric'});
+
+    let infoHtml = '';
+    if (bk.role === 'opponent' && bk.status === 'challenge_pending') {
+        infoHtml = `<div class="text-xs text-orange-600 font-medium mt-0.5 flex items-center gap-1"><svg class="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>Team Challenge from <strong>${bk.challenger_name||'Unknown'}</strong> — awaiting your acceptance</div>`;
+    } else if (bk.role === 'opponent') {
+        infoHtml = `<div class="text-xs text-blue-600 font-medium mt-0.5 flex items-center gap-1"><svg class="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>Accepted challenge from <strong>${bk.challenger_name||'Unknown'}</strong></div>`;
+    } else if (bk.challenger_team_name) {
+        infoHtml = `<div class="text-xs text-orange-600 font-medium mt-0.5 flex items-center gap-1"><svg class="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>Challenged: <strong>${bk.challenger_team_name}</strong></div>`;
+    }
+    if (bk.challenge_message) {
+        infoHtml += `<div class="mt-2 text-xs bg-amber-50 border border-amber-200/80 text-amber-900 px-3 py-1.5 rounded-lg flex items-start gap-1.5 max-w-md"><svg class="w-3.5 h-3.5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg><span class="italic font-medium">"${bk.challenge_message}"</span></div>`;
+    }
+
+    let actionsHtml = '';
+    const cancellable = ['confirmed','challenge_open','challenge_pending'];
+    if (bk.role === 'challenger' && cancellable.includes(bk.status) && bk.is_upcoming) {
+        actionsHtml += `<button onclick="openCancelModal(${bk.id},'${bk.ground_title}','${dateStr}','${bk.time_label}',${bk.amount_paid},'${bk.status}','${bk.slot_date}',${bk.slot_hour})" class="text-[11px] font-semibold text-red-600 border border-red-200 bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded-lg transition-all flex items-center gap-1" id="cancel-btn-${bk.id}"><svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>Cancel</button>`;
+    }
+    if (bk.role === 'opponent' && bk.status === 'challenge_pending' && bk.is_upcoming) {
+        const md = JSON.stringify({bookingId:bk.id,groundTitle:bk.ground_title,sportType:bk.sport_type,address:bk.address,slotDate:dateStr,slotTime:bk.time_label,challengerName:bk.challenger_name,challengerCity:bk.challenger_city,challengeMsg:bk.challenge_message,totalPrice:parseFloat(bk.price),shareAdvance:Math.round(parseFloat(bk.price)*0.25),shareVenue:Math.round(parseFloat(bk.price)*0.50)});
+        actionsHtml += `<button onclick='openAcceptModal(${md},this)' class="text-[11px] font-bold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 px-3 py-1.5 rounded-lg transition-all shadow-sm flex items-center gap-1" id="accept-btn-${bk.id}"><svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>Accept Challenge</button>`;
+    }
+    if (bk.is_played && bk.slot_ended) {
+        const rmd = JSON.stringify({bookingId:bk.id,groundId:bk.ground_id,groundTitle:bk.ground_title,slotDate:dateStr,slotTime:bk.time_label,rating:bk.existing_rating||0,review:''});
+        if (bk.existing_rating) {
+            actionsHtml += `<button onclick='openRatingModal(${rmd})' class="text-[11px] font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 shadow-2xs" id="rate-btn-${bk.id}">${starSvg} ${bk.existing_rating}/5 Rated <span class="text-[10px] font-normal text-amber-600 underline ml-0.5">Edit</span></button>`;
+        } else {
+            actionsHtml += `<button onclick='openRatingModal(${rmd})' class="text-[11px] font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 shadow-2xs" id="rate-btn-${bk.id}">${starSvg} Rate Ground</button>`;
+        }
+    } else if (bk.is_played && !bk.slot_ended) {
+        actionsHtml += `<span class="text-[10px] font-medium text-slate-400 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-md">Rate after match</span>`;
+    }
+
+    const priceDiff = parseFloat(bk.price) !== parseFloat(bk.amount_paid)
+        ? `<div class="text-[10px] text-slate-400">of ${Math.round(bk.price).toLocaleString('en-PK')} total</div>` : '';
+
+    return `<div class="booking-row p-5 flex flex-col sm:flex-row sm:items-center gap-4" data-booking-id="${bk.id}">
+      <div class="flex gap-4 items-start flex-1">
+        <div class="w-11 h-11 rounded-xl bg-slate-50 flex items-center justify-center flex-shrink-0 border border-slate-200">${sportSvg}</div>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="font-bold text-slate-800 text-sm">${bk.ground_title}</span>
+            ${bk.is_upcoming ? '<span class="flex items-center gap-1 text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block"></span>Upcoming</span>' : ''}
+          </div>
+          <div class="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
+            <svg class="w-3 h-3 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+            ${dateStr}
+            <svg class="w-3 h-3 text-slate-400 flex-shrink-0 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            ${bk.time_label}
+          </div>
+          ${infoHtml}
+        </div>
+      </div>
+      <div class="flex items-center gap-3 sm:flex-col sm:items-end sm:gap-2 flex-shrink-0">
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-bold px-2 py-1 rounded-full flex items-center ${bk.sc_badge}">${bk.sc_icon} ${bk.sc_label}</span>
+          <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded flex items-center ${bk.tc_badge}">${typeSvg}${bk.tc_label}</span>
+        </div>
+        <div class="text-right">
+          <div class="text-xs font-extrabold text-slate-800">${Math.round(bk.amount_paid).toLocaleString('en-PK')} PKR</div>
+          ${priceDiff}
+        </div>
+        ${actionsHtml}
+      </div>
+    </div>`;
+}
+
+function mhLoadMore() {
+    const btn = document.getElementById('mh-show-more-btn');
+    const list = document.getElementById('mh-list');
+    if (!list || !btn) return;
+    btn.disabled = true;
+    btn.innerHTML = '<svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Loading…';
+    const slice = mhAllBookings.slice(mhOffset, mhOffset + mhPageSize);
+    setTimeout(() => {
+        slice.forEach(bk => { list.insertAdjacentHTML('beforeend', mhBuildRow(bk)); });
+        mhOffset += mhPageSize;
+        if (mhOffset >= mhAllBookings.length) {
+            document.getElementById('mh-show-more-wrap').style.display = 'none';
+        } else {
+            btn.disabled = false;
+            btn.innerHTML = '<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg> Show More';
+        }
+    }, 150);
 }
 </script>
 

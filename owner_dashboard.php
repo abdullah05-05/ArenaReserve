@@ -422,7 +422,7 @@ try {
                         <!-- Rejection Reason Banner -->
                         <?php if ($venue['is_verified'] == 2 && !empty($venue['rejection_reason'])): ?>
                             <div class="bg-red-50 border-l-4 border-red-400 px-4 py-2.5">
-                                <p class="text-xs font-bold text-red-700 mb-0.5">❌ Rejected by Admin:</p>
+                                <p class="text-xs font-bold text-red-700 mb-0.5"> Rejected by Admin:</p>
                                 <p class="text-xs text-red-600"><?php echo htmlspecialchars($venue['rejection_reason']); ?></p>
                             </div>
                         <?php endif; ?>
@@ -430,7 +430,7 @@ try {
                         <!-- Block Reason Banner -->
                         <?php if ($venue['is_verified'] == 1 && ($venue['ground_status'] ?? '') === 'Blocked' && !empty($venue['block_reason'])): ?>
                             <div class="bg-amber-50 border-l-4 border-amber-400 px-4 py-2.5">
-                                <p class="text-xs font-bold text-amber-700 mb-0.5">🚫 Venue Blocked by Admin:</p>
+                                <p class="text-xs font-bold text-amber-700 mb-0.5"> Venue Blocked by Admin:</p>
                                 <p class="text-xs text-amber-700"><?php echo htmlspecialchars($venue['block_reason']); ?></p>
                                 <p class="text-[10px] text-amber-600 mt-1">Your venue is currently hidden from the public. Contact support to resolve this.</p>
                             </div>
@@ -456,7 +456,7 @@ try {
                                     $vRev = intval($venue['total_reviews'] ?? 0);
                                 ?>
                                 <div class="flex items-center gap-1 text-[11px] font-semibold <?php echo ($vRev > 0) ? 'text-amber-800 bg-amber-50 border border-amber-200' : 'text-slate-500 bg-slate-50 border border-slate-200'; ?> px-2 py-0.5 rounded-md shadow-2xs" title="<?php echo ($vRev > 0) ? number_format($vAvg, 1) . ' out of 5 stars based on ' . $vRev . ' review(s)' : 'No player ratings yet'; ?>">
-                                    <span class="text-amber-500">★</span>
+                                    <span class="text-amber-500"></span>
                                     <span><?php echo ($vRev > 0) ? number_format($vAvg, 1) : 'New'; ?></span>
                                     <?php if ($vRev > 0): ?>
                                     <span class="text-[9px] text-slate-400 font-normal">(<?php echo $vRev; ?>)</span>
@@ -534,8 +534,8 @@ try {
                     <span class="text-xs text-slate-500 font-medium">Unavailable (hidden)</span>
                 </div>
                 <div class="ml-auto flex gap-2">
-                    <button onclick="selectAllSlots(true)" class="text-[11px] font-semibold px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 transition-colors border border-emerald-200">✓ Select All</button>
-                    <button onclick="selectAllSlots(false)" class="text-[11px] font-semibold px-3 py-1.5 bg-slate-50 text-slate-600 rounded-lg hover:bg-slate-100 transition-colors border border-slate-200">✗ Deselect All</button>
+                    <button onclick="selectAllSlots(true)" class="text-[11px] font-semibold px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 transition-colors border border-emerald-200"> Select All</button>
+                    <button onclick="selectAllSlots(false)" class="text-[11px] font-semibold px-3 py-1.5 bg-slate-50 text-slate-600 rounded-lg hover:bg-slate-100 transition-colors border border-slate-200"> Deselect All</button>
                 </div>
             </div>
 
@@ -806,8 +806,8 @@ try {
                 <td class="py-2.5 px-3">
                     <select class="slot-type-select ${slotType === 'Peak' ? 'peak' : 'normal'}"
                         onchange="onSlotTypeChange(this, ${h})">
-                        <option value="Normal" ${slotType === 'Normal' ? 'selected' : ''}>🟢 Normal</option>
-                        <option value="Peak" ${slotType === 'Peak' ? 'selected' : ''}>🔥 Peak</option>
+                        <option value="Normal" ${slotType === 'Normal' ? 'selected' : ''}> Normal</option>
+                        <option value="Peak" ${slotType === 'Peak' ? 'selected' : ''}> Peak</option>
                     </select>
                 </td>
                 <td class="py-2.5 px-3">

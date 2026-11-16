@@ -377,7 +377,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <!-- Location Section -->
                         <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
                             <div class="flex items-center justify-between">
-                                <label class="block text-xs font-semibold text-slate-700">📍 Venue Location (Coordinates)</label>
+                                <label class="block text-xs font-semibold text-slate-700"> Venue Location (Coordinates)</label>
                                 <!-- Detected badge -->
                                 <span id="locationBadge" class="items-center gap-1.5 text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
                                     <svg class="h-3 w-3 inline-block" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
@@ -551,7 +551,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 const ind = document.getElementById('ind-' + i);
                 if (i < currentStep) {
                     ind.className = "w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs bg-emerald-600 text-white border-2 border-emerald-600";
-                    ind.textContent = "✓";
+                    ind.textContent = "";
                 } else if (i === currentStep) {
                     ind.className = "w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs bg-emerald-600 text-white border-2 border-emerald-600";
                     ind.textContent = i;
@@ -655,7 +655,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     // Reset button
                     document.getElementById('gpsIcon').outerHTML = '<svg id="gpsIcon" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>';
-                    document.getElementById('gpsLabel').textContent = '✓ GPS Detected';
+                    document.getElementById('gpsLabel').textContent = ' GPS Detected';
                     document.getElementById('autoDetectBtn').disabled = false;
                 },
                 function(error) {
@@ -687,7 +687,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         function showGpsError(msg) {
             const el = document.getElementById('gpsError');
-            el.textContent = '⚠ ' + msg;
+            el.textContent = ' ' + msg;
             el.classList.remove('hidden');
         }
         function hideGpsError() {
@@ -778,10 +778,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 // Add built-in Leaflet Layer Control (top-right switcher for Google Maps styles)
                 const baseLayers = {
-                    "🗺️ Google Maps (Default)": googleStreets,
-                    "🛰️ Google Satellite + Roads": googleHybrid,
-                    "📷 Google Satellite Only": googleSat,
-                    "⛰️ Google Terrain": googleTerrain
+                    " Google Maps (Default)": googleStreets,
+                    " Google Satellite + Roads": googleHybrid,
+                    " Google Satellite Only": googleSat,
+                    " Google Terrain": googleTerrain
                 };
                 L.control.layers(baseLayers, null, { position: 'topright' }).addTo(mapInstance);
 
@@ -947,20 +947,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div style="background:linear-gradient(135deg,#059669,#047857);padding:16px 20px;display:flex;align-items:center;justify-content:space-between;">
                 <div>
                     <div style="color:rgba(255,255,255,0.75);font-size:11px;font-family:Inter,sans-serif;">Interactive Map</div>
-                    <div style="color:white;font-size:16px;font-weight:700;font-family:Inter,sans-serif;">📍 Pin Your Venue Location</div>
+                    <div style="color:white;font-size:16px;font-weight:700;font-family:Inter,sans-serif;"> Pin Your Venue Location</div>
                 </div>
                 <button onclick="closeMapPicker()" style="background:rgba(255,255,255,0.2);border:none;border-radius:50%;width:36px;height:36px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:white;font-size:18px;" aria-label="Close map">&times;</button>
             </div>
 
             <!-- Instruction bar -->
             <div style="background:#f0fdf4;border-bottom:1px solid #d1fae5;padding:10px 20px;font-size:11px;color:#065f46;font-family:Inter,sans-serif;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;">
-                <div>🖱 <strong>Click anywhere</strong> on the map or <strong>drag the pin</strong> to set location.</div>
-                <div style="color:#047857;font-weight:600;">✨ Switch map layers (Street / Satellite / Clean) in the top-right corner</div>
+                <div> <strong>Click anywhere</strong> on the map or <strong>drag the pin</strong> to set location.</div>
+                <div style="color:#047857;font-weight:600;"> Switch map layers (Street / Satellite / Clean) in the top-right corner</div>
             </div>
 
             <!-- Search location bar -->
             <div style="padding:12px 16px 0;display:flex;gap:8px;">
-                <input id="mapSearchInput" type="text" placeholder="🔍 Search city, area, or landmark (e.g. DHA Karachi, Gulberg Lahore)..."
+                <input id="mapSearchInput" type="text" placeholder=" Search city, area, or landmark (e.g. DHA Karachi, Gulberg Lahore)..."
                        onkeydown="if(event.key==='Enter'){event.preventDefault();searchMapLocation();}"
                        style="flex:1;padding:8px 14px;border:1px solid #cbd5e1;border-radius:10px;font-size:12px;outline:none;font-family:Inter,sans-serif;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
                 <button type="button" onclick="searchMapLocation()"
@@ -982,7 +982,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div id="mapCoordDisplay" style="font-size:13px;font-weight:700;color:#0f172a;font-family:monospace;">—</div>
                     </div>
                     <button id="mapFillAddressBtn" onclick="" style="display:none;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#059669;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;padding:6px 12px;cursor:pointer;font-family:Inter,sans-serif;">
-                        ✎ Auto-fill address field
+                         Auto-fill address field
                     </button>
                 </div>
                 <div id="mapAddressPreview" style="margin-top:6px;font-size:11px;color:#64748b;font-family:Inter,sans-serif;min-height:18px;">Click the map to see address preview</div>
@@ -991,7 +991,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <!-- Modal Footer Buttons -->
             <div style="padding:14px 20px;display:flex;gap:10px;justify-content:flex-end;border-top:1px solid #e2e8f0;">
                 <button onclick="closeMapPicker()" style="padding:8px 20px;border:1px solid #cbd5e1;border-radius:10px;font-size:12px;font-weight:600;color:#475569;background:white;cursor:pointer;font-family:Inter,sans-serif;">Cancel</button>
-                <button onclick="confirmMapSelection()" style="padding:8px 24px;background:#059669;border:none;border-radius:10px;font-size:12px;font-weight:700;color:white;cursor:pointer;box-shadow:0 2px 8px rgba(5,150,105,0.3);font-family:Inter,sans-serif;">✓ Confirm Location</button>
+                <button onclick="confirmMapSelection()" style="padding:8px 24px;background:#059669;border:none;border-radius:10px;font-size:12px;font-weight:700;color:white;cursor:pointer;box-shadow:0 2px 8px rgba(5,150,105,0.3);font-family:Inter,sans-serif;"> Confirm Location</button>
             </div>
         </div>
     </div>

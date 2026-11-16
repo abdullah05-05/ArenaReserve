@@ -112,7 +112,7 @@ try {
     if ($info) {
         // In-app: challenger
         createNotification($pdo, $booking['booked_by'], 'challenge_accepted',
-            'Challenge Accepted! ⚡',
+            'Challenge Accepted! ',
             "{$info['opponent_name']} accepted your challenge at {$booking['ground_title']} on {$booking['slot_date']}. Both teams have paid 25% advance; pay remaining at venue.",
             'match_history.php'
         );
@@ -139,7 +139,7 @@ try {
 
     echo json_encode([
         'success'     => true,
-        'message'     => '🎉 Challenge accepted! 25% advance deducted from your wallet. Match confirmed. Pay remaining at venue.',
+        'message'     => ' Challenge accepted! 25% advance deducted from your wallet. Match confirmed. Pay remaining at venue.',
         'amount_paid' => $amount_to_charge,
         'booking_id'  => $booking_id
     ]);
